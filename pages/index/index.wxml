@@ -1,0 +1,328 @@
+<view class="page home-page">
+  <view class="header">
+    <view wx:if="{{pageMode === 'today_reviewed'}}" class="today-reviewed-hero">
+      <view class="today-reviewed-icon">✓</view>
+
+      <view class="today-reviewed-main">
+        <view class="today-reviewed-title">今日复习内容</view>
+        <view class="today-reviewed-subtitle">
+          今日已学习 {{todayReviewSummary.total}} 张
+        </view>
+      </view>
+    </view>
+
+    <block wx:if="{{pageMode !== 'today_reviewed'}}">
+      <view class="title">英语知识卡片本</view>
+
+      <view class="daily-message">{{dailyMessage}}</view>
+
+      <view class="status-bar">
+        <text class="status-bar-left">
+          <block wx:if="{{totalCardCount === 0}}">还没有卡片</block>
+          <block wx:elif="{{pendingCount > 0}}">待学习 {{pendingCount}} 张</block>
+          <block wx:else>今日任务已完成</block>
+        </text>
+        <text class="status-bar-right">
+          <block wx:if="{{totalCardCount === 0}}">添加后就可以开始复习</block>
+          <block wx:else>待加强 {{weakCount}} 张</block>
+        </text>
+      </view>
+
+    </block>
+
+    <view wx:if="{{pageMode !== 'today_reviewed' && !isManageMode}}" class="top-actions">
+      <block wx:if="{{totalCardCount === 0}}">
+        <button class="primary-btn primary-btn-full" bindtap="goToAddPage">添加第一张卡片</button>
+      </block>
+      <block wx:elif="{{pendingCount > 0}}">
+        <button class="secondary-btn" bindtap="goToAddPage">添加卡片</button>
+        <button class="primary-btn" bindtap="goToReviewPage">进入复习页</button>
+      </block>
+      <block wx:else>
+        <button class="secondary-btn" bindtap="goToAddPage">添加卡片</button>
+        <button class="primary-btn" bindtap="goToReviewPage">继续复习</button>
+      </block>
+    </view>
+
+    
+
+
+
+    
+
+<!-- 首页：原有快捷筛选 -->
+<view wx:if="{{pageMode !== 'today_reviewed' && !isManageMode}}" class="result-control-section home-control-section">
+  <view class="quick-filter-row">
+      <view
+      wx:for="{{quickFilterOptions}}"
+      wx:key="key"
+      class="quick-filter-pill quick-filter-{{item.key}} {{selectedQuickFilter === item.key ? 'quick-filter-pill-active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="onQuickFilterTap"
+    >
+      <text>{{item.label}}</text>
+      <text wx:if="{{item.count !== undefined}}" class="quick-filter-count">{{item.count}}</text>
+    </view>
+  </view>
+
+  <view class="list-toolbar">
+    <view class="list-counts">共 {{totalCardCount}} 张 · 当前 {{currentResultCount}} 张</view>
+    
+  </view>
+</view>
+
+<!-- 今日复习内容页：状态药丸 -->
+<view wx:if="{{pageMode === 'today_reviewed' && !isManageMode}}" class="result-control-section today-control-section">
+  <view class="today-quick-filter-row">
+    <block wx:for="{{quickFilterOptions}}" wx:key="key">
+      <view
+        class="quick-filter-pill today-filter-pill today-filter-{{item.key}} {{selectedQuickFilter === item.key ? 'quick-filter-pill-active today-filter-active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="onQuickFilterTap"
+      >
+        {{item.label}}
+        <text wx:if="{{item.count !== undefined}}" class="quick-filter-count">{{item.count}}</text>
+      </view>
+    </block>
+  </view>
+</view>
+
+
+<view class="search-row {{pageMode === 'today_reviewed' ? 'search-row-today' : ''}} {{showFixedSearch ? 'search-row-fixed' : ''}}">
+  <view class="search-box">
+    <text class="search-icon">⌕</text>
+
+    <input
+      wx:if="{{pageMode === 'today_reviewed'}}"
+      class="search-input"
+      type="text"
+      placeholder="搜索 {{totalCardCount}} 张复习卡片的英文内容、释义或备注"
+      value="{{searchKeyword}}"
+      bindinput="onSearchInput"
+    />
+
+    <input
+      wx:else
+      class="search-input"
+      type="text"
+      placeholder="搜索英文、理解、备注或复习信息"
+      value="{{searchKeyword}}"
+      bindinput="onSearchInput"
+    />
+
+    <view wx:if="{{searchKeyword}}" class="search-clear" bindtap="clearSearch">清空</view>
+
+      <view wx:if="{{!isManageMode}}" class="search-divider"></view>
+
+      <view
+        wx:if="{{!isManageMode}}"
+        class="search-filter-action {{showMoreFilters ? 'search-filter-action-active' : ''}}"
+        bindtap="toggleMoreFilters"
+      >
+        {{showMoreFilters ? '收起' : '筛选'}}
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{showFixedSearch}}" class="search-row-spacer"></view>
+
+
+<view wx:if="{{showMoreFilters && !isManageMode}}" class="filter-card {{pageMode === 'today_reviewed' ? 'today-filter-card' : 'home-filter-card'}}">
+  <view class="filter-grid">
+    <view class="filter-item">
+      <view class="filter-label">卡片类型</view>
+      <view class="filter-picker-row">
+        <picker
+          class="filter-picker"
+          mode="selector"
+          range="{{categoryFilterOptions}}"
+          value="{{categoryFilterIndex}}"
+          bindchange="onCategoryFilterChange"
+        >
+          <view class="picker-field">{{selectedCategoryFilter}}</view>
+        </picker>
+        <view class="filter-count">({{categoryCount}})</view>
+      </view>
+    </view>
+
+    <view class="filter-item">
+      <view class="filter-label">考试场景</view>
+      <view class="filter-picker-row">
+        <picker
+          class="filter-picker"
+          mode="selector"
+          range="{{examSceneFilterOptions}}"
+          value="{{examSceneFilterIndex}}"
+          bindchange="onExamSceneFilterChange"
+        >
+          <view class="picker-field">{{selectedExamSceneFilter}}</view>
+        </picker>
+        <view class="filter-count">({{examSceneCount}})</view>
+      </view>
+    </view>
+
+    <view class="filter-item">
+      <view class="filter-label">考试模块</view>
+      <view class="filter-picker-row">
+        <picker
+          class="filter-picker"
+          mode="selector"
+          range="{{examModuleFilterOptions}}"
+          value="{{examModuleFilterIndex}}"
+          bindchange="onExamModuleFilterChange"
+        >
+          <view class="picker-field">{{selectedExamModuleFilter}}</view>
+        </picker>
+        <view class="filter-count">({{examModuleCount}})</view>
+      </view>
+    </view>
+  </view>
+</view>
+
+
+
+  </view>
+
+  <view wx:if="{{isManageMode}}" class="manage-toolbar manage-toolbar-fixed">
+  <view class="manage-toolbar-title">已选 {{selectedCardIds.length}} 张卡片</view>
+  <view class="manage-toolbar-actions">
+    <button class="manage-btn" bindtap="selectAllCards">全选/取消</button>
+    <button class="manage-btn" bindtap="handleBatchAssignExamScene">批量设场景</button>
+    <button class="manage-btn" bindtap="handleBatchAssignExamModule">批量设模块</button>
+    <button class="manage-btn danger-btn" bindtap="handleBatchDelete">批量删除</button>
+    <button class="manage-btn" bindtap="exitManageMode">退出管理</button>
+  </view>
+</view>
+
+<view wx:if="{{isManageMode}}" class="manage-toolbar-spacer"></view>
+
+  <view class="list-section">
+    <view wx:if="{{pageMode === 'today_reviewed' && filteredCards.length === 0 && todayReviewSummary.total > 0}}" class="empty-state">
+      今天复习过的卡片暂时无法显示，可能被删除了。
+    </view>
+
+    <view wx:elif="{{pageMode === 'today_reviewed' && filteredCards.length === 0}}" class="empty-state">
+      今天还没有复习过任何卡片。
+    </view>
+
+    <view wx:elif="{{cards.length === 0}}" class="empty-state">
+      还没有卡片，先添加一张你想记住的英文内容吧。
+    </view>
+
+    <view wx:elif="{{filteredCards.length === 0}}" class="empty-state">
+      没有找到匹配的卡片，换个关键词或筛选条件试试。
+    </view>
+
+            <!-- 首页：普通卡片列表，不再按 A-Z 分组 -->
+    <block wx:if="{{pageMode !== 'today_reviewed'}}">
+      <block wx:for="{{filteredCards}}" wx:key="id">
+        <view
+          class="card-item home-card-item {{item.selected ? 'card-item-selected' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="openCard"
+          bindlongpress="onCardLongPress"
+        >
+          <view class="card-top-row">
+            <view class="card-tags">
+              <view class="card-tag card-tag-home">{{item.category || '单词'}}</view>
+            </view>
+
+            <view class="card-status-pill {{item.homeStatusClass}}">
+              {{item.homeStatusLabel || '未复习'}}
+            </view>
+          </view>
+
+          <view class="card-title">
+            {{item.englishPreview}}
+          </view>
+
+          <view wx:if="{{item.understandingPreview}}" class="card-desc">
+            {{item.understandingPreview}}
+          </view>
+
+          <view wx:if="{{item.notesPreview}}" class="card-note-preview">
+            {{item.notesPreview}}
+          </view>
+
+          <view class="card-meta">
+            <view class="card-meta-text">{{item.reviewCountText}}</view>
+
+            <view
+              wx:if="{{item.analysisStatusVisible}}"
+              class="analysis-status-pill {{item.analysisStatusClass}}"
+            >
+              {{item.analysisStatusLabel}}
+            </view>
+          </view>
+        </view>
+      </block>
+    </block>
+
+    <!-- 今日复习内容页：暂时保持原逻辑，不参与这次首页电梯改造 -->
+    <block wx:else>
+      <block wx:for="{{filteredCards}}" wx:key="id">
+        <view
+          class="card-item {{item.reviewAccentClass}} {{item.selected ? 'card-item-selected' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="openCard"
+          bindlongpress="onCardLongPress"
+        >
+          <view class="card-top-row">
+            <view class="card-tags">
+              <view class="card-tag">{{item.category || '单词'}}</view>
+            </view>
+
+            <view class="card-status-pill {{item.reviewStatusClass}}">
+              {{item.reviewDisplayLabel}}
+            </view>
+          </view>
+
+          <view class="card-title">
+            {{item.englishPreview}}
+          </view>
+
+          <view wx:if="{{item.understandingPreview}}" class="card-desc">
+            {{item.understandingPreview}}
+          </view>
+
+          <view wx:if="{{item.notesPreview}}" class="card-note-preview">
+            {{item.notesPreview}}
+          </view>
+
+          <view class="card-meta">
+            <view class="card-meta-text">{{item.reviewCountText}}</view>
+          </view>
+        </view>
+      </block>
+    </block>
+  </view>
+
+
+
+  <view
+    wx:if="{{showBackToTop && pageMode !== 'today_reviewed' && !isManageMode && !searchKeyword}}"
+    class="back-to-top-btn"
+    bindtap="scrollToHomeTop"
+  >
+    ↑ 顶部
+  </view>
+
+
+  <view wx:if="{{isBatchPanelVisible}}" class="batch-mask" bindtap="closeBatchPanel">
+    <view class="batch-panel" catchtap="noop">
+      <view class="batch-panel-title">{{batchPanelTitle}}</view>
+
+      <block wx:for="{{batchPanelOptions}}" wx:key="*this">
+        <view
+          class="batch-option"
+          data-value="{{item}}"
+          bindtap="onBatchPanelOptionTap"
+        >
+          {{item}}
+        </view>
+      </block>
+
+      <view class="batch-cancel" bindtap="closeBatchPanel">取消</view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,269 @@
+<view class="page {{totalCardCount === 0 ? 'page-empty' : ''}}">
+  <view wx:if="{{totalCardCount > 0 && allDone}}" class="header">
+    <view class="title">今日复习总结</view>
+  </view>
+
+
+  <!-- 检测到未完成复习进度：不直接恢复，交给用户选择 -->
+<view wx:if="{{hasUnfinishedSessionPrompt}}" class="resume-panel">
+  <view class="resume-title">继续上次复习？</view>
+  <view class="resume-desc">{{unfinishedSessionText}}</view>
+  <view class="resume-subdesc">可以接着上次的位置继续，也可以重新开始这一轮。</view>
+
+  <view class="resume-actions">
+    <button class="resume-primary-btn" bindtap="continueUnfinishedReview">
+      继续复习
+    </button>
+
+    <button class="resume-secondary-btn" bindtap="restartReviewSession">
+      重新开始
+    </button>
+  </view>
+</view>
+
+  <!-- 复习中：稳定翻牌式卡片 -->
+  <view wx:if="{{!hasUnfinishedSessionPrompt && totalCount > 0 && !allDone}}" class="task-card {{answerVisible ? 'task-card-open' : 'task-card-closed'}}">
+    <!-- 顶部眉批 -->
+    <view class="task-meta-row">
+      <view class="task-category">
+        {{currentCard.category || '单词'}}
+      </view>
+
+      <view class="task-progress">
+        {{currentTaskIndex + 1}} / {{totalCount}}
+      </view>
+    </view>
+
+    <!-- 英文区：固定高度；句子单独降字号并限制 3 行内部滚动 -->
+<view class="task-main {{currentCard.category === '句子' ? 'task-main-sentence' : ''}}">
+  <scroll-view
+    wx:if="{{currentCard.category === '句子'}}"
+    scroll-y
+    class="task-english-scroll"
+  >
+    <view class="task-english task-english-sentence">
+      {{currentCard.englishText}}
+    </view>
+  </scroll-view>
+
+  <view wx:else class="task-english">
+    {{currentCard.englishText}}
+  </view>
+</view>
+
+    <!-- 答案区：固定高度，始终占位 -->
+    <view class="task-answer-slot">
+      <block wx:if="{{answerVisible}}">
+        <scroll-view scroll-y class="task-answer-scroll">
+          <view class="task-answer-panel">
+            <!-- 我的理解 -->
+            <view class="task-answer-top">
+              <view class="task-answer-title">我的理解</view>
+
+              <text
+                wx:if="{{currentCard.myUnderstanding}}"
+                class="review-edit-btn"
+                bindtap="editCurrentCard"
+              >
+                ✎ 编辑
+              </text>
+            </view>
+
+            <scroll-view
+              wx:if="{{currentCard.myUnderstanding}}"
+              scroll-y
+              class="task-answer task-answer-limited"
+            >
+              <view>
+                {{currentCard.myUnderstanding}}
+              </view>
+            </scroll-view>
+
+            <view wx:else class="task-answer-placeholder" bindtap="editCurrentCard">
+              还没有补充理解，点这里补上
+            </view>
+
+            <!-- 补充备注：有内容才显示 -->
+            <view wx:if="{{currentCard.notes}}" class="task-notes">
+              <view class="task-notes-divider"></view>
+              <view class="task-label">补充备注</view>
+              <scroll-view scroll-y class="task-notes-text task-notes-limited">
+                <view>
+                  {{currentCard.notes}}
+                </view>
+              </scroll-view>
+            </view>
+          </view>
+        </scroll-view>
+      </block>
+    </view>
+  </view>
+
+  <!-- 卡片外操作区：查看答案 / 收起答案 -->
+  <view wx:if="{{!hasUnfinishedSessionPrompt && totalCount > 0 && !allDone}}" class="task-actions answer-toggle-actions">
+    <button
+      wx:if="{{!answerVisible}}"
+      class="action-btn reveal-btn"
+      bindtap="revealAnswer"
+    >
+      查看答案
+    </button>
+
+    <view
+      wx:else
+      class="review-collapse-text"
+      bindtap="hideAnswer"
+    >
+      ︿ 收起答案
+    </view>
+  </view>
+
+  <!-- 反馈按钮：只在查看答案后显示 -->
+  <view wx:if="{{!hasUnfinishedSessionPrompt && totalCount > 0 && !allDone && answerVisible}}" class="task-actions feedback-actions">
+    <button class="action-btn action-again" bindtap="submitReview" data-state="没记住">
+      <text class="action-icon">×</text>
+      <text>没记住</text>
+    </button>
+
+    <button class="action-btn action-hard" bindtap="submitReview" data-state="模糊">
+      <text class="action-icon">?</text>
+      <text>有点难</text>
+    </button>
+
+    <button class="action-btn action-good" bindtap="submitReview" data-state="记住了">
+      <text class="action-icon">✓</text>
+      <text>会了</text>
+    </button>
+
+    <button class="action-btn action-easy" bindtap="submitReview" data-state="太简单">
+      <text class="action-icon">★</text>
+      <text>太简单</text>
+    </button>
+  </view>
+
+  <!-- Zero-card empty state -->
+
+  <!-- Zero-card empty state -->
+  <view wx:if="{{totalCardCount === 0}}" class="empty-state">
+    <view class="empty-illustration">
+      <view class="empty-glow"></view>
+
+      <image
+        class="empty-illustration-img"
+        src="/images/empty-seedling.png"
+        mode="aspectFit"
+      />
+
+      <text class="sparkle sparkle-tl">✦</text>
+      <text class="sparkle sparkle-tr">✧</text>
+      <text class="sparkle sparkle-bl">✦</text>
+    </view>
+
+    <view class="empty-title">播下第一粒知识的种子</view>
+    <view class="empty-subtitle">添加第一张卡片，开启学习之旅</view>
+
+    <view class="empty-actions">
+      <button class="empty-primary-btn" bindtap="goToAddPage">
+        添加第一张卡片
+      </button>
+    </view>
+  </view>
+
+  <!-- Done panel: has cards, review done or no tasks today -->
+  <view wx:if="{{!hasUnfinishedSessionPrompt && totalCardCount > 0 && (allDone || totalCount === 0)}}" class="done-panel">
+    <view wx:if="{{reviewMode === 'extra'}}" class="done-title">这一轮复习完成了</view>
+    <view wx:else class="done-title">今日任务完成</view>
+
+    <view class="done-summary-panel">
+      <view class="done-summary-total">
+        今日总计复习：{{todayReviewSummary.total}} 张
+      </view>
+
+      <view class="done-ratio-row">
+        <view class="done-ratio-card">
+          <view class="done-ratio-num mastered">
+            {{masteredPercent}}%
+          </view>
+          <view class="done-ratio-label">已掌握</view>
+          <view class="done-ratio-bar">
+            <view
+              class="done-ratio-fill mastered-fill"
+              style="width: {{masteredPercentText}};"
+            ></view>
+          </view>
+        </view>
+
+        <view class="done-ratio-divider"></view>
+
+        <view class="done-ratio-card">
+          <view class="done-ratio-num need">
+            {{needStrengthenPercent}}%
+          </view>
+          <view class="done-ratio-label">需加强</view>
+          <view class="done-ratio-bar">
+            <view
+              class="done-ratio-fill need-fill"
+              style="width: {{needStrengthenPercentText}};"
+            ></view>
+          </view>
+        </view>
+      </view>
+
+      <view class="done-summary-grid">
+        <view class="done-summary-item">
+          <text class="done-summary-label">太简单</text>
+          <text class="done-summary-value">{{todayReviewSummary.easy}} 张</text>
+        </view>
+
+        <view class="done-summary-item">
+          <text class="done-summary-label">记住了</text>
+          <text class="done-summary-value">{{todayReviewSummary.good}} 张</text>
+        </view>
+
+        <view class="done-summary-item">
+          <text class="done-summary-label">有点难</text>
+          <text class="done-summary-value">{{todayReviewSummary.hard}} 张</text>
+        </view>
+
+        <view class="done-summary-item">
+          <text class="done-summary-label">没记住</text>
+          <text class="done-summary-value">{{todayReviewSummary.again}} 张</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="done-text" wx:if="{{reviewMode === 'today'}}">
+      本轮已完成，可以继续复习下一批。
+    </view>
+
+    <view class="done-text" wx:if="{{reviewMode === 'extra'}}">
+      这一轮已经完成了，想继续的话还可以再来一批。
+    </view>
+
+    <view class="done-actions">
+      <button
+        class="done-action-btn done-primary-btn"
+        bindtap="viewTodayReviewedContent"
+      >
+        <text class="done-btn-icon">▤</text>
+        <text>查看今日复习内容</text>
+      </button>
+
+      <button
+        class="done-action-btn done-secondary-btn"
+        bindtap="continueReview"
+      >
+        <text class="done-btn-icon">↻</text>
+        <text>继续复习</text>
+      </button>
+
+      <button
+        class="done-action-btn done-secondary-btn"
+        bindtap="viewHistoryReviewedContent"
+      >
+        <text class="done-btn-icon">◷</text>
+        <text>查看历史复习内容</text>
+      </button>
+    </view>
+  </view>
+</view>

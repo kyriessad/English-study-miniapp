@@ -1,0 +1,135 @@
+<view class="history-page">
+  <!-- 顶部标题区 -->
+  <view class="history-hero">
+    <view class="history-hero__icon">
+      <text class="history-hero__icon-text">◷</text>
+    </view>
+
+    <view class="history-hero__main">
+      <view class="history-hero__title">历史复习内容</view>
+    </view>
+  </view>
+
+  <!-- 当前时间段统计 -->
+  <view class="history-stats-card">
+    <view class="history-stats-title">当前时间段统计</view>
+
+    <view class="history-stats-row">
+      <view class="history-stats-item">
+        <view class="history-stats-value">{{stats.totalReviewsInRange}}</view>
+        <view class="history-stats-label">总复习次数</view>
+      </view>
+
+      <view class="history-stats-item">
+        <view class="history-stats-value">{{stats.totalCardsInRange}}</view>
+        <view class="history-stats-label">涉及卡片数</view>
+      </view>
+    </view>
+  </view>
+
+<!-- 时间范围筛选：整行可点击 -->
+<picker
+  mode="selector"
+  range="{{rangeOptions}}"
+  range-key="label"
+  value="{{rangeIndex}}"
+  bindchange="onRangeChange"
+>
+  <view class="history-range-select-card">
+    <view class="history-range-select-label">时间范围</view>
+
+    <view class="history-range-select-value">
+      <text>{{selectedRangeLabel}}</text>
+      <text class="history-range-select-arrow">▾</text>
+    </view>
+  </view>
+</picker>
+
+  <!-- 状态筛选 -->
+  <view class="history-quick-filters">
+    <block wx:for="{{quickFilterOptions}}" wx:key="key">
+      <view
+        class="history-quick-filter history-quick-filter--{{item.key}} {{selectedQuickFilter === item.key ? 'history-quick-filter--active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="onQuickFilterTap"
+      >
+        {{item.label}} {{item.count}}
+      </view>
+    </block>
+  </view>
+
+  <!-- 搜索栏 -->
+  <view class="history-search-card">
+    <view class="history-search-left">
+      <text class="history-search-icon">⌕</text>
+      <input
+        class="history-search-input"
+        value="{{searchKeyword}}"
+        placeholder="搜索 {{allSummaries.length}} 张复习卡片的英文内容、释义或备注"
+        placeholder-class="history-search-placeholder"
+        bindinput="onSearchInput"
+      />
+    </view>
+</view>
+
+<!-- 卡片列表：按复习日期分组 -->
+<view wx:if="{{filteredCards.length > 0}}" class="history-list">
+  <block wx:for="{{historyDateGroups}}" wx:key="dateKey" wx:for-item="group">
+    <view class="history-date-section">
+      <view class="history-date-title">{{group.title}}</view>
+
+      <block wx:for="{{group.cards}}" wx:key="cardId" wx:for-item="item">
+        <view
+          class="history-card history-card--{{item.resultTagType}}"
+          bindtap="openCard"
+          data-id="{{item.cardId}}"
+        >
+          <view class="history-card__content">
+            <view class="history-card__head">
+              <view class="history-card__tags">
+                <text class="history-meta-pill">{{item.category || '单词'}}</text>
+                <text class="history-meta-pill">{{item.examScene || '未分类'}}</text>
+                <text class="history-meta-pill">{{item.examModule || '未分类'}}</text>
+              </view>
+
+              <view class="history-result-tag history-result-tag--{{item.resultTagType}}">
+                {{item.lastResultText}}
+              </view>
+            </view>
+
+            <view class="history-card__title">{{item.englishText || '未填写英文内容'}}</view>
+
+            <view class="history-card__meaning">
+              {{item.myUnderstanding || '暂无我的理解'}}
+            </view>
+
+            <view class="history-card__meta">
+              <text>{{item.reviewCountText}}</text>
+              <text class="history-card__meta-separator">|</text>
+              <text>最后复习：{{item.lastReviewDisplay}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+  </block>
+</view>
+
+  <!-- 右侧快速滚动条：只提供拖动，不显示日期/A-Z -->
+  <view
+  wx:if="{{showHistoryFastScroll}}"
+  class="history-fast-scroll"
+  catchtouchstart="onHistoryFastScrollTouchStart"
+  catchtouchmove="onHistoryFastScrollTouchMove"
+>
+  <view class="history-fast-scroll-track">
+    <view class="history-fast-scroll-thumb" style="{{historyFastScrollThumbStyle}}"></view>
+  </view>
+</view>
+
+  <!-- 空状态 -->
+  <view wx:if="{{filteredCards.length === 0}}" class="history-empty">
+    <view class="history-empty-title">当前条件下还没有历史记录</view>
+    <view class="history-empty-desc">换个时间范围或状态筛选看看。</view>
+  </view>
+</view>

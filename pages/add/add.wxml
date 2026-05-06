@@ -1,0 +1,183 @@
+<view class="page">
+  <view class="form-card">
+
+    <view class="meta-pills">
+      <block wx:if="{{isReadonlyDetailMode}}">
+        <view class="meta-pill meta-pill-category meta-pill-readonly">
+          <text class="meta-pill-text">{{form.category}}</text>
+        </view>
+
+        <view class="meta-pill meta-pill-scene meta-pill-readonly">
+          <text class="meta-pill-text">{{form.examScene}}</text>
+        </view>
+
+        <view class="meta-pill meta-pill-module meta-pill-readonly">
+          <text class="meta-pill-text">{{form.examModule}}</text>
+        </view>
+      </block>
+
+      <block wx:else>
+        <picker
+          mode="selector"
+          range="{{categoryOptions}}"
+          value="{{categoryIndex}}"
+          bindchange="onCategoryChange"
+        >
+          <view class="meta-pill meta-pill-category">
+            <text class="meta-pill-text">{{form.category}}</text>
+            <text class="meta-pill-arrow">▾</text>
+          </view>
+        </picker>
+
+        <picker
+          mode="selector"
+          range="{{examSceneOptions}}"
+          value="{{examSceneIndex}}"
+          bindchange="onExamSceneChange"
+        >
+          <view class="meta-pill meta-pill-scene">
+            <text class="meta-pill-text">{{form.examScene}}</text>
+            <text class="meta-pill-arrow">▾</text>
+          </view>
+        </picker>
+
+        <picker
+          mode="selector"
+          range="{{examModuleOptions}}"
+          value="{{examModuleIndex}}"
+          bindchange="onExamModuleChange"
+        >
+          <view class="meta-pill meta-pill-module">
+            <text class="meta-pill-text">{{form.examModule}}</text>
+            <text class="meta-pill-arrow">▾</text>
+          </view>
+        </picker>
+      </block>
+    </view>
+
+    <view id="english-section" class="form-item">
+  <view class="label">英文内容</view>
+  <textarea
+      class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+      auto-height
+      disabled="{{isReadonlyDetailMode}}"
+      placeholder="输入要记录的英文"
+      value="{{form.englishText}}"
+      maxlength="-1"
+      bindinput="onEnglishInput"
+      bindblur="onEnglishBlur"
+    ></textarea>
+
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode}}" class="validation-text validation-{{englishValidationType}}">
+      {{englishValidationMessage}}
+    </view>
+</view>
+
+      <view
+        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && showSuggestion && (suggestionText || translating)}}"
+        class="form-item suggestion-box {{translating ? 'suggestion-box-loading' : ''}}"
+      >
+      <view class="suggestion-header">
+        <view class="suggestion-title">参考理解</view>
+        <view wx:if="{{suggestionText}}" class="accept-btn" bindtap="adoptUnderstandingReference">
+          采纳建议
+        </view>
+      </view>
+      <view class="suggestion-content">
+        {{translating ? '正在生成参考理解...' : suggestionText}}
+      </view>
+    </view>
+
+    <view class="form-item">
+  <view class="label">我的理解</view>
+      <textarea
+      class="textarea textarea-understanding {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+      auto-height
+      disabled="{{isReadonlyDetailMode}}"
+      placeholder="写下自己的理解"
+      value="{{form.myUnderstanding}}"
+      focus="{{autoFocusUnderstanding}}"
+      maxlength="-1"
+      bindfocus="onUnderstandingFocus"
+      bindinput="onUnderstandingInput"
+      bindblur="onUnderstandingBlur"
+    ></textarea>
+</view>
+
+    <view wx:if="{{deferNonCriticalReady}}" class="form-item">
+      <view class="label">补充备注</view>
+
+      <textarea
+        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        auto-height
+        disabled="{{isReadonlyDetailMode}}"
+        placeholder="来源 / 语境 / 易错点 / 例句 / 联想记忆等"
+        value="{{form.notes}}"
+        maxlength="-1"
+        bindinput="onNotesInput"
+      ></textarea>
+    </view>
+
+<!-- 复习页 / 今日复习内容：轻量编辑，只保留保存 -->
+<view
+  wx:if="{{isEdit && (isFromReviewMode || isFromTodayReviewedMode) && !isReadonlyDetailMode}}"
+  class="submit-actions"
+>
+    <button
+      class="primary-btn submit-btn"
+      type="primary"
+      disabled="{{isSaving}}"
+      bindtap="handleSubmitAndBack"
+    >
+      {{isSaving ? '保存中...' : '保存'}}
+    </button>
+</view>
+
+<!-- 首页进入：普通编辑，允许更新和删除 -->
+<view
+  wx:elif="{{isEdit && !isFromReviewMode && !isFromTodayReviewedMode && !isReadonlyDetailMode}}"
+  class="submit-actions"
+>
+    <button
+      class="primary-btn submit-btn"
+      type="primary"
+      disabled="{{isSaving}}"
+      bindtap="handleSubmitAndBack"
+    >
+      {{isSaving ? '更新中...' : '更新卡片'}}
+    </button>
+
+    <button
+      class="danger-btn submit-btn"
+      disabled="{{isSaving}}"
+      bindtap="handleDelete"
+    >
+      删除卡片
+    </button>
+</view>
+
+<!-- 新增卡片：允许保存并返回 / 继续新增 -->
+<view
+  wx:elif="{{!isEdit && !isReadonlyDetailMode}}"
+  class="submit-actions"
+>
+<button
+  class="primary-btn submit-btn"
+  type="primary"
+  disabled="{{isSaving}}"
+  bindtap="handleSubmitAndBack"
+>
+  {{isSaving ? '保存中...' : '保存并返回'}}
+</button>
+
+<button
+  class="secondary-btn submit-btn"
+  disabled="{{isSaving}}"
+  bindtap="handleSubmitAndContinue"
+>
+  {{isSaving ? '保存中...' : '保存并继续新增'}}
+</button>
+</view>
+
+  </view>
+</view>

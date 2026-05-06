@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/add/add",
+    "pages/review/review",
+    "pages/history_reviewed/history_index"
+  ],
+  "window": {
+    "navigationBarTitleText": "英语知识卡片本",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f8fa"
+  }
+}

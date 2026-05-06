@@ -1,0 +1,665 @@
+page {
+  min-height: 100%;
+  background: linear-gradient(180deg, #f5fbf7 0%, #f7f9fb 44%, #f6f7fb 100%);
+  color: #1f2937;
+}
+
+.history-page {
+  min-height: 100vh;
+  padding: 34rpx 32rpx 48rpx;
+  box-sizing: border-box;
+}
+
+/* 顶部标题区 */
+.history-hero {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  margin-bottom: 28rpx;
+}
+
+.history-hero__icon {
+  width: 78rpx;
+  height: 78rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(135deg, #50d08a 0%, #28b96e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14rpx 28rpx rgba(42, 185, 111, 0.22);
+}
+
+.history-hero__icon-text {
+  color: #ffffff;
+  font-size: 42rpx;
+  font-weight: 700;
+}
+
+.history-hero__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-hero__title {
+  font-size: 42rpx;
+  font-weight: 800;
+  color: #1f3742;
+  letter-spacing: 1rpx;
+}
+
+/* 统计卡 */
+.history-stats-card {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 26rpx;
+  padding: 26rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 12rpx 30rpx rgba(30, 75, 55, 0.06);
+}
+
+.history-stats-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1f3742;
+  margin-bottom: 22rpx;
+}
+
+.history-stats-row {
+  display: flex;
+  gap: 20rpx;
+}
+
+.history-stats-item {
+  flex: 1;
+  min-width: 0;
+  background: #f7fbf9;
+  border-radius: 20rpx;
+  padding: 24rpx 12rpx;
+  text-align: center;
+}
+
+.history-stats-value {
+  font-size: 42rpx;
+  line-height: 1.1;
+  font-weight: 800;
+  color: #2fa36a;
+  margin-bottom: 10rpx;
+}
+
+.history-stats-label {
+  font-size: 24rpx;
+  color: #7a8794;
+}
+
+
+/* 状态筛选 */
+.history-quick-filters {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18rpx;
+  margin-bottom: 22rpx;
+}
+
+.history-quick-filter {
+  min-width: 0;
+  padding: 16rpx 8rpx;
+  text-align: center;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6b7280;
+  font-size: 26rpx;
+  font-weight: 700;
+  border: 1rpx solid #e8edf0;
+  box-shadow: 0 6rpx 16rpx rgba(31, 41, 55, 0.03);
+}
+
+.history-quick-filter--active.history-quick-filter--all {
+  color: #1f9f61;
+  background: #eaf9f1;
+  border-color: #b9e9cf;
+}
+
+.history-quick-filter--active.history-quick-filter--again {
+  color: #e05262;
+  background: #fff5f6;
+  border-color: #f5ccd2;
+}
+
+.history-quick-filter--active.history-quick-filter--hard {
+  color: #e1971b;
+  background: #fff9e9;
+  border-color: #f4dfad;
+}
+
+.history-quick-filter--active.history-quick-filter--good {
+  color: #1f9f61;
+  background: #f0fbf5;
+  border-color: #b9e9cf;
+}
+
+/* 搜索栏 */
+.history-search-card {
+  height: 76rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.96);
+  display: flex;
+  align-items: center;
+  padding: 0 22rpx;
+  margin-bottom: 22rpx;
+  box-shadow: 0 10rpx 26rpx rgba(31, 41, 55, 0.05);
+  box-sizing: border-box;
+}
+
+.history-search-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.history-search-icon {
+  font-size: 34rpx;
+  color: #9aa5b1;
+  line-height: 1;
+}
+
+.history-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 76rpx;
+  font-size: 26rpx;
+  color: #1f2937;
+}
+
+.history-search-placeholder {
+  color: #a0a9b5;
+}
+
+.history-search-divider {
+  width: 1rpx;
+  height: 34rpx;
+  background: #e5e9ef;
+  margin: 0 18rpx;
+}
+
+.history-filter-entry {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  color: #239c61;
+  font-size: 27rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.history-filter-icon {
+  font-size: 24rpx;
+  transform: translateY(-1rpx);
+}
+
+/* 列表 */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+}
+
+.history-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24rpx;
+  overflow: hidden;
+  box-shadow: 0 10rpx 28rpx rgba(31, 41, 55, 0.045);
+}
+
+.history-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8rpx;
+  height: 100%;
+  background: #c7d0d8;
+}
+
+.history-card--again::before {
+  background: #ff5a6d;
+}
+
+.history-card--hard::before {
+  background: #f6a623;
+}
+
+.history-card--good::before {
+  background: #31c47a;
+}
+
+.history-card__content {
+  padding: 24rpx 26rpx 24rpx 30rpx;
+}
+
+.history-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.history-card__tags {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.history-meta-pill {
+  padding: 7rpx 15rpx;
+  border-radius: 999rpx;
+  background: #f3f6f8;
+  color: #657282;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+
+.history-result-tag {
+  flex-shrink: 0;
+  padding: 9rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.history-result-tag--again {
+  color: #e05262;
+  background: #fff0f2;
+  border: 1rpx solid #f4ccd2;
+}
+
+.history-result-tag--hard {
+  color: #e1971b;
+  background: #fff7e4;
+  border: 1rpx solid #f4dfad;
+}
+
+.history-result-tag--good {
+  color: #229e61;
+  background: #ecfaf2;
+  border: 1rpx solid #bdebd1;
+}
+
+.history-result-tag--default {
+  color: #6b7280;
+  background: #f3f6f8;
+  border: 1rpx solid #e7ebef;
+}
+
+.history-card__title {
+  font-size: 31rpx;
+  font-weight: 800;
+  color: #1f2937;
+  line-height: 1.4;
+  margin-bottom: 14rpx;
+  word-break: break-word;
+}
+
+.history-card__meaning {
+  font-size: 27rpx;
+  color: #4b5563;
+  line-height: 1.55;
+  word-break: break-word;
+  margin-bottom: 16rpx;
+}
+
+.history-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  font-size: 24rpx;
+  color: #8a96a8;
+  line-height: 1.5;
+}
+
+.history-card__meta-separator {
+  color: #c2c9d1;
+}
+
+/* 空状态 */
+.history-empty {
+  margin-top: 120rpx;
+  text-align: center;
+  color: #8a94a6;
+}
+
+.history-empty-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #4b5563;
+  margin-bottom: 12rpx;
+}
+
+.history-empty-desc {
+  font-size: 25rpx;
+}
+
+.history-range-select-card {
+  height: 76rpx;
+  margin-bottom: 22rpx;
+  padding: 0 26rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid #e5efe9;
+  box-shadow: 0 8rpx 20rpx rgba(31, 41, 55, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.history-range-select-label {
+  font-size: 26rpx;
+  color: #7a8794;
+  font-weight: 700;
+}
+
+.history-range-select-value {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8rpx;
+  font-size: 27rpx;
+  color: #239c61;
+  font-weight: 800;
+}
+
+.history-range-select-arrow {
+  font-size: 22rpx;
+  color: #58b986;
+  transform: translateY(-1rpx);
+}
+
+/* ===== 历史复习内容页最终收口：对齐今日复习内容页风格 ===== */
+
+page {
+  background: linear-gradient(180deg, #fbfcf7 0%, #f4f8ee 52%, #f8faf4 100%);
+  color: #263128;
+}
+
+.history-page {
+  padding: 34rpx 32rpx 56rpx;
+}
+
+.history-hero__icon {
+  background: linear-gradient(135deg, #78bd73 0%, #5eaa64 100%);
+  box-shadow: 0 14rpx 28rpx rgba(86, 126, 82, 0.18);
+}
+
+.history-hero__title {
+  color: #2f5f3a;
+}
+
+.history-stats-card,
+.history-range-select-card,
+.history-search-card,
+.history-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid #e7eee4;
+  box-shadow: 0 10rpx 26rpx rgba(86, 126, 82, 0.07);
+}
+
+.history-stats-card {
+  border-radius: 28rpx;
+}
+
+.history-stats-title {
+  color: #2f5f3a;
+}
+
+.history-stats-item {
+  background: #f7faf5;
+  border: 1rpx solid #edf3e9;
+}
+
+.history-stats-value {
+  color: #5eaa64;
+}
+
+.history-stats-label {
+  color: #8a9689;
+}
+
+.history-range-select-card,
+.history-search-card {
+  border-radius: 26rpx;
+}
+
+.history-range-select-label {
+  color: #748274;
+}
+
+.history-range-select-value {
+  color: #3f8b61;
+}
+
+.history-range-select-arrow {
+  color: #5eaa64;
+}
+
+.history-quick-filter {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: #dfe9dc;
+  color: #657465;
+  box-shadow: 0 6rpx 16rpx rgba(86, 126, 82, 0.04);
+}
+
+.history-quick-filter--active.history-quick-filter--all {
+  color: #3f7449;
+  background: #f0faf4;
+  border-color: #ccebd8;
+}
+
+.history-quick-filter--active.history-quick-filter--again {
+  color: #bd6b74;
+  background: #fff8f8;
+  border-color: #f1d4d8;
+}
+
+.history-quick-filter--active.history-quick-filter--hard {
+  color: #a7772e;
+  background: #fffaf0;
+  border-color: #efd9ab;
+}
+
+.history-quick-filter--active.history-quick-filter--good {
+  color: #3f8b61;
+  background: #f0faf4;
+  border-color: #ccebd8;
+}
+
+.history-search-icon {
+  color: #9aa89d;
+}
+
+.history-search-input {
+  color: #263128;
+}
+
+.history-search-placeholder {
+  color: #a0aaa2;
+}
+
+.history-card {
+  border-radius: 28rpx;
+}
+
+.history-card--again::before {
+  background: #d97980;
+}
+
+.history-card--hard::before {
+  background: #d7a24a;
+}
+
+.history-card--good::before {
+  background: #66af6a;
+}
+
+.history-card__content {
+  padding: 24rpx 26rpx 24rpx 32rpx;
+}
+
+.history-meta-pill {
+  background: #f3f7f2;
+  color: #758575;
+  font-weight: 700;
+}
+
+.history-result-tag--again {
+  color: #bd6b74;
+  background: #fff8f8;
+  border-color: #f1d4d8;
+}
+
+.history-result-tag--hard {
+  color: #a7772e;
+  background: #fffaf0;
+  border-color: #efd9ab;
+}
+
+.history-result-tag--good {
+  color: #3f8b61;
+  background: #f0faf4;
+  border-color: #ccebd8;
+}
+
+.history-card__title {
+  color: #263128;
+}
+
+.history-card__meaning {
+  color: #4d5a50;
+}
+
+.history-card__meta {
+  color: #99a398;
+}
+
+.history-card__meta-separator {
+  color: #d6ddd5;
+}
+
+/* 日期分组 */
+.history-date-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.history-date-title {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-self: flex-start;
+  padding: 8rpx 18rpx;
+  margin: 8rpx 0 0;
+  border-radius: 999rpx;
+  background: rgba(240, 250, 244, 0.96);
+  border: 1rpx solid #ccebd8;
+  color: #3f7449;
+  font-size: 24rpx;
+  font-weight: 800;
+  box-shadow: 0 6rpx 16rpx rgba(86, 126, 82, 0.06);
+}
+
+/* 右侧快速滚动条 */
+.history-fast-scroll {
+  position: fixed;
+  right: 10rpx;
+  top: 300rpx;
+  bottom: 150rpx;
+  width: 36rpx;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-fast-scroll-track {
+  position: relative;
+  width: 10rpx;
+  height: 100%;
+  border-radius: 999rpx;
+  background: rgba(116, 130, 116, 0.16);
+}
+
+.history-fast-scroll-thumb {
+  position: absolute;
+  left: 50%;
+  width: 30rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  transform: translate(-50%, -50%);
+  background: rgba(94, 170, 100, 0.82);
+  box-shadow: 0 8rpx 22rpx rgba(86, 126, 82, 0.22);
+}
+
+/* ===== 历史页卡片内容收口：对齐首页 / 今日复习内容页 ===== */
+
+/* 英文内容：最多 3 行，超出省略 */
+.history-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  font-size: 30rpx;
+  line-height: 1.42;
+  margin-bottom: 12rpx;
+  word-break: break-word;
+}
+
+/* 我的理解：最多 2 行，超出省略 */
+.history-card__meaning {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  font-size: 26rpx;
+  line-height: 1.52;
+  margin-bottom: 14rpx;
+  word-break: break-word;
+}
+
+/* 卡片整体稍微压缩一点，避免历史列表过松 */
+.history-card__content {
+  padding: 22rpx 24rpx 22rpx 30rpx;
+}
+
+/* 底部复习信息保持一行优先，空间不够再换行 */
+.history-card__meta {
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+/* 标签略微收紧 */
+.history-card__head {
+  margin-bottom: 12rpx;
+}
+
+.history-meta-pill {
+  padding: 6rpx 14rpx;
+  font-size: 22rpx;
+}
+
+.history-result-tag {
+  padding: 8rpx 17rpx;
+  font-size: 23rpx;
+}
