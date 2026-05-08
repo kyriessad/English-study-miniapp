@@ -9,6 +9,8 @@ const BACKEND_AUTH_STORAGE_KEYS = {
   loginAt: 'backendLoginAt'
 };
 
+let refreshPromise = null;
+
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
     return path;
@@ -17,6 +19,14 @@ function buildUrl(path) {
   const normalizedBase = BACKEND_BASE_URL.replace(/\/$/, '');
   const normalizedPath = path.charAt(0) === '/' ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}`;
+}
+
+function buildQueryString(params = {}) {
+  const pairs = Object.keys(params || {})
+    .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== '')
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`);
+
+  return pairs.length ? `?${pairs.join('&')}` : '';
 }
 
 function getAccessToken() {
@@ -28,7 +38,79 @@ function getAccessToken() {
   }
 }
 
-function buildHeaders(headers) {
+function getLocalTimezone() {
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (timezone) {
+        return timezone;
+      }
+    }
+  } catch (error) {
+    console.warn('[apiClient] Failed to resolve local timezone', error);
+  }
+
+  return 'Asia/Shanghai';
+}
+
+function updateAppBackendAuth(authState) {
+  try {
+    const app = typeof getApp === 'function' ? getApp() : null;
+
+    if (!app || !app.globalData) {
+      return;
+    }
+
+    app.globalData.backendUserId = authState.backendUserId || '';
+    app.globalData.backendAccessToken = authState.backendAccessToken || '';
+    app.globalData.backendLoginAt = authState.backendLoginAt || '';
+  } catch (error) {
+    console.warn('[apiClient] Failed to update app backend auth state', error);
+  }
+}
+
+function saveBackendAuth(authData) {
+  const authUser = authData && authData.user ? authData.user : {};
+  const backendUserId = String((authData && authData.user_id) || authUser.id || '');
+  const backendAccessToken = String((authData && authData.access_token) || '');
+
+  if (!backendUserId || !backendAccessToken) {
+    throw new Error('Backend login response missing user id or access token');
+  }
+
+  const backendLoginAt = new Date().toISOString();
+
+  wx.setStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId, backendUserId);
+  wx.setStorageSync(BACKEND_AUTH_STORAGE_KEYS.accessToken, backendAccessToken);
+  wx.setStorageSync(BACKEND_AUTH_STORAGE_KEYS.loginAt, backendLoginAt);
+
+  const authState = {
+    backendUserId,
+    backendAccessToken,
+    backendLoginAt
+  };
+
+  updateAppBackendAuth(authState);
+  return authState;
+}
+
+function clearBackendAuth() {
+  try {
+    wx.removeStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId);
+    wx.removeStorageSync(BACKEND_AUTH_STORAGE_KEYS.accessToken);
+    wx.removeStorageSync(BACKEND_AUTH_STORAGE_KEYS.loginAt);
+  } catch (error) {
+    console.warn('[apiClient] Failed to clear backend auth storage', error);
+  }
+
+  updateAppBackendAuth({
+    backendUserId: '',
+    backendAccessToken: '',
+    backendLoginAt: ''
+  });
+}
+
+function buildHeaders(headers, options = {}) {
   const mergedHeaders = Object.assign(
     {
       'content-type': 'application/json'
@@ -37,7 +119,12 @@ function buildHeaders(headers) {
   );
   const accessToken = getAccessToken();
 
-  if (accessToken && !mergedHeaders.Authorization && !mergedHeaders.authorization) {
+  if (
+    !options.skipAuthHeader &&
+    accessToken &&
+    !mergedHeaders.Authorization &&
+    !mergedHeaders.authorization
+  ) {
     mergedHeaders.Authorization = `Bearer ${accessToken}`;
   }
 
@@ -52,7 +139,7 @@ function normalizeRequestError(error) {
   };
 }
 
-function request(options) {
+function sendRequest(options) {
   const requestOptions = options || {};
 
   return new Promise((resolve, reject) => {
@@ -61,7 +148,7 @@ function request(options) {
         url: buildUrl(requestOptions.url || requestOptions.path || ''),
         method: requestOptions.method || 'GET',
         data: requestOptions.data || {},
-        header: buildHeaders(requestOptions.header || requestOptions.headers),
+        header: buildHeaders(requestOptions.header || requestOptions.headers, requestOptions),
         timeout: requestOptions.timeout || 10000,
         success(response) {
           if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -69,68 +156,177 @@ function request(options) {
             return;
           }
 
-          const normalizedError = normalizeRequestError({
+          reject(normalizeRequestError({
             errMsg: response.errMsg,
             statusCode: response.statusCode,
             data: response.data
-          });
-          reject(normalizedError);
+          }));
         },
         fail(error) {
-          const normalizedError = normalizeRequestError(error);
-          reject(normalizedError);
+          reject(normalizeRequestError(error));
         }
       });
     } catch (error) {
-      const normalizedError = normalizeRequestError(error);
-      reject(normalizedError);
+      reject(normalizeRequestError(error));
+    }
+  });
+}
+
+function requestWechatLoginCode() {
+  return new Promise((resolve, reject) => {
+    try {
+      wx.login({
+        success(response) {
+          if (response.code) {
+            resolve(response.code);
+            return;
+          }
+
+          reject(new Error('wx.login did not return a code'));
+        },
+        fail(error) {
+          reject(error);
+        }
+      });
+    } catch (error) {
+      reject(error);
     }
   });
 }
 
 function loginWithWechatCode(code) {
-  return request({
+  return sendRequest({
     url: '/api/auth/wechat-login',
     method: 'POST',
     data: {
-      code
-    }
+      code,
+      timezone: getLocalTimezone()
+    },
+    skipAuthHeader: true,
+    skipAuthRefresh: true
   });
 }
 
-async function createBackendCard(card) {
-  let token = '';
+function refreshBackendAuth() {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const code = await requestWechatLoginCode();
+    const authData = await loginWithWechatCode(code);
+    return saveBackendAuth(authData);
+  })()
+    .catch((error) => {
+      clearBackendAuth();
+      throw error;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
+async function request(options) {
+  const requestOptions = Object.assign({}, options || {});
 
   try {
-    token = wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.accessToken) || '';
+    return await sendRequest(requestOptions);
   } catch (error) {
-    console.warn('[backend-card] failed to read backendAccessToken, skip backend sync', error);
-  }
+    if (
+      error &&
+      error.statusCode === 401 &&
+      !requestOptions.skipAuthRefresh &&
+      !requestOptions._hasRetriedAuth
+    ) {
+      await refreshBackendAuth();
+      return sendRequest(Object.assign({}, requestOptions, { _hasRetriedAuth: true }));
+    }
 
-  if (!token) {
-    console.warn('[backend-card] missing backendAccessToken, skip backend sync');
-    return {
-      ok: false,
-      skipped: true,
-      reason: 'missing_token'
-    };
+    throw error;
   }
+}
 
+function getCurrentBackendUser() {
+  return request({
+    url: '/api/auth/me',
+    method: 'GET'
+  });
+}
+
+function listBackendCards(params = {}) {
+  return request({
+    url: `/api/cards${buildQueryString(params)}`,
+    method: 'GET'
+  });
+}
+
+function createBackendCard(card) {
   return request({
     url: '/api/cards',
     method: 'POST',
-    header: {
-      Authorization: `Bearer ${token}`
-    },
     data: card
+  });
+}
+
+function updateBackendCard(cardId, patch) {
+  return request({
+    url: `/api/cards/${encodeURIComponent(cardId)}`,
+    method: 'PATCH',
+    data: patch
+  });
+}
+
+function deleteBackendCard(cardId) {
+  return request({
+    url: `/api/cards/${encodeURIComponent(cardId)}`,
+    method: 'DELETE'
+  });
+}
+
+function getReviewOverview() {
+  return request({
+    url: '/api/reviews/overview',
+    method: 'GET'
+  });
+}
+
+function getTodayReview({ limit = 5, restart = false } = {}) {
+  return request({
+    url: `/api/reviews/today${buildQueryString({ limit, restart: restart ? 'true' : '' })}`,
+    method: 'GET'
+  });
+}
+
+function submitReviewFeedback({ session_id, session_item_id, card_id, result }) {
+  return request({
+    url: '/api/reviews/feedback',
+    method: 'POST',
+    data: {
+      session_id,
+      session_item_id,
+      card_id,
+      result
+    }
   });
 }
 
 module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
+  clearBackendAuth,
   getAccessToken,
-  request,
+  getCurrentBackendUser,
+  listBackendCards,
   loginWithWechatCode,
-  createBackendCard
+  refreshBackendAuth,
+  request,
+  saveBackendAuth,
+  createBackendCard,
+  updateBackendCard,
+  deleteBackendCard,
+  getReviewOverview,
+  getTodayReview,
+  submitReviewFeedback
 };

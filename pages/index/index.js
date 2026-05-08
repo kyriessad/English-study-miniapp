@@ -1,6 +1,6 @@
 const {
   getCards,
-  syncLocalCacheWithCloud,
+  refreshCardsCacheFromBackend,
   deleteCards,
   updateCardsMeta,
   DEFAULT_EXAM_SCENE,
@@ -16,6 +16,10 @@ const {
   EXAM_MODULE_OPTIONS
 } = require('../../utils/cardOptions');
 
+const {
+  getReviewOverview
+} = require('../../utils/apiClient');
+
 
 
 const DEFAULT_CATEGORY = '单词';
@@ -24,18 +28,19 @@ const EXAM_SCENE_FILTER_OPTIONS = ['全部'].concat(EXAM_SCENE_OPTIONS);
 const EXAM_MODULE_FILTER_OPTIONS = ['全部'].concat(EXAM_MODULE_OPTIONS);
 const BATCH_EXAM_SCENE_OPTIONS = EXAM_SCENE_OPTIONS.slice();
 const BATCH_EXAM_MODULE_OPTIONS = EXAM_MODULE_OPTIONS.slice();
-const CLOUD_SYNC_COOLDOWN_MS = 60 * 1000;
-let lastHomeCloudSyncAt = 0;
+const BACKEND_SYNC_COOLDOWN_MS = 60 * 1000;
+let lastHomeBackendSyncAt = 0;
 
 const HOME_QUICK_FILTER_OPTIONS = [
   { key: 'all', label: '全部' },
   { key: 'todo', label: '待学习' },
-  { key: 'weak', label: '待加强' },
+  { key: 'weak', label: '待巩固' },
   { key: 'mastered', label: '已掌握' }
 ];
 const retryingAnalysisCardIds = new Set();
 
 
+const PHASE2_REVIEW_STATES = ['new', 'strengthening', 'reviewing', 'mastered'];
 const TODAY_REVIEWED_QUICK_FILTER_OPTIONS = [
   { key: 'all', label: '全部' },
   { key: 'again', label: '没记住' },
@@ -289,7 +294,33 @@ function getTodayReviewDisplayLabel(card) {
   return getReviewStateLabel(card.reviewState);
 }
 
+function getCardPhase2ReviewState(card) {
+  const state = String(
+    card && (card.reviewStateV2 || card.review_state) || ''
+  ).trim();
+
+  return PHASE2_REVIEW_STATES.includes(state) ? state : '';
+}
+
+function isPhase2DueCard(card) {
+  const nextReviewAt = card && (card.nextReviewAt || card.next_review_at);
+
+  if (!nextReviewAt) {
+    return false;
+  }
+
+  const time = new Date(nextReviewAt).getTime();
+
+  return !Number.isNaN(time) && time <= Date.now();
+}
+
 function isHomeWeakCard(card) {
+  const phase2State = getCardPhase2ReviewState(card);
+
+  if (phase2State) {
+    return phase2State === 'strengthening';
+  }
+
   const lastResult = String(card && card.lastReviewResult || '').trim();
 
   if (lastResult === '没记住' || lastResult === '模糊') {
@@ -304,6 +335,12 @@ function isHomeWeakCard(card) {
 }
 
 function isHomeMasteredCard(card) {
+  const phase2State = getCardPhase2ReviewState(card);
+
+  if (phase2State) {
+    return phase2State === 'mastered';
+  }
+
   return (
     Number(card.reviewCount || 0) > 0 &&
     !isDueCard(card) &&
@@ -318,12 +355,22 @@ function isHomeMasteredCard(card) {
 }
 
 function isHomeTodoCard(card) {
+  const phase2State = getCardPhase2ReviewState(card);
+
+  if (phase2State) {
+    return phase2State === 'new' ||
+      (
+        isPhase2DueCard(card) &&
+        (phase2State === 'reviewing' || phase2State === 'mastered')
+      );
+  }
+
   return card.reviewState === '未复习' || isDueCard(card);
 }
 
 function getHomeReviewDisplayLabel(card) {
   if (isHomeWeakCard(card)) {
-    return '待加强';
+    return '待巩固';
   }
 
   if (isHomeTodoCard(card)) {
@@ -385,32 +432,38 @@ function matchesExactFilter(value, selectedValue, fallbackValue) {
 }
 
 function matchesQuickFilter(card, quickFilter) {
+  const phase2State = getCardPhase2ReviewState(card);
+
   if (quickFilter === 'all') {
     return true;
   }
 
   if (quickFilter === 'todo') {
+    if (phase2State) {
+      return phase2State === 'new' ||
+        (
+          isPhase2DueCard(card) &&
+          (phase2State === 'reviewing' || phase2State === 'mastered')
+        );
+    }
+
     return card.reviewState === '未复习' || isDueCard(card);
   }
 
   if (quickFilter === 'weak') {
+    if (phase2State) {
+      return phase2State === 'strengthening';
+    }
+
     return isHomeWeakCard(card);
   }
 
   if (quickFilter === 'mastered') {
-    const isWeak = isHomeWeakCard(card);
+    if (phase2State) {
+      return phase2State === 'mastered';
+    }
 
-    return (
-      Number(card.reviewCount || 0) > 0 &&
-      !isDueCard(card) &&
-      !isWeak &&
-      (
-        card.lastReviewResult === '记住了' ||
-        card.lastReviewResult === '太简单' ||
-        Number(card.goodCount || 0) >= 2 ||
-        Number(card.easyCount || 0) >= 1
-      )
-    );
+    return isHomeMasteredCard(card);
   }
 
   return true;
@@ -578,6 +631,12 @@ Page({
     pendingCount: 0,
     weakCount: 0,
     dailyMessage: '把卡住的英文留在这里，今天解决一点点。',
+    reviewOverview: null,
+    reviewOverviewTitle: '今日复习',
+    reviewOverviewMainText: '正在同步复习安排',
+    reviewOverviewSubText: '',
+    reviewOverviewNewText: '',
+    reviewOverviewError: ''
   },
 
   onShow() {
@@ -590,10 +649,13 @@ Page({
     const viewModePayload = this.consumeIndexViewMode();
   
     this.loadCards(viewModePayload, {
-      forceCloudSync: false
+      forceBackendRefresh: false,
+      onLocalCardsReady: () => {
+        this.triggerBackendLoginAfterHomeReady();
+      }
+    }).then(() => {
+      this.loadReviewOverview();
     });
-
-    this.triggerBackendLoginAfterHomeReady();
   },
 
   triggerBackendLoginAfterHomeReady() {
@@ -627,7 +689,8 @@ Page({
   async onPullDownRefresh() {
     try {
       wx.showNavigationBarLoading();
-      await this.loadCards(null, { forceCloudSync: true });
+      await this.loadCards(null, { forceBackendRefresh: true });
+      await this.loadReviewOverview();
     } finally {
       wx.hideNavigationBarLoading();
       wx.stopPullDownRefresh();
@@ -654,6 +717,59 @@ Page({
       todayReviewSummary,
       todayLearnedCount: Number(todayReviewSummary.total || 0)
     });
+  },
+
+  buildReviewOverviewDisplay(overview) {
+    const suggestedBatchSize = Number(overview && overview.suggested_batch_size || 5);
+    const strengtheningCount = Number(overview && overview.strengthening_count || 0);
+    const dueCount = Number(overview && overview.due_count || 0);
+    const todayRequiredCount = Number(overview && overview.today_required_count || (strengtheningCount + dueCount));
+    const newAvailableCount = Number(overview && overview.new_available_count || 0);
+
+    if (todayRequiredCount > 0) {
+      return {
+        mainText: `建议先完成 ${suggestedBatchSize} 张`,
+        subText: `有 ${todayRequiredCount} 张内容需要巩固或复习`,
+        newText: newAvailableCount > 0 ? `还有 ${newAvailableCount} 张新内容可逐步学习` : ''
+      };
+    }
+
+    if (newAvailableCount > 0) {
+      return {
+        mainText: '今天没有到期复习',
+        subText: `可以学习 ${suggestedBatchSize} 张新内容`,
+        newText: `还有 ${newAvailableCount} 张新内容可逐步学习`
+      };
+    }
+
+    return {
+      mainText: '今天没有到期复习',
+      subText: '可以先添加新内容，慢慢扩充卡片库',
+      newText: ''
+    };
+  },
+
+  async loadReviewOverview() {
+    try {
+      const overview = await getReviewOverview();
+      const display = this.buildReviewOverviewDisplay(overview);
+
+      this.setData({
+        reviewOverview: overview,
+        reviewOverviewMainText: display.mainText,
+        reviewOverviewSubText: display.subText,
+        reviewOverviewNewText: display.newText,
+        reviewOverviewError: ''
+      });
+    } catch (error) {
+      console.warn('[index] review overview failed, continue without CTA data', error);
+      this.setData({
+        reviewOverviewError: '今日复习安排暂时无法同步',
+        reviewOverviewMainText: '今日复习',
+        reviewOverviewSubText: '进入后会尝试从后端获取复习任务',
+        reviewOverviewNewText: ''
+      });
+    }
   },
 
   updateNavigationTitle(pageMode) {
@@ -729,25 +845,29 @@ Page({
       applyVisibleCards(localCards);
       this.computePendingCount(localCards);
 
-      if (options.skipCloudSync === true) {
+      if (typeof options.onLocalCardsReady === 'function') {
+        options.onLocalCardsReady(localCards);
+      }
+
+      if (options.skipBackendRefresh === true) {
         return;
       }
       
-      const shouldSyncCloud = options.forceCloudSync === true ||
-        Date.now() - lastHomeCloudSyncAt >= CLOUD_SYNC_COOLDOWN_MS;
+      const shouldSyncBackend = options.forceBackendRefresh === true ||
+        Date.now() - lastHomeBackendSyncAt >= BACKEND_SYNC_COOLDOWN_MS;
       
-      if (!shouldSyncCloud) {
+      if (!shouldSyncBackend) {
         return;
       }
       
       try {
-        const freshCards = await syncLocalCacheWithCloud();
-        lastHomeCloudSyncAt = Date.now();
+        const freshCards = await refreshCardsCacheFromBackend();
+        lastHomeBackendSyncAt = Date.now();
         applyVisibleCards(freshCards);
         this.computePendingCount(freshCards);
         this.retryFailedAnalysisInBackground(freshCards);
       } catch (syncError) {
-        console.warn('[index] cloud sync failed, continue with local cards', syncError);
+        console.warn('[index] backend cards refresh failed, continue with cached cards', syncError);
       }
     } catch (error) {
       wx.showToast({

@@ -1,4 +1,12 @@
-const STORAGE_KEY = 'englishKnowledgeCards';
+const {
+  createBackendCard,
+  deleteBackendCard,
+  listBackendCards,
+  updateBackendCard
+} = require('./apiClient');
+
+const STORAGE_KEY = 'cardsCache';
+const LEGACY_STORAGE_KEY = 'englishKnowledgeCards';
 const COLLECTION_NAME = 'englishKnowledgeCards';
 const FETCH_LIMIT = 20;
 const REVIEW_BATCH_SIZE = 5;
@@ -8,12 +16,40 @@ const SYNC_STATUS_PENDING = 'pending';
 const SYNC_STATUS_FAILED = 'failed';
 const SYNC_STATUS_PENDING_DELETE = 'pending_delete';
 
+const BACKEND_SYNC_STATUS_PENDING = 'pending';
+const BACKEND_SYNC_STATUS_SYNCED = 'synced';
+const BACKEND_SYNC_STATUS_FAILED = 'failed';
+
 const cloudSyncTasksByCardId = new Map();
 let backgroundCloudRefreshPromise = null;
+let backgroundBackendRefreshPromise = null;
 let backgroundFlushPromise = null;
 let backgroundRetryTimer = null;
 
 const BACKGROUND_RETRY_DELAY = 8000;
+
+const BACKEND_CATEGORY_TO_CARD_TYPE = {
+  '\u5355\u8bcd': 'word',
+  '\u77ed\u8bed': 'phrase',
+  '\u53e5\u5b50': 'sentence'
+};
+const BACKEND_CARD_TYPE_TO_CATEGORY = {
+  word: '\u5355\u8bcd',
+  phrase: '\u77ed\u8bed',
+  sentence: '\u53e5\u5b50'
+};
+const BACKEND_REVIEW_RESULT_TO_STATE = {
+  again: '\u6ca1\u8bb0\u4f4f',
+  hard: '\u6a21\u7cca',
+  good: '\u8bb0\u4f4f\u4e86',
+  easy: '\u592a\u7b80\u5355',
+  forgot: '\u6ca1\u8bb0\u4f4f',
+  shaky: '\u6a21\u7cca',
+  got_it: '\u8bb0\u4f4f\u4e86',
+  fluent: '\u592a\u7b80\u5355'
+};
+const PHASE2_REVIEW_STATES = ['new', 'strengthening', 'reviewing', 'mastered'];
+const BACKEND_INITIAL_REVIEW_STATE = '\u672a\u590d\u4e60';
 
 const DEFAULT_CATEGORY = '单词';
 const DEFAULT_EXAM_SCENE = '未分类';
@@ -200,6 +236,16 @@ function padNumber(value) {
 
 function trimValue(value) {
   return String(value || '').trim();
+}
+
+function pickFirstDefinedValue(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+
+  return '';
 }
 
 function getTodayDateKey(date = new Date()) {
@@ -617,6 +663,208 @@ function createTimeInfo(date = new Date()) {
   };
 }
 
+function parseBackendDate(value, fallback = new Date()) {
+  const date = value ? new Date(value) : fallback;
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function mapCategoryToBackendCardType(category) {
+  return BACKEND_CATEGORY_TO_CARD_TYPE[trimValue(category)] || 'word';
+}
+
+function mapBackendCardTypeToCategory(cardType) {
+  return BACKEND_CARD_TYPE_TO_CATEGORY[trimValue(cardType)] || DEFAULT_CATEGORY;
+}
+
+function mapBackendReviewResult(result) {
+  return BACKEND_REVIEW_RESULT_TO_STATE[trimValue(result)] || '';
+}
+
+function getBackendAnalysisLevelFromLocal(card = {}) {
+  if (Array.isArray(card.analysisErrors) && card.analysisErrors.length > 0) {
+    return 'error';
+  }
+
+  if (Array.isArray(card.analysisWarnings) && card.analysisWarnings.length > 0) {
+    return 'warning';
+  }
+
+  return 'pass';
+}
+
+function buildBackendAnalysisMessagesFromLocal(card = {}) {
+  return []
+    .concat(Array.isArray(card.analysisErrors) ? card.analysisErrors : [])
+    .concat(Array.isArray(card.analysisWarnings) ? card.analysisWarnings : [])
+    .map((item) => trimValue(item))
+    .filter(Boolean);
+}
+
+function buildBackendCardCreatePayload(form = {}) {
+  const fields = buildCardFields(form, {});
+  const localTempId = trimValue(form.local_temp_id || form.localTempId || '') || createLocalTempId();
+
+  return {
+    local_temp_id: localTempId,
+    content: trimValue(fields.englishText),
+    card_type: mapCategoryToBackendCardType(fields.category),
+    exam_scene: trimValue(fields.examScene) || null,
+    exam_module: trimValue(fields.examModule) || null,
+    understanding: trimValue(fields.myUnderstanding) || null,
+    note: trimValue(fields.notes) || null,
+    analysis_status: trimValue(fields.analysisStatus) || 'pending',
+    analysis_level: getBackendAnalysisLevelFromLocal(fields),
+    analysis_messages: buildBackendAnalysisMessagesFromLocal(fields),
+    understanding_source: trimValue(fields.understandingSource) || 'user'
+  };
+}
+
+function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
+  const fields = buildCardFields(form, fallbackCard);
+
+  return {
+    content: trimValue(fields.englishText),
+    card_type: mapCategoryToBackendCardType(fields.category),
+    exam_scene: trimValue(fields.examScene) || null,
+    exam_module: trimValue(fields.examModule) || null,
+    understanding: trimValue(fields.myUnderstanding) || null,
+    note: trimValue(fields.notes) || null
+  };
+}
+
+function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
+  const now = new Date();
+  const createdDate = parseBackendDate(backendCard.created_at, now);
+  const updatedDate = parseBackendDate(backendCard.updated_at, createdDate);
+  const createdInfo = createTimeInfo(createdDate);
+  const updatedInfo = createTimeInfo(updatedDate);
+  const analysisMessages = Array.isArray(backendCard.analysis_messages)
+    ? backendCard.analysis_messages
+    : [];
+  const analysisLevel = trimValue(backendCard.analysis_level);
+  const reviewCount = Math.max(Number(backendCard.review_count || 0), 0);
+  const lastReviewResult = mapBackendReviewResult(backendCard.last_review_result);
+
+  return normalizeCard({
+    ...fallbackCard,
+    id: trimValue(backendCard.id || fallbackCard.id),
+    local_temp_id: trimValue(backendCard.local_temp_id || fallbackCard.local_temp_id || ''),
+    backend_card_id: trimValue(backendCard.id || fallbackCard.backend_card_id || ''),
+    backend_sync_status: BACKEND_SYNC_STATUS_SYNCED,
+    backend_synced_at: new Date().toISOString(),
+    backend_sync_error: '',
+    category: mapBackendCardTypeToCategory(backendCard.card_type),
+    examScene: trimValue(backendCard.exam_scene || DEFAULT_EXAM_SCENE),
+    examModule: trimValue(backendCard.exam_module || DEFAULT_EXAM_MODULE),
+    englishText: trimValue(backendCard.content),
+    myUnderstanding: trimValue(backendCard.understanding || ''),
+    notes: trimValue(backendCard.note || ''),
+    reviewState: reviewCount > 0
+      ? (lastReviewResult || fallbackCard.reviewState || BACKEND_INITIAL_REVIEW_STATE)
+      : BACKEND_INITIAL_REVIEW_STATE,
+    reviewCount,
+    lastReviewedAt: toIsoString(backendCard.last_reviewed_at),
+    nextReviewAt: toIsoString(backendCard.next_review_at),
+    masteryLevel: Math.max(Number(backendCard.mastery_level || fallbackCard.masteryLevel || 0), 0),
+    againCount: Math.max(Number(backendCard.again_count || 0), 0),
+    hardCount: Math.max(Number(backendCard.hard_count || 0), 0),
+    goodCount: Math.max(Number(backendCard.good_count || 0), 0),
+    easyCount: Math.max(Number(backendCard.easy_count || 0), 0),
+    lastReviewResult,
+    reviewStateV2: trimValue(pickFirstDefinedValue(
+      backendCard.review_state,
+      fallbackCard.reviewStateV2,
+      fallbackCard.review_state,
+      'new'
+    )),
+    masteryScore: Math.max(Number(pickFirstDefinedValue(
+      backendCard.mastery_score,
+      fallbackCard.masteryScore,
+      fallbackCard.mastery_score,
+      0
+    )), 0),
+    recoveryStage: Math.max(Number(pickFirstDefinedValue(
+      backendCard.recovery_stage,
+      fallbackCard.recoveryStage,
+      fallbackCard.recovery_stage,
+      0
+    )), 0),
+    forgotCount: Math.max(Number(pickFirstDefinedValue(
+      backendCard.forgot_count,
+      fallbackCard.forgotCount,
+      fallbackCard.forgot_count,
+      0
+    )), 0),
+    shakyCount: Math.max(Number(pickFirstDefinedValue(
+      backendCard.shaky_count,
+      fallbackCard.shakyCount,
+      fallbackCard.shaky_count,
+      0
+    )), 0),
+    gotItCount: Math.max(Number(pickFirstDefinedValue(
+      backendCard.got_it_count,
+      fallbackCard.gotItCount,
+      fallbackCard.got_it_count,
+      0
+    )), 0),
+    fluentCount: Math.max(Number(pickFirstDefinedValue(
+      backendCard.fluent_count,
+      fallbackCard.fluentCount,
+      fallbackCard.fluent_count,
+      0
+    )), 0),
+    syncStatus: SYNC_STATUS_SYNCED,
+    syncError: '',
+    deleted: Boolean(backendCard.deleted_at),
+    date: updatedInfo.date,
+    time: updatedInfo.time,
+    dateTime: updatedInfo.dateTime,
+    updatedLabel: updatedInfo.updatedLabel,
+    createdAt: createdInfo.timestamp,
+    updatedAt: updatedInfo.timestamp,
+    analysisStatus: trimValue(backendCard.analysis_status || ''),
+    analysisWarnings: analysisLevel === 'warning' ? analysisMessages : [],
+    analysisErrors: analysisLevel === 'error' ? analysisMessages : [],
+    analysisSource: 'backend',
+    understandingSource: trimValue(backendCard.understanding_source || ''),
+    analyzedAt: toIsoString(backendCard.updated_at)
+  });
+}
+
+function upsertCachedCard(card) {
+  const normalizedCard = normalizeCard(card);
+  const normalizedId = normalizeCardId(normalizedCard.id);
+  const normalizedBackendId = trimValue(normalizedCard.backend_card_id || '');
+  const normalizedLocalTempId = trimValue(normalizedCard.local_temp_id || '');
+
+  const nextCards = getStoredCardsRaw().filter((item) => {
+    const itemId = normalizeCardId(item && item.id);
+    const itemBackendId = trimValue(item && item.backend_card_id || '');
+    const itemLocalTempId = trimValue(item && item.local_temp_id || '');
+
+    return !(
+      (normalizedId && itemId === normalizedId) ||
+      (normalizedBackendId && itemBackendId === normalizedBackendId) ||
+      (normalizedLocalTempId && itemLocalTempId === normalizedLocalTempId)
+    );
+  });
+
+  saveLocalCards([normalizedCard].concat(nextCards));
+  return normalizedCard;
+}
+
+function removeCachedCards(cardIds = []) {
+  const idSet = new Set((cardIds || []).map(normalizeCardId).filter(Boolean));
+
+  if (idSet.size === 0) {
+    return getLocalCards();
+  }
+
+  const nextCards = getStoredCardsRaw().filter((card) => !idSet.has(normalizeCardId(card && card.id)));
+  saveLocalCards(nextCards);
+  return getLocalCards();
+}
+
 function sortCards(cards) {
   return (cards || []).slice().sort((left, right) => {
     const leftTime = left.updatedAt || left.createdAt || 0;
@@ -788,6 +1036,29 @@ function createInitialSyncFields() {
   };
 }
 
+function createInitialBackendSyncFields() {
+  return {
+    backend_card_id: '',
+    backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+    backend_synced_at: '',
+    backend_sync_error: ''
+  };
+}
+
+function normalizeBackendSyncStatus(status) {
+  const normalizedStatus = trimValue(status);
+
+  if (
+    normalizedStatus === BACKEND_SYNC_STATUS_PENDING ||
+    normalizedStatus === BACKEND_SYNC_STATUS_SYNCED ||
+    normalizedStatus === BACKEND_SYNC_STATUS_FAILED
+  ) {
+    return normalizedStatus;
+  }
+
+  return '';
+}
+
 function normalizeStringArray(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -952,6 +1223,12 @@ function normalizeCard(card) {
     syncStatus: trimValue(source.syncStatus || SYNC_STATUS_SYNCED),
     syncError: trimValue(source.syncError || ''),
     deleted: Boolean(source.deleted),
+    backend_card_id: trimValue(source.backend_card_id || source.backendCardId || ''),
+    backend_sync_status: normalizeBackendSyncStatus(
+      source.backend_sync_status || source.backendSyncStatus || ''
+    ),
+    backend_synced_at: toIsoString(source.backend_synced_at || source.backendSyncedAt),
+    backend_sync_error: trimValue(source.backend_sync_error || source.backendSyncError || ''),
 
     analysisStatus: normalizeAnalysisStatus(source.analysisStatus),
     analysisWarnings: normalizeStringArray(source.analysisWarnings),
@@ -959,7 +1236,49 @@ function normalizeCard(card) {
     analysisSource: trimValue(source.analysisSource || ''),
     understandingSource: trimValue(source.understandingSource || ''),
     analyzeCacheKey: trimValue(source.analyzeCacheKey || ''),
-    analyzedAt: toIsoString(source.analyzedAt)
+    analyzedAt: toIsoString(source.analyzedAt),
+
+    reviewStateV2: PHASE2_REVIEW_STATES.includes(trimValue(pickFirstDefinedValue(
+      source.reviewStateV2,
+      source.review_state,
+      ''
+    )))
+      ? trimValue(pickFirstDefinedValue(
+          source.reviewStateV2,
+          source.review_state,
+          ''
+        ))
+      : '',
+    masteryScore: Math.max(Number(pickFirstDefinedValue(
+      source.masteryScore,
+      source.mastery_score,
+      0
+    )), 0),
+    recoveryStage: Math.max(Number(pickFirstDefinedValue(
+      source.recoveryStage,
+      source.recovery_stage,
+      0
+    )), 0),
+    forgotCount: Math.max(Number(pickFirstDefinedValue(
+      source.forgotCount,
+      source.forgot_count,
+      0
+    )), 0),
+    shakyCount: Math.max(Number(pickFirstDefinedValue(
+      source.shakyCount,
+      source.shaky_count,
+      0
+    )), 0),
+    gotItCount: Math.max(Number(pickFirstDefinedValue(
+      source.gotItCount,
+      source.got_it_count,
+      0
+    )), 0),
+    fluentCount: Math.max(Number(pickFirstDefinedValue(
+      source.fluentCount,
+      source.fluent_count,
+      0
+    )), 0)
   };
 }
 
@@ -981,11 +1300,17 @@ function dedupeCards(cards) {
 function getStoredCardsRaw() {
   const cards = wx.getStorageSync(STORAGE_KEY);
 
-  if (!Array.isArray(cards)) {
-    return [];
+  if (Array.isArray(cards)) {
+    return dedupeCards(cards);
   }
 
-  return dedupeCards(cards);
+  const legacyCards = wx.getStorageSync(LEGACY_STORAGE_KEY);
+
+  if (Array.isArray(legacyCards)) {
+    return dedupeCards(legacyCards);
+  }
+
+  return [];
 }
 
 function getLocalCards(options = {}) {
@@ -1600,6 +1925,54 @@ async function syncLocalCacheWithCloud() {
   return backgroundCloudRefreshPromise;
 }
 
+async function fetchAllBackendCards() {
+  const allCards = [];
+  const limit = 100;
+  let offset = 0;
+
+  while (true) {
+    const response = await listBackendCards({ limit, offset });
+    const items = Array.isArray(response && response.items) ? response.items : [];
+    allCards.push(...items);
+
+    const total = Number(response && response.total || 0);
+    offset += items.length;
+
+    if (items.length < limit || offset >= total) {
+      break;
+    }
+  }
+
+  return allCards;
+}
+
+async function refreshCardsCacheFromBackend() {
+  if (backgroundBackendRefreshPromise) {
+    return backgroundBackendRefreshPromise;
+  }
+
+  backgroundBackendRefreshPromise = (async () => {
+    const cachedCards = getStoredCardsRaw();
+    const backendCards = await fetchAllBackendCards();
+    const nextCards = backendCards
+      .map((backendCard) => {
+        const fallbackCard = getCardByIdFromCards(
+          backendCard && backendCard.id,
+          cachedCards
+        ) || {};
+        return normalizeBackendCardToLocal(backendCard, fallbackCard);
+      })
+      .filter((card) => !card.deleted);
+
+    saveLocalCards(nextCards);
+    return getLocalCards();
+  })().finally(() => {
+    backgroundBackendRefreshPromise = null;
+  });
+
+  return backgroundBackendRefreshPromise;
+}
+
 async function getCards() {
   const localCards = getLocalCards();
   saveLocalCards(getStoredCardsRaw());
@@ -1617,43 +1990,30 @@ async function getCardById(cardId) {
     return localCard;
   }
 
-  const cards = canUseCloudDatabase()
-    ? await syncLocalCacheWithCloud()
-    : await getCards();
+  let cards = [];
+
+  try {
+    cards = await refreshCardsCacheFromBackend();
+  } catch (error) {
+    console.warn('[cards-cache] backend refresh failed while loading card detail', error);
+    cards = await getCards();
+  }
 
   return getCardByIdFromCards(cardId, cards);
 }
 
 async function addCard(form) {
-  const timeInfo = createTimeInfo();
-  const fields = buildCardFields(form);
-  const localTempId = trimValue(
-    (form && form.local_temp_id) || (form && form.localTempId) || ''
-  ) || createLocalTempId();
-
-  const newCard = {
-    id: createCardId(),
-    local_temp_id: localTempId,
-    ...fields,
+  const payload = buildBackendCardCreatePayload(form);
+  const backendCard = await createBackendCard(payload);
+  const localCard = normalizeBackendCardToLocal(backendCard, {
+    ...buildCardFields(form),
     ...createInitialReviewFields(),
     ...createInitialSyncFields(),
-    syncStatus: SYNC_STATUS_PENDING,
-    syncError: '',
-    deleted: false,
-    date: timeInfo.date,
-    time: timeInfo.time,
-    dateTime: timeInfo.dateTime,
-    updatedLabel: timeInfo.updatedLabel,
-    createdAt: timeInfo.timestamp,
-    updatedAt: timeInfo.timestamp
-  };
+    ...createInitialBackendSyncFields(),
+    local_temp_id: payload.local_temp_id
+  });
 
-  const nextCards = [newCard].concat(getStoredCardsRaw());
-  saveLocalCards(nextCards);
-
-  scheduleBackgroundSync();
-
-  return newCard;
+  return upsertCachedCard(localCard);
 }
 
 async function updateCard(cardId, form) {
@@ -1664,28 +2024,59 @@ async function updateCard(cardId, form) {
     throw new Error('card_not_found');
   }
 
-  const timeInfo = createTimeInfo();
-  const nextCard = {
-    ...currentCard,
-    ...buildCardFields(form, currentCard),
-    syncStatus: SYNC_STATUS_PENDING,
-    syncError: '',
-    deleted: false,
-    date: timeInfo.date,
-    time: timeInfo.time,
-    dateTime: timeInfo.dateTime,
-    updatedLabel: timeInfo.updatedLabel,
-    updatedAt: timeInfo.timestamp
-  };
+  const payload = buildBackendCardPatchPayload(form, currentCard);
+  const backendCard = await updateBackendCard(cardId, payload);
+  const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
 
-  const locallySavedCards = currentCards.map((card) => (
-    String(card.id) === String(cardId) ? nextCard : card
-  ));
-  saveLocalCards(locallySavedCards);
+  return upsertCachedCard(localCard);
+}
 
-  scheduleBackgroundSync();
+function updateBackendCardSyncState(cardId, updates = {}) {
+  const normalizedCardId = normalizeCardId(cardId);
 
-  return nextCard;
+  if (!normalizedCardId) {
+    return null;
+  }
+
+  const currentCards = getStoredCardsRaw();
+  let updatedCard = null;
+  const normalizedUpdates = {};
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'backend_card_id')) {
+    normalizedUpdates.backend_card_id = trimValue(updates.backend_card_id || '');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'backend_sync_status')) {
+    normalizedUpdates.backend_sync_status = normalizeBackendSyncStatus(updates.backend_sync_status);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'backend_synced_at')) {
+    normalizedUpdates.backend_synced_at = toIsoString(updates.backend_synced_at);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'backend_sync_error')) {
+    normalizedUpdates.backend_sync_error = trimValue(updates.backend_sync_error || '');
+  }
+
+  const nextCards = currentCards.map((card) => {
+    if (String(card && card.id) !== normalizedCardId) {
+      return card;
+    }
+
+    updatedCard = {
+      ...normalizeCard(card),
+      ...normalizedUpdates
+    };
+
+    return updatedCard;
+  });
+
+  if (!updatedCard) {
+    return null;
+  }
+
+  saveLocalCards(nextCards);
+  return updatedCard;
 }
 
 async function updateCardsMeta(cardIds, updates) {
@@ -1705,6 +2096,26 @@ async function updateCardsMeta(cardIds, updates) {
 
   if (Object.prototype.hasOwnProperty.call(updates || {}, 'examModule')) {
     normalizedUpdates.examModule = trimValue(updates.examModule || DEFAULT_EXAM_MODULE);
+  }
+
+  const backendPatch = {};
+
+  if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'examScene')) {
+    backendPatch.exam_scene = normalizedUpdates.examScene || null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'examModule')) {
+    backendPatch.exam_module = normalizedUpdates.examModule || null;
+  }
+
+  if (Object.keys(backendPatch).length > 0) {
+    for (const cardId of idSet) {
+      const currentCard = getCardByIdFromCards(cardId, currentCards);
+      const backendCard = await updateBackendCard(cardId, backendPatch);
+      upsertCachedCard(normalizeBackendCardToLocal(backendCard, currentCard || {}));
+    }
+
+    return;
   }
 
   const nextCards = currentCards.map((card) => {
@@ -1727,7 +2138,6 @@ async function updateCardsMeta(cardIds, updates) {
   });
 
   saveLocalCards(nextCards);
-  scheduleBackgroundSync();
 }
 
 
@@ -1765,28 +2175,8 @@ async function deleteCard(cardId) {
     return;
   }
 
-  const currentCards = getStoredCardsRaw();
-
-  const nextCards = currentCards.map((card) => {
-    if (String(card.id) !== normalizedId) {
-      return card;
-    }
-
-    return {
-      ...card,
-      deleted: true,
-      syncStatus: SYNC_STATUS_PENDING_DELETE,
-      syncError: ''
-    };
-  });
-
-  saveLocalCards(nextCards);
-
-  try {
-    await syncDeleteCardsNow([normalizedId]);
-  } catch (error) {
-    scheduleBackgroundSync();
-  }
+  await deleteBackendCard(normalizedId);
+  removeCachedCards([normalizedId]);
 }
 
 async function deleteCards(cardIds) {
@@ -1798,29 +2188,11 @@ async function deleteCards(cardIds) {
     return;
   }
 
-  const idSet = new Set(normalizedIds);
-  const currentCards = getStoredCardsRaw();
-
-  const nextCards = currentCards.map((card) => {
-    if (!idSet.has(String(card.id))) {
-      return card;
-    }
-
-    return {
-      ...card,
-      deleted: true,
-      syncStatus: SYNC_STATUS_PENDING_DELETE,
-      syncError: ''
-    };
-  });
-
-  saveLocalCards(nextCards);
-
-  try {
-    await syncDeleteCardsNow(normalizedIds);
-  } catch (error) {
-    scheduleBackgroundSync();
+  for (const cardId of normalizedIds) {
+    await deleteBackendCard(cardId);
   }
+
+  removeCachedCards(normalizedIds);
 }
 
 async function updateReviewResult(cardId, reviewState) {
@@ -2152,11 +2524,13 @@ module.exports = {
   filterHistoryCardSummariesByResult,
   getHistorySummaryStats,
   getCards,
+  refreshCardsCacheFromBackend,
   syncLocalCacheWithCloud,
   saveCards: saveLocalCards,
   getCardById,
   addCard,
   updateCard,
+  updateBackendCardSyncState,
   updateCardsMeta,
   deleteCard,
   deleteCards,

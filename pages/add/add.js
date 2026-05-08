@@ -3,8 +3,7 @@ const {
   getCardById,
   updateCard,
   deleteCard,
-  STORAGE_KEY,
-  createLocalTempId,
+  updateBackendCardSyncState,
   DEFAULT_EXAM_SCENE,
   DEFAULT_EXAM_MODULE
 } = require('../../utils/recordStorage');
@@ -18,12 +17,6 @@ const {
   getInputContext,
   saveInputContext
 } = require('../../utils/inputContext');
-const {
-  createBackendCard
-} = require('../../utils/apiClient');
-
-
-
 const PAGE_ANIMATION_SAFE_DELAY = 0;
 
 const ANALYZE_CACHE_STORAGE_KEY = 'englishAnalyzeCache_v2';
@@ -55,48 +48,6 @@ function normalizeEnglishText(text) {
 
 function normalizePlainText(text) {
   return String(text || '').trim();
-}
-
-function ensureLocalTempIdOnSavedCard(savedCard) {
-  const existingLocalTempId = normalizePlainText(
-    savedCard && (savedCard.local_temp_id || savedCard.localTempId)
-  );
-  const localTempId = existingLocalTempId || createLocalTempId();
-  const nextSavedCard = {
-    ...(savedCard || {}),
-    local_temp_id: localTempId
-  };
-
-  if (existingLocalTempId) {
-    return nextSavedCard;
-  }
-
-  if (!savedCard || !savedCard.id || !localTempId) {
-    return nextSavedCard;
-  }
-
-  try {
-    const cards = wx.getStorageSync(STORAGE_KEY);
-
-    if (!Array.isArray(cards)) {
-      return nextSavedCard;
-    }
-
-    const nextCards = cards.map((card) => (
-      String(card && card.id) === String(savedCard.id)
-        ? {
-            ...card,
-            local_temp_id: localTempId
-          }
-        : card
-    ));
-
-    wx.setStorageSync(STORAGE_KEY, nextCards);
-  } catch (error) {
-    console.warn('[backend-card] failed to persist local_temp_id locally', error);
-  }
-
-  return nextSavedCard;
 }
 
 function mapBackendCardType(category) {
@@ -159,6 +110,68 @@ function buildBackendCardPayload(card = {}) {
     source: 'wechat_miniapp',
     client_created_at: toBackendIsoString(card.createdAt || card.dateTime)
   };
+}
+
+function getBackendCardId(result = {}) {
+  return normalizePlainText(
+    result.id || result.card_id || result.backend_card_id || result.backendCardId || ''
+  );
+}
+
+function formatBackendCardSyncError(error) {
+  if (!error) {
+    return 'sync_failed';
+  }
+
+  if (typeof error === 'string') {
+    return normalizePlainText(error).slice(0, 500) || 'sync_failed';
+  }
+
+  const statusCode = error.statusCode ? `status ${error.statusCode}: ` : '';
+  const data = error.data || {};
+  const detail = normalizePlainText(data.detail || data.message || error.errMsg || error.message || '');
+
+  if (detail) {
+    return `${statusCode}${detail}`.slice(0, 500);
+  }
+
+  try {
+    return `${statusCode}${JSON.stringify(error)}`.slice(0, 500);
+  } catch (stringifyError) {
+    return 'sync_failed';
+  }
+}
+
+function saveBackendCardSyncSuccess(card, backendCardId) {
+  if (!card || !card.id) {
+    return;
+  }
+
+  try {
+    updateBackendCardSyncState(card.id, {
+      backend_card_id: backendCardId,
+      backend_sync_status: 'synced',
+      backend_synced_at: new Date().toISOString(),
+      backend_sync_error: ''
+    });
+  } catch (error) {
+    console.warn('[backend-card] failed to persist backend sync success state', error);
+  }
+}
+
+function saveBackendCardSyncFailure(card, error) {
+  if (!card || !card.id) {
+    return;
+  }
+
+  try {
+    updateBackendCardSyncState(card.id, {
+      backend_sync_status: 'failed',
+      backend_sync_error: formatBackendCardSyncError(error)
+    });
+  } catch (persistError) {
+    console.warn('[backend-card] failed to persist backend sync failure state', persistError);
+  }
 }
 
 function getLatinLetterPattern() {
@@ -1406,13 +1419,9 @@ Page({
         savedCard = await updateCard(cardId, nextForm);
       } else {
         savedCard = await addCard(nextForm);
-        savedCard = ensureLocalTempIdOnSavedCard(savedCard);
         saveInputContext({
           examScene: nextForm.examScene,
           examModule: nextForm.examModule
-        });
-        this.syncBackendCard(savedCard).catch((error) => {
-          console.warn('[backend-card] sync failed, local save remains valid', error);
         });
       }
     } catch (error) {
@@ -1467,32 +1476,6 @@ Page({
     }, 100);
   
     return savedCard;
-  },
-
-  async syncBackendCard(card) {
-    try {
-      if (!card || !card.local_temp_id) {
-        console.warn('[backend-card] missing local_temp_id, skip backend sync');
-        return;
-      }
-
-      const backendPayload = buildBackendCardPayload(card);
-      console.log('[backend-card] start sync', backendPayload.local_temp_id);
-
-      try {
-        const result = await createBackendCard(backendPayload);
-
-        if (result && result.skipped) {
-          return;
-        }
-
-        console.log('[backend-card] synced successfully', result && result.id ? result.id : '');
-      } catch (error) {
-        console.warn('[backend-card] sync failed, local save remains valid', error);
-      }
-    } catch (error) {
-      console.warn('[backend-card] sync failed, local save remains valid', error);
-    }
   },
 
   async submitCard(saveMode) {

@@ -24,8 +24,18 @@
         </text>
         <text class="status-bar-right">
           <block wx:if="{{totalCardCount === 0}}">添加后就可以开始复习</block>
-          <block wx:else>待加强 {{weakCount}} 张</block>
+          <block wx:else>待巩固 {{weakCount}} 张</block>
         </text>
+      </view>
+
+      <view wx:if="{{totalCardCount > 0}}" class="review-cta" bindtap="goToReviewPage">
+        <view class="review-cta-main">
+          <view class="review-cta-title">今日复习</view>
+          <view class="review-cta-text">{{reviewOverviewMainText}}</view>
+          <view class="review-cta-subtext">{{reviewOverviewSubText}}</view>
+          <view wx:if="{{reviewOverviewNewText}}" class="review-cta-note">{{reviewOverviewNewText}}</view>
+        </view>
+        <view class="review-cta-arrow">›</view>
       </view>
 
     </block>
@@ -34,13 +44,8 @@
       <block wx:if="{{totalCardCount === 0}}">
         <button class="primary-btn primary-btn-full" bindtap="goToAddPage">添加第一张卡片</button>
       </block>
-      <block wx:elif="{{pendingCount > 0}}">
-        <button class="secondary-btn" bindtap="goToAddPage">添加卡片</button>
-        <button class="primary-btn" bindtap="goToReviewPage">进入复习页</button>
-      </block>
       <block wx:else>
         <button class="secondary-btn" bindtap="goToAddPage">添加卡片</button>
-        <button class="primary-btn" bindtap="goToReviewPage">继续复习</button>
       </block>
     </view>
 

@@ -147,12 +147,12 @@
   overflow: hidden;
 }
 
-/* 未查看答案：白卡变短，英文在卡片视觉中心 */
+/* 未查看理解：白卡变短，英文在卡片视觉中心 */
 .task-card-closed {
   height: 430rpx;
 }
 
-/* 查看答案后：白卡展开，答案区固定 */
+/* 查看理解后：白卡展开，理解区固定 */
 .task-card-open {
   height: 690rpx;
 }
@@ -209,12 +209,12 @@
   box-sizing: border-box;
 }
 
-/* 未查看答案时，不保留答案区视觉空间 */
+/* 未查看理解时，不保留理解区视觉空间 */
 .task-card-closed .task-answer-slot {
   display: none;
 }
 
-/* 答案内部滚动，不能撑高卡片 */
+/* 理解内部滚动，不能撑高卡片 */
 .task-answer-scroll {
   height: 100%;
   box-sizing: border-box;
@@ -319,7 +319,7 @@
   margin-top: 28rpx;
 }
 
-/* 查看答案按钮 */
+/* 查看理解按钮 */
 .reveal-btn {
   width: 86%;
   height: 92rpx;
@@ -329,7 +329,7 @@
   box-shadow: 0 16rpx 34rpx rgba(53, 183, 121, 0.20);
 }
 
-/* 收起答案：放在卡片外，弱化纯文本 */
+/* 收起理解：放在卡片外，弱化纯文本 */
 .review-collapse-text {
   width: 100%;
   height: 76rpx;
@@ -345,6 +345,14 @@
 .feedback-actions {
   gap: 14rpx;
   margin-top: 12rpx;
+}
+
+.feedback-title {
+  margin-top: 18rpx;
+  text-align: center;
+  color: #5d7968;
+  font-size: 27rpx;
+  font-weight: 700;
 }
 
 .action-btn {
@@ -375,32 +383,36 @@
   font-weight: 900;
 }
 
-/* 没记住 */
+/* 想不起来 */
 .action-again {
   color: #d95555;
   background: rgba(240, 98, 98, 0.10);
   border-color: rgba(240, 98, 98, 0.17);
 }
 
-/* 有点难 */
+/* 不太稳 */
 .action-hard {
   color: #c98422;
   background: rgba(246, 162, 58, 0.13);
   border-color: rgba(246, 162, 58, 0.20);
 }
 
-/* 会了 */
+/* 基本掌握 */
 .action-good {
   color: #2f9d69;
   background: rgba(53, 183, 121, 0.12);
   border-color: rgba(53, 183, 121, 0.20);
 }
 
-/* 太简单 */
+/* 很熟了 */
 .action-easy {
   color: #4f78a8;
   background: rgba(79, 120, 168, 0.10);
   border-color: rgba(79, 120, 168, 0.16);
+}
+
+.action-btn[disabled] {
+  opacity: 0.58;
 }
 
 /* 完成页主体卡片 */

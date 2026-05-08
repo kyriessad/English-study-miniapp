@@ -5,7 +5,7 @@
 
 const {
   BACKEND_AUTH_STORAGE_KEYS,
-  loginWithWechatCode
+  refreshBackendAuth
 } = require('./utils/apiClient');
 
 App({
@@ -125,9 +125,7 @@ App({
     try {
       console.log('[backend-auth] Starting backend login');
 
-      const code = await this.requestWechatLoginCode();
-      const authData = await loginWithWechatCode(code);
-      const backendAuth = this.saveBackendAuth(authData);
+      const backendAuth = await refreshBackendAuth();
 
       console.log('[backend-auth] Backend login success, backend user id:', backendAuth.backendUserId);
       return backendAuth;
