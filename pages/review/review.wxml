@@ -1,15 +1,21 @@
-<view class="page {{!currentCard && !allDone ? 'page-empty' : ''}}">
+<view class="page {{(!currentCard && !allDone) || pageState === 'completed' ? 'page-empty' : ''}}">
   <view class="header">
-    <view class="title">{{allDone ? '这轮复习完成' : '今日复习'}}</view>
-    <view wx:if="{{!allDone}}" class="subtitle">先想一想，再看理解。</view>
+    <view class="title">
+      <block wx:if="{{allDone || pageState === 'completed'}}">这轮复习完成</block>
+      <block wx:elif="{{pageState === 'review_pending_sync' || pageState === 'syncing'}}">同步进度</block>
+      <block wx:else>今日复习</block>
+    </view>
+    <view wx:if="{{!allDone && pageState !== 'completed' && pageState !== 'review_pending_sync' && pageState !== 'syncing'}}" class="subtitle">先想一想，再看理解。</view>
   </view>
 
-  <view wx:if="{{isLoading}}" class="empty-state">
+  <!-- ===== LOADING ===== -->
+  <view wx:if="{{pageState === 'loading' || isLoading}}" class="empty-state">
     正在加载复习内容...
   </view>
 
-  <view wx:elif="{{reviewError}}" class="done-panel">
-    <view class="done-title">复习任务加载失败</view>
+  <!-- ===== ERROR ===== -->
+  <view wx:elif="{{pageState === 'error' || reviewError}}" class="done-panel">
+    <view class="done-title done-title--plain">复习任务加载失败</view>
     <view class="done-text">{{reviewError}}</view>
     <view class="done-actions">
       <button class="done-action-btn done-primary-btn" bindtap="retryLoadReview">
@@ -18,7 +24,8 @@
     </view>
   </view>
 
-  <view wx:elif="{{!allDone && !currentCard}}" class="empty-state">
+  <!-- ===== NO CARDS ===== -->
+  <view wx:elif="{{!allDone && pageState !== 'review_pending_sync' && pageState !== 'syncing' && !currentCard && !isLoading}}" class="empty-state">
     <view class="empty-title">目前没有需要复习的内容。</view>
     <view class="empty-subtitle">等到下一批内容到期，或者回首页继续添加新卡片。</view>
     <view class="empty-actions">
@@ -26,7 +33,39 @@
     </view>
   </view>
 
-  <block wx:elif="{{!allDone && currentCard}}">
+  <!-- ===== REVIEW PENDING SYNC ===== -->
+  <view wx:elif="{{pageState === 'review_pending_sync'}}" class="done-panel">
+    <view class="done-title done-title--plain">正在同步复习进度</view>
+    <view class="done-text">
+      刚才的反馈已经暂存。网络恢复后，系统会继续安排需要巩固的内容。
+    </view>
+    <view class="done-actions">
+      <button
+        class="done-action-btn done-primary-btn"
+        bindtap="retrySync"
+        disabled="{{isFlushing}}"
+      >
+        重试同步
+      </button>
+      <button
+        class="done-action-btn done-secondary-btn"
+        bindtap="goToHomePage"
+      >
+        返回首页
+      </button>
+    </view>
+  </view>
+
+  <!-- ===== SYNCING ===== -->
+  <view wx:elif="{{pageState === 'syncing'}}" class="done-panel">
+    <view class="done-title done-title--plain">正在同步...</view>
+    <view class="done-text">
+      正在将暂存的反馈提交到服务器，请稍候。
+    </view>
+  </view>
+
+  <!-- ===== ACTIVE CARD (normal + offline_playing + submitting) ===== -->
+  <block wx:elif="{{currentCard && !allDone}}">
     <view class="task-card {{answerVisible ? 'task-card-open' : 'task-card-closed'}}">
       <view class="task-meta-row">
         <view class="task-category">
@@ -140,9 +179,20 @@
         <text>很熟了</text>
       </button>
     </view>
+
+    <!-- Phase 3: offline_playing indicator -->
+    <view wx:if="{{pageState === 'offline_playing'}}" class="offline-badge">
+      ⚠ 网络暂时不可用，反馈已暂存
+    </view>
+
+    <!-- Phase 3: pending action count badge -->
+    <view wx:if="{{pendingActionCount > 0 && pageState !== 'offline_playing'}}" class="pending-badge">
+      {{pendingActionCount}} 条待同步
+    </view>
   </block>
 
-  <view wx:elif="{{allDone}}" class="done-panel">
+  <!-- ===== COMPLETED ===== -->
+  <view wx:elif="{{allDone || pageState === 'completed'}}" class="done-panel">
     <view class="done-title">这轮复习完成</view>
 
     <view class="done-summary-panel">
@@ -192,15 +242,6 @@
       >
         返回首页
       </button>
-
-      <!--
-      <button
-        class="done-action-btn done-secondary-btn"
-        bindtap="viewHistoryReviewedContent"
-      >
-        查看历史复习内容
-      </button>
-      -->
     </view>
   </view>
 </view>

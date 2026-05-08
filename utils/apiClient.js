@@ -218,7 +218,7 @@ function refreshBackendAuth() {
     return saveBackendAuth(authData);
   })()
     .catch((error) => {
-      clearBackendAuth();
+      // Don't clear auth on refresh failure — keep existing tokens for retry
       throw error;
     })
     .finally(() => {
@@ -299,16 +299,30 @@ function getTodayReview({ limit = 5, restart = false } = {}) {
   });
 }
 
-function submitReviewFeedback({ session_id, session_item_id, card_id, result }) {
+/**
+ * Phase 3: submit review feedback with client_action_id for idempotency.
+ */
+function submitReviewFeedback({ client_action_id, session_id, session_item_id, card_id, result }) {
   return request({
     url: '/api/reviews/feedback',
     method: 'POST',
     data: {
+      client_action_id,
       session_id,
       session_item_id,
       card_id,
       result
     }
+  });
+}
+
+/**
+ * Phase 3: get session summary for recovery.
+ */
+function getSessionSummary(sessionId) {
+  return request({
+    url: `/api/reviews/sessions/${encodeURIComponent(sessionId)}/summary`,
+    method: 'GET'
   });
 }
 
@@ -318,6 +332,7 @@ module.exports = {
   clearBackendAuth,
   getAccessToken,
   getCurrentBackendUser,
+  getSessionSummary,
   listBackendCards,
   loginWithWechatCode,
   refreshBackendAuth,

@@ -893,3 +893,31 @@
   overflow: hidden;
   box-sizing: border-box;
 }
+
+/* ===== Phase 3: Offline / Pending Badges ===== */
+
+.offline-badge {
+  margin-top: 18rpx;
+  padding: 18rpx 24rpx;
+  border-radius: 20rpx;
+  background: #fff8e7;
+  border: 1rpx solid #f5e3b8;
+  color: #b8860b;
+  font-size: 25rpx;
+  text-align: center;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.pending-badge {
+  margin-top: 18rpx;
+  padding: 14rpx 20rpx;
+  border-radius: 18rpx;
+  background: #edf5fd;
+  border: 1rpx solid #d0e1f5;
+  color: #4a7db5;
+  font-size: 24rpx;
+  text-align: center;
+  line-height: 1.4;
+  font-weight: 500;
+}
