@@ -752,7 +752,10 @@ Page({
     // Cards without reviewStateV2 (old cards) only show in "全部" tab
     let filtered = currentLibraryTab === 'all'
       ? cards.slice()
-      : cards.filter((c) => c.reviewStateV2 && c.reviewStateV2 === currentLibraryTab);
+      : cards.filter((c) => {
+          const state = c.reviewStateV2 || c.review_state || '';
+          return VALID_REVIEW_STATES.has(state) && state === currentLibraryTab;
+        });
 
     // Step 2: Category / exam scene / exam module
     filtered = filtered.filter((card) => {
