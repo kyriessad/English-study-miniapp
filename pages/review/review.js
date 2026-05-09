@@ -160,7 +160,18 @@ Page({
     hasMoreExtraTasks: false,
   },
 
-  onLoad() {
+  onLoad(options) {
+    const sessionId = (options && (options.session_id || options.sessionId)) || '';
+    if (!sessionId) {
+      wx.showToast({
+        title: '复习上下文丢失，请重新开始',
+        icon: 'none'
+      });
+      setTimeout(() => {
+        wx.redirectTo({ url: '/pages/index/index' });
+      }, 1500);
+      return;
+    }
     this.loadBackendReviewSession({ restart: false });
   },
 

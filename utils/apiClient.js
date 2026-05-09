@@ -292,6 +292,21 @@ function getReviewOverview() {
   });
 }
 
+function getCardStats() {
+  return request({
+    url: '/api/cards/stats',
+    method: 'GET'
+  });
+}
+
+function createReviewSession(data) {
+  return request({
+    url: '/api/review-sessions',
+    method: 'POST',
+    data: data || {}
+  });
+}
+
 function getTodayReview({ limit = 5, restart = false } = {}) {
   return request({
     url: `/api/reviews/today${buildQueryString({ limit, restart: restart ? 'true' : '' })}`,
@@ -341,6 +356,8 @@ module.exports = {
   createBackendCard,
   updateBackendCard,
   deleteBackendCard,
+  getCardStats,
+  createReviewSession,
   getReviewOverview,
   getTodayReview,
   submitReviewFeedback

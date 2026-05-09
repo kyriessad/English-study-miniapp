@@ -2,13 +2,7 @@ const {
   getCards,
   refreshCardsCacheFromBackend,
   deleteCards,
-  updateCardsMeta,
-  DEFAULT_EXAM_SCENE,
-  DEFAULT_EXAM_MODULE,
-  getReviewStateLabel,
-  getTodayReviewedCardsFromAll,
-  getTodayReviewSummary,
-  isDueCard
+  updateCardsMeta
 } = require('../../utils/recordStorage');
 
 const {
@@ -17,80 +11,113 @@ const {
 } = require('../../utils/cardOptions');
 
 const {
-  getReviewOverview
+  getReviewOverview,
+  getCardStats,
+  createReviewSession
 } = require('../../utils/apiClient');
 
-
-
 const DEFAULT_CATEGORY = '单词';
+const DEFAULT_EXAM_SCENE = '未分类';
+const DEFAULT_EXAM_MODULE = '未分类';
 const CATEGORY_FILTER_OPTIONS = ['全部', '单词', '短语', '句子'];
 const EXAM_SCENE_FILTER_OPTIONS = ['全部'].concat(EXAM_SCENE_OPTIONS);
 const EXAM_MODULE_FILTER_OPTIONS = ['全部'].concat(EXAM_MODULE_OPTIONS);
 const BATCH_EXAM_SCENE_OPTIONS = EXAM_SCENE_OPTIONS.slice();
 const BATCH_EXAM_MODULE_OPTIONS = EXAM_MODULE_OPTIONS.slice();
-const BACKEND_SYNC_COOLDOWN_MS = 60 * 1000;
-let lastHomeBackendSyncAt = 0;
-
-const HOME_QUICK_FILTER_OPTIONS = [
-  { key: 'all', label: '全部' },
-  { key: 'todo', label: '待学习' },
-  { key: 'weak', label: '待巩固' },
-  { key: 'mastered', label: '已掌握' }
-];
 const retryingAnalysisCardIds = new Set();
 
-
-const PHASE2_REVIEW_STATES = ['new', 'strengthening', 'reviewing', 'mastered'];
-const TODAY_REVIEWED_QUICK_FILTER_OPTIONS = [
+const LIBRARY_TABS = [
   { key: 'all', label: '全部' },
-  { key: 'again', label: '没记住' },
-  { key: 'hard', label: '模糊' },
-  { key: 'good', label: '记住了' }
+  { key: 'new', label: '未学习' },
+  { key: 'reviewing', label: '学习中' },
+  { key: 'strengthening', label: '需加强' },
+  { key: 'mastered', label: '已掌握' }
 ];
 
-const HOME_ELEVATOR_LETTERS = [
-  '#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
-];
+const STATE_LABELS = {
+  new: '未学习',
+  reviewing: '学习中',
+  strengthening: '需加强',
+  mastered: '已掌握'
+};
+const VALID_REVIEW_STATES = new Set(['new', 'reviewing', 'strengthening', 'mastered']);
 
-function getHomeCardFirstLetter(card) {
-  const text = String(card && (card.englishPreview || card.englishText) || '').trim();
-
-  if (!text) {
-    return '#';
-  }
-
-  const first = text[0].toUpperCase();
-
-  if (first >= 'A' && first <= 'Z') {
-    return first;
-  }
-
-  return '#';
+function getStateLabel(state) {
+  return STATE_LABELS[state] || '未学习';
 }
 
-function buildHomeAlphabetGroups(cards = []) {
-  const groupMap = {};
-
-  HOME_ELEVATOR_LETTERS.forEach((letter) => {
-    groupMap[letter] = [];
-  });
-
-  (cards || []).forEach((card) => {
-    const letter = getHomeCardFirstLetter(card);
-    groupMap[letter].push(card);
-  });
-
-  return HOME_ELEVATOR_LETTERS
-    .map((letter) => ({
-      letter,
-      id: `home-letter-${letter === '#' ? 'sharp' : letter}`,
-      cards: groupMap[letter] || []
-    }))
-    .filter((group) => group.cards.length > 0);
+/**
+ * Extract the best available timestamp from a card (milliseconds since epoch).
+ * Returns 0 if no usable timestamp is found.
+ */
+function getCardTimestampMs(card) {
+  if (!card) return 0;
+  var ts = card.updated_at || card.updatedAt || card.created_at || card.createdAt;
+  if (!ts) ts = card.analysisUpdatedAt || card.analysis_updated_at;
+  if (!ts) return 0;
+  // If it's already a number, use it directly
+  if (typeof ts === 'number') return ts > 0 ? ts : 0;
+  // Try parsing number from string
+  var num = Number(ts);
+  if (num > 0) return num;
+  // Try parsing as date string
+  var d = new Date(ts);
+  if (!isNaN(d.getTime())) return d.getTime();
+  return 0;
 }
 
+/**
+ * Determine the display status for a card in the library list.
+ * Priority: needs_manual_fix > analysis failed > analysis pending (with staleness check) > is_review_ready=false > review state
+ */
+function getCardDisplayStatus(card) {
+  if (!card) return { label: '未学习', className: 'state-new' };
+  var analysisStatus = String(card.analysisStatus || card.analysis_status || '').trim();
 
+  // Priority 1: card needs manual fix
+  if (card.needs_manual_fix === true) {
+    return { label: '需补全', className: 'status-fix-required' };
+  }
+
+  // Priority 2: analysis failed (unambiguous — always show 待重试)
+  if (analysisStatus === 'failed') {
+    return { label: '待重试', className: 'status-analysis-failed' };
+  }
+
+  // Priority 3: analysis pending — check freshness
+  if (analysisStatus === 'pending') {
+    var ts = getCardTimestampMs(card);
+    var stale = ts === 0 || (Date.now() - ts > 300000); // 5 minutes
+    if (stale) {
+      return { label: '待重试', className: 'status-analysis-stale' };
+    }
+    return { label: 'AI分析中', className: 'status-analyzing' };
+  }
+
+  // Priority 4: card is not ready for review
+  if (card.is_review_ready === false) {
+    return { label: '准备中', className: 'status-preparing' };
+  }
+
+  // Default: show review state
+  var stateV2 = card.reviewStateV2 || 'new';
+  return { label: STATE_LABELS[stateV2] || '未学习', className: 'state-' + stateV2 };
+}
+
+/**
+ * Check whether to show the library preparation tip in the "new" tab.
+ */
+function computeLibraryPreparationTip(filteredCards, currentLibraryTab) {
+  if (currentLibraryTab !== 'new') return false;
+  if (!Array.isArray(filteredCards) || filteredCards.length === 0) return false;
+  return filteredCards.some(function (card) {
+    if (card.is_review_ready === false) return true;
+    if (card.needs_manual_fix === true) return true;
+    var status = String(card.analysisStatus || card.analysis_status || '').trim();
+    if (status === 'pending' || status === 'failed') return true;
+    return false;
+  });
+}
 
 function normalizeSearchText(value) {
   return String(value || '')
@@ -100,7 +127,21 @@ function normalizeSearchText(value) {
     .replace(/\s+/g, ' ');
 }
 
-
+function normalizeCardList(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter(Boolean);
+  if (typeof raw !== 'object') return [];
+  if (Array.isArray(raw.cards)) return raw.cards.filter(Boolean);
+  if (Array.isArray(raw.items)) return raw.items.filter(Boolean);
+  if (raw.data) {
+    if (Array.isArray(raw.data)) return raw.data.filter(Boolean);
+    if (typeof raw.data === 'object') {
+      if (Array.isArray(raw.data.cards)) return raw.data.cards.filter(Boolean);
+      if (Array.isArray(raw.data.items)) return raw.data.items.filter(Boolean);
+    }
+  }
+  return [];
+}
 
 function getSearchableText(card) {
   return [
@@ -114,7 +155,7 @@ function getSearchableText(card) {
     card.dateTime,
     card.date,
     card.time,
-    getReviewStateLabel(card.reviewState),
+    getStateLabel(card.reviewStateV2),
     `复习${Number(card.reviewCount || 0)}次`
   ]
     .filter(Boolean)
@@ -135,11 +176,9 @@ function tokenMatches(token, keyword) {
   if (!token || !keyword) {
     return false;
   }
-
   if (isShortEnglishKeyword(keyword)) {
     return token === keyword;
   }
-
   return token === keyword || token.startsWith(keyword) || token.includes(keyword);
 }
 
@@ -167,26 +206,14 @@ function getPreviewText(value) {
 }
 
 function normalizeProblemList(value) {
-  if (!value) {
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
-  }
-
-  if (typeof value === 'string') {
-    return value.trim() ? [value.trim()] : [];
-  }
-
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
   return [];
 }
 
 function getAnalysisProblems(card) {
-  if (!card) {
-    return [];
-  }
-
+  if (!card) return [];
   const directProblems = []
     .concat(normalizeProblemList(card.analysisWarnings))
     .concat(normalizeProblemList(card.analysisErrors))
@@ -194,378 +221,63 @@ function getAnalysisProblems(card) {
     .concat(normalizeProblemList(card.errors))
     .concat(normalizeProblemList(card.validationWarnings))
     .concat(normalizeProblemList(card.validationErrors));
-
   const result = card.analysisResult || card.validationResult || card.englishCheckResult || {};
-
   const resultProblems = []
     .concat(normalizeProblemList(result.warnings))
     .concat(normalizeProblemList(result.errors));
-
   return directProblems.concat(resultProblems);
 }
 
 function getAnalysisStatusDisplay(card) {
   const status = String(card && card.analysisStatus || '').trim();
-
   if (status === 'pending') {
-    return {
-      visible: true,
-      label: '分析中',
-      className: 'analysis-status-pending'
-    };
+    return { visible: true, label: '分析中', className: 'analysis-status-pending' };
   }
-
   if (status === 'failed') {
-    return {
-      visible: true,
-      label: '待重试',
-      className: 'analysis-status-failed'
-    };
+    return { visible: true, label: '待重试', className: 'analysis-status-failed' };
   }
-
   if (status === 'done' && getAnalysisProblems(card).length > 0) {
-    return {
-      visible: true,
-      label: '需检查',
-      className: 'analysis-status-warning'
-    };
+    return { visible: true, label: '需检查', className: 'analysis-status-warning' };
   }
-
-  return {
-    visible: false,
-    label: '',
-    className: ''
-  };
+  return { visible: false, label: '', className: '' };
 }
 
 function normalizeAnalyzeEnglishResult(cloudResult) {
   const raw = cloudResult && cloudResult.result ? cloudResult.result : cloudResult || {};
   const data = raw.data || raw.result || raw;
-
   const warnings = []
     .concat(normalizeProblemList(data.warnings))
     .concat(normalizeProblemList(data.analysisWarnings))
     .concat(normalizeProblemList(data.validationWarnings));
-
   const errors = []
     .concat(normalizeProblemList(data.errors))
     .concat(normalizeProblemList(data.analysisErrors))
     .concat(normalizeProblemList(data.validationErrors));
-
   const success = raw.success !== false && data.success !== false;
-
-  return {
-    success,
-    warnings,
-    errors,
-    raw: data
-  };
+  return { success, warnings, errors, raw: data };
 }
-
-function getTodayReviewResultKey(card) {
-  const result = String(card && card.lastReviewResult || '').trim();
-
-  if (result === '没记住') {
-    return 'again';
-  }
-
-  if (result === '模糊') {
-    return 'hard';
-  }
-
-  if (result === '记住了' || result === '太简单') {
-    return 'good';
-  }
-
-  return 'unknown';
-}
-
-function getTodayReviewDisplayLabel(card) {
-  const result = String(card && card.lastReviewResult || '').trim();
-
-  if (result === '太简单') {
-    return '记住了';
-  }
-
-  if (result) {
-    return result;
-  }
-
-  return getReviewStateLabel(card.reviewState);
-}
-
-function getCardPhase2ReviewState(card) {
-  const state = String(
-    card && (card.reviewStateV2 || card.review_state) || ''
-  ).trim();
-
-  return PHASE2_REVIEW_STATES.includes(state) ? state : '';
-}
-
-function isPhase2DueCard(card) {
-  const nextReviewAt = card && (card.nextReviewAt || card.next_review_at);
-
-  if (!nextReviewAt) {
-    return false;
-  }
-
-  const time = new Date(nextReviewAt).getTime();
-
-  return !Number.isNaN(time) && time <= Date.now();
-}
-
-function isHomeWeakCard(card) {
-  const phase2State = getCardPhase2ReviewState(card);
-
-  if (phase2State) {
-    return phase2State === 'strengthening';
-  }
-
-  const lastResult = String(card && card.lastReviewResult || '').trim();
-
-  if (lastResult === '没记住' || lastResult === '模糊') {
-    return true;
-  }
-
-  if (lastResult === '记住了' || lastResult === '太简单') {
-    return false;
-  }
-
-  return Number(card.againCount || 0) >= 2 || Number(card.hardCount || 0) >= 2;
-}
-
-function isHomeMasteredCard(card) {
-  const phase2State = getCardPhase2ReviewState(card);
-
-  if (phase2State) {
-    return phase2State === 'mastered';
-  }
-
-  return (
-    Number(card.reviewCount || 0) > 0 &&
-    !isDueCard(card) &&
-    !isHomeWeakCard(card) &&
-    (
-      card.lastReviewResult === '记住了' ||
-      card.lastReviewResult === '太简单' ||
-      Number(card.goodCount || 0) >= 2 ||
-      Number(card.easyCount || 0) >= 1
-    )
-  );
-}
-
-function isHomeTodoCard(card) {
-  const phase2State = getCardPhase2ReviewState(card);
-
-  if (phase2State) {
-    return phase2State === 'new' ||
-      (
-        isPhase2DueCard(card) &&
-        (phase2State === 'reviewing' || phase2State === 'mastered')
-      );
-  }
-
-  return card.reviewState === '未复习' || isDueCard(card);
-}
-
-function getHomeReviewDisplayLabel(card) {
-  if (isHomeWeakCard(card)) {
-    return '待巩固';
-  }
-
-  if (isHomeTodoCard(card)) {
-    return '待学习';
-  }
-
-  if (isHomeMasteredCard(card)) {
-    return '已掌握';
-  }
-
-  return '待学习';
-}
-
-function getDailyMessage(todayLearnedCount, totalCardCount, pendingCount) {
-  const learned = Number(todayLearnedCount || 0);
-  const total = Number(totalCardCount || 0);
-  const pending = Number(pendingCount || 0);
-
-  if (total === 0) {
-    return '先添加一张卡片，开始建立你的英语知识库。';
-  }
-
-  if (pending > 0 && learned > 0) {
-    return `今天已学习 ${learned} 张，还有 ${pending} 张待学习。`;
-  }
-
-  if (pending > 0) {
-    return `还有 ${pending} 张待学习，先完成一小轮。`;
-  }
-
-  if (learned > 0) {
-    return `今天已学习 ${learned} 张，可以继续巩固一批。`;
-  }
-
-  return '当前没有待学习卡，可以继续巩固一批。';
-}
-
-function getHomeStatusKey(card) {
-  if (isHomeWeakCard(card)) {
-    return 'weak';
-  }
-
-  if (isHomeTodoCard(card)) {
-    return 'todo';
-  }
-
-  if (isHomeMasteredCard(card)) {
-    return 'mastered';
-  }
-
-  return 'todo';
-}
-
-
 
 function matchesExactFilter(value, selectedValue, fallbackValue) {
   const normalizedValue = value || fallbackValue;
   return selectedValue === '全部' || normalizedValue === selectedValue;
 }
 
-function matchesQuickFilter(card, quickFilter) {
-  const phase2State = getCardPhase2ReviewState(card);
-
-  if (quickFilter === 'all') {
-    return true;
-  }
-
-  if (quickFilter === 'todo') {
-    if (phase2State) {
-      return phase2State === 'new' ||
-        (
-          isPhase2DueCard(card) &&
-          (phase2State === 'reviewing' || phase2State === 'mastered')
-        );
-    }
-
-    return card.reviewState === '未复习' || isDueCard(card);
-  }
-
-  if (quickFilter === 'weak') {
-    if (phase2State) {
-      return phase2State === 'strengthening';
-    }
-
-    return isHomeWeakCard(card);
-  }
-
-  if (quickFilter === 'mastered') {
-    if (phase2State) {
-      return phase2State === 'mastered';
-    }
-
-    return isHomeMasteredCard(card);
-  }
-
-  return true;
-}
-
-function buildHomeQuickFilterOptions(cards = []) {
-  const counts = {
-    all: cards.length,
-    todo: 0,
-    weak: 0,
-    mastered: 0
-  };
-
-  (cards || []).forEach((card) => {
-    if (matchesQuickFilter(card, 'todo')) {
-      counts.todo += 1;
-    }
-
-    if (matchesQuickFilter(card, 'weak')) {
-      counts.weak += 1;
-    }
-
-    if (matchesQuickFilter(card, 'mastered')) {
-      counts.mastered += 1;
-    }
-  });
-
-  return HOME_QUICK_FILTER_OPTIONS.map((item) => ({
-    ...item,
-    count: counts[item.key] || 0
-  }));
-}
-
-function matchesTodayReviewedQuickFilter(card, quickFilter) {
-  const result = String(card && card.lastReviewResult || '').trim();
-
-  if (quickFilter === 'all') {
-    return true;
-  }
-
-  if (quickFilter === 'again') {
-    return result === '没记住';
-  }
-
-  if (quickFilter === 'hard') {
-    return result === '模糊';
-  }
-
-  if (quickFilter === 'good') {
-    return result === '记住了' || result === '太简单';
-  }
-
-  return true;
-}
-
-function buildTodayReviewedQuickFilterOptions(cards = []) {
-  const counts = {
-    all: cards.length,
-    again: 0,
-    hard: 0,
-    good: 0
-  };
-
-  (cards || []).forEach((card) => {
-    const result = String(card && card.lastReviewResult || '').trim();
-
-    if (result === '没记住') {
-      counts.again += 1;
-    } else if (result === '模糊') {
-      counts.hard += 1;
-    } else if (result === '记住了' || result === '太简单') {
-      counts.good += 1;
-    }
-  });
-
-  return TODAY_REVIEWED_QUICK_FILTER_OPTIONS.map((item) => ({
-    ...item,
-    count: counts[item.key] || 0
-  }));
-}
-
-
-
 function decorateCards(cards, selectedCardIds) {
   const selectedSet = new Set(selectedCardIds || []);
-
   return (cards || []).map((card) => {
-    const reviewResultKey = getTodayReviewResultKey(card);
     const analysisStatusDisplay = getAnalysisStatusDisplay(card);
-
+    const displayStatus = getCardDisplayStatus(card);
+    const stateV2 = card.reviewStateV2 || 'new';
     return {
       ...card,
       englishPreview: getPreviewText(card.englishText),
       understandingPreview: getPreviewText(card.myUnderstanding),
       notesPreview: getPreviewText(card.notes),
-      reviewStateLabel: getReviewStateLabel(card.reviewState),
-      reviewDisplayLabel: getTodayReviewDisplayLabel(card),
-      homeStatusLabel: getHomeReviewDisplayLabel(card),
-      homeStatusClass: `home-status-${getHomeStatusKey(card)}`,
-      reviewResultKey,
-      reviewAccentClass: `review-accent-${reviewResultKey}`,
-      reviewStatusClass: `status-${reviewResultKey}`,
+      reviewStateV2: stateV2,
+      stateLabel: getStateLabel(stateV2),
+      stateClass: `state-${stateV2}`,
+      displayStatusLabel: displayStatus.label,
+      displayStatusClass: displayStatus.className,
       reviewCountText: `已复习 ${Number(card.reviewCount || 0)} 次`,
       analysisStatusVisible: analysisStatusDisplay.visible,
       analysisStatusLabel: analysisStatusDisplay.label,
@@ -577,27 +289,33 @@ function decorateCards(cards, selectedCardIds) {
 
 Page({
   data: {
+    // Task dashboard
+    reviewOverview: null,
+    reviewOverviewError: false,
+    totalToday: 0,
+    toNew: 0,
+    toReview: 0,
+    strengtheningInReview: 0,
+    hasActiveSession: false,
+    activeSessionId: '',
+
+    // Card library
+    cardStats: null,
+    libraryTabs: LIBRARY_TABS.map((t) => ({ ...t, count: 0 })),
+    currentLibraryTab: 'all',
+
+    // Cards
     cards: [],
     filteredCards: [],
-    showHomeFastScroll: false,
-    homeFastScrollThumbTop: 0,
-    homeFastScrollThumbStyle: 'top: 0%;',
-    homePageScrollTop: 0,
-
-    lastPageScrollTop: 0,
-    showBackToTop: false,
-    showFixedSearch: false,
-    searchRestoreScrollTop: 0,
-    isSearchActive: false,
-
-    searchKeyword: '',
-
-    quickFilterOptions: HOME_QUICK_FILTER_OPTIONS,
-    selectedQuickFilter: 'all',
-    showMoreFilters: false,
-
     totalCardCount: 0,
     currentResultCount: 0,
+
+    // Search & filters
+    searchKeyword: '',
+    isSearchActive: false,
+    showFixedSearch: false,
+    showMoreFilters: false,
+    searchRestoreScrollTop: 0,
 
     categoryFilterOptions: CATEGORY_FILTER_OPTIONS,
     examSceneFilterOptions: EXAM_SCENE_FILTER_OPTIONS,
@@ -611,70 +329,47 @@ Page({
     categoryCount: 0,
     examSceneCount: 0,
     examModuleCount: 0,
+
+    // Management
     isManageMode: false,
     selectedCardIds: [],
     isBatchPanelVisible: false,
     batchPanelTitle: '',
     batchPanelType: '',
     batchPanelOptions: [],
-    pageMode: 'all', // all | today_reviewed
-    pageModeTitle: '',
-    pageModeSource: '',
-    todayLearnedCount: 0,
-    todayReviewSummary: {
-      total: 0,
-      easy: 0,
-      good: 0,
-      hard: 0,
-      again: 0
+
+    // Scroll
+    homePageScrollTop: 0,
+    lastPageScrollTop: 0,
+    showBackToTop: false,
+
+    // Review entry
+    reviewEntryLoading: false,
+
+    // Phase 4B: computed review actions
+    reviewActions: {
+      daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
+      newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
+      strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
     },
-    pendingCount: 0,
-    weakCount: 0,
-    dailyMessage: '把卡住的英文留在这里，今天解决一点点。',
-    reviewOverview: null,
-    reviewOverviewTitle: '今日复习',
-    reviewOverviewMainText: '正在同步复习安排',
-    reviewOverviewSubText: '',
-    reviewOverviewNewText: '',
-    reviewOverviewError: ''
+    showEmptyTaskTip: false,
+    showLibraryPreparationTip: false
   },
 
-  onShow() {
-    try {
-      this.loadTodayReviewSummary();
-    } catch (error) {
-      console.warn('[index] loadTodayReviewSummary failed, continue', error);
-    }
-  
-    const viewModePayload = this.consumeIndexViewMode();
-  
-    this.loadCards(viewModePayload, {
-      forceBackendRefresh: false,
-      onLocalCardsReady: () => {
-        this.triggerBackendLoginAfterHomeReady();
-      }
-    }).then(() => {
-      this.loadReviewOverview();
-    });
+  async onShow() {
+    await this.loadLocalCache();
+    this.triggerBackendLoginAfterHomeReady();
+    this.loadAllBackendData();
   },
 
   triggerBackendLoginAfterHomeReady() {
     const app = getApp();
-
-    if (!app || typeof app.initBackendLoginSafe !== 'function') {
-      return;
-    }
-
-    if (this.backendLoginTriggered) {
-      return;
-    }
-
+    if (!app || typeof app.initBackendLoginSafe !== 'function') return;
+    if (this.backendLoginTriggered) return;
     this.backendLoginTriggered = true;
-
     setTimeout(() => {
       try {
         const loginPromise = app.initBackendLoginSafe();
-
         if (loginPromise && typeof loginPromise.catch === 'function') {
           loginPromise.catch((error) => {
             console.warn('[backend-auth] trigger backend login failed, continue without backend', error);
@@ -689,624 +384,463 @@ Page({
   async onPullDownRefresh() {
     try {
       wx.showNavigationBarLoading();
-      await this.loadCards(null, { forceBackendRefresh: true });
-      await this.loadReviewOverview();
+      await Promise.all([
+        this.loadReviewOverview().catch((e) => console.warn('[index] pull refresh overview failed', e)),
+        this.loadCardStats().catch((e) => console.warn('[index] pull refresh stats failed', e)),
+        this.refreshBackendCards().catch((e) => console.warn('[index] pull refresh cards failed', e))
+      ]);
     } finally {
       wx.hideNavigationBarLoading();
       wx.stopPullDownRefresh();
     }
   },
 
-  consumeIndexViewMode() {
-    const app = getApp();
-    const payload = app && app.globalData ? app.globalData.indexViewMode : null;
+  // ========== Local Cache ==========
 
-    if (!payload || !payload.mode) {
-      return null;
+  async loadLocalCache() {
+    try {
+      // Step 1: try getCards() first
+      const result = await getCards();
+      let localCards = normalizeCardList(result);
+
+      // Step 2: if getCards() returned nothing, fall back to raw cardsCache
+      if (localCards.length === 0) {
+        try {
+          const cardsCache = wx.getStorageSync('cardsCache');
+          const cacheCards = normalizeCardList(cardsCache);
+          if (cacheCards.length > 0) {
+            console.log('[index] recovered ' + cacheCards.length + ' cards from cardsCache fallback');
+            localCards = cacheCards;
+          }
+        } catch (e) { /* ignore storage read error */ }
+      }
+
+      // Step 3: if we have cards, set data immediately
+      if (localCards.length > 0) {
+        this.setData({ cards: localCards });
+
+        // If on 'all' tab with no search/filter, show all cards directly
+        const { currentLibraryTab, searchKeyword, selectedCategoryFilter, selectedExamSceneFilter, selectedExamModuleFilter, selectedCardIds } = this.data;
+        const noSearch = !normalizeSearchText(searchKeyword);
+        const noFilters = selectedCategoryFilter === '全部' && selectedExamSceneFilter === '全部' && selectedExamModuleFilter === '全部';
+        if (currentLibraryTab === 'all' && noSearch && noFilters) {
+          const decorated = decorateCards(localCards, selectedCardIds);
+          this.setData({
+            filteredCards: decorated,
+            totalCardCount: localCards.length,
+            currentResultCount: localCards.length,
+            displayTotalCount: localCards.length,
+            displayCurrentCount: localCards.length
+          });
+        } else {
+          this.applyFilters();
+        }
+
+        this.computeLocalCardStats(localCards);
+      } else {
+        this.applyFilters();
+        this.setData({ displayTotalCount: 0, displayCurrentCount: 0 });
+      }
+
+      // Step 4: Load cached review overview
+      try {
+        const cachedOverview = wx.getStorageSync('reviewOverviewCache');
+        if (cachedOverview) {
+          this.applyReviewOverview(cachedOverview);
+        }
+      } catch (e) { /* ignore */ }
+    } catch (error) {
+      console.warn('[index] loadLocalCache failed', error);
     }
-
-    app.globalData.indexViewMode = null;
-    return payload;
   },
 
+  // ========== Backend Data ==========
 
-  loadTodayReviewSummary() {
-    const todayReviewSummary = getTodayReviewSummary();
-  
+  async loadAllBackendData() {
+    await Promise.all([
+      this.loadReviewOverview(),
+      this.loadCardStats(),
+      this.refreshBackendCards()
+    ]);
+  },
+
+  applyReviewOverview(overview) {
+    if (!overview) return;
+    const totalToday = Number(overview.total_today || 0);
+    const toNew = Number(overview.to_new || 0);
+    const toReview = Number(overview.to_review || 0);
+    const strengtheningInReview = Number(overview.strengthening_in_review || 0);
+    const activeSession = overview.active_session || null;
+
+    const reviewActions = this.buildReviewActions(overview);
+    const allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
+
     this.setData({
-      todayReviewSummary,
-      todayLearnedCount: Number(todayReviewSummary.total || 0)
+      reviewOverview: overview,
+      reviewOverviewError: false,
+      totalToday,
+      toNew,
+      toReview,
+      strengtheningInReview,
+      hasActiveSession: !!activeSession,
+      activeSessionId: activeSession ? activeSession.session_id : '',
+      reviewActions,
+      showEmptyTaskTip: allZero
     });
   },
 
-  buildReviewOverviewDisplay(overview) {
-    const suggestedBatchSize = Number(overview && overview.suggested_batch_size || 5);
-    const strengtheningCount = Number(overview && overview.strengthening_count || 0);
-    const dueCount = Number(overview && overview.due_count || 0);
-    const todayRequiredCount = Number(overview && overview.today_required_count || (strengtheningCount + dueCount));
-    const newAvailableCount = Number(overview && overview.new_available_count || 0);
-
-    if (todayRequiredCount > 0) {
+  buildReviewActions(overview) {
+    if (!overview) {
       return {
-        mainText: `建议先完成 ${suggestedBatchSize} 张`,
-        subText: `有 ${todayRequiredCount} 张内容需要巩固或复习`,
-        newText: newAvailableCount > 0 ? `还有 ${newAvailableCount} 张新内容可逐步学习` : ''
+        daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
+        newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
+        strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
       };
     }
+    const totalToday = Number(overview.total_today || 0);
+    const toNew = Number(overview.to_new || 0);
+    const strengtheningInReview = Number(overview.strengthening_in_review || 0);
+    const activeSession = overview.active_session || null;
 
-    if (newAvailableCount > 0) {
-      return {
-        mainText: '今天没有到期复习',
-        subText: `可以学习 ${suggestedBatchSize} 张新内容`,
-        newText: `还有 ${newAvailableCount} 张新内容可逐步学习`
-      };
+    // Daily / main button
+    let daily;
+    if (activeSession) {
+      daily = { enabled: true, label: '继续复习', sessionType: 'daily_suggested' };
+    } else if (totalToday > 0) {
+      daily = { enabled: true, label: '开始今日复习', sessionType: 'daily_suggested' };
+    } else {
+      daily = { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' };
     }
 
-    return {
-      mainText: '今天没有到期复习',
-      subText: '可以先添加新内容，慢慢扩充卡片库',
-      newText: ''
-    };
+    // New cards button
+    const newAvailable = toNew > 0 || Number(overview.new_available_count || 0) > 0;
+    let newOnly;
+    if (newAvailable) {
+      newOnly = { enabled: true, label: '学习新卡', sessionType: 'new_only' };
+    } else {
+      newOnly = { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' };
+    }
+
+    // Strengthening button
+    const strengtheningAvailable = strengtheningInReview > 0 || Number(overview.strengthening_available_count || 0) > 0;
+    let strengthening;
+    if (strengtheningAvailable) {
+      strengthening = { enabled: true, label: '复习需加强', sessionType: 'free_review' };
+    } else {
+      strengthening = { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' };
+    }
+
+    return { daily, newOnly, strengthening };
   },
 
   async loadReviewOverview() {
     try {
       const overview = await getReviewOverview();
-      const display = this.buildReviewOverviewDisplay(overview);
-
-      this.setData({
-        reviewOverview: overview,
-        reviewOverviewMainText: display.mainText,
-        reviewOverviewSubText: display.subText,
-        reviewOverviewNewText: display.newText,
-        reviewOverviewError: ''
-      });
+      this.applyReviewOverview(overview);
+      wx.setStorageSync('reviewOverviewCache', overview);
     } catch (error) {
-      console.warn('[index] review overview failed, continue without CTA data', error);
+      console.warn('[index] review overview fetch failed', error);
       this.setData({
-        reviewOverviewError: '今日复习安排暂时无法同步',
-        reviewOverviewMainText: '今日复习',
-        reviewOverviewSubText: '进入后会尝试从后端获取复习任务',
-        reviewOverviewNewText: ''
+        reviewOverviewError: true,
+        reviewActions: {
+          daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今日任务暂不可用，请稍后再试' },
+          newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '今日任务暂不可用，请稍后再试' },
+          strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '今日任务暂不可用，请稍后再试' }
+        }
       });
     }
   },
 
-  updateNavigationTitle(pageMode) {
-    const pages = getCurrentPages();
-    const currentPage = pages[pages.length - 1];
-  
-    if (!currentPage || currentPage.route !== 'pages/index/index') {
-      return;
-    }
-  
-    wx.setNavigationBarTitle({
-      title: pageMode === 'today_reviewed' ? '今日复习内容' : '我的卡片'
-    });
-  },
-
-
-  computePendingCount(cards) {
-    const pending = (cards || []).filter((card) => matchesQuickFilter(card, 'todo')).length;
-    const weak = (cards || []).filter((card) => matchesQuickFilter(card, 'weak')).length;
-    const totalCardCount = this.data.totalCardCount || (cards || []).length;
-    const msg = getDailyMessage(this.data.todayLearnedCount, totalCardCount, pending);
-
+  applyCardStats(stats) {
+    if (!stats) return;
+    const libraryTabs = this.data.libraryTabs.map((tab) => ({
+      ...tab,
+      count: tab.key === 'all' ? Number(stats.total || 0) : Number(stats[tab.key] || 0)
+    }));
     this.setData({
-      pendingCount: pending,
-      weakCount: weak,
-      dailyMessage: msg
+      cardStats: stats,
+      totalCardCount: Number(stats.total || 0),
+      libraryTabs
     });
   },
 
-  async loadCards(viewModePayload = null, options = {}) {
-    const applyVisibleCards = (cards) => {
-      let pageMode = this.data.pageMode;
-      let pageModeTitle = this.data.pageModeTitle;
-      let pageModeSource = this.data.pageModeSource;
-      let visibleCards = cards;
-  
-      if (viewModePayload && viewModePayload.mode === 'today_reviewed') {
-        pageMode = 'today_reviewed';
-        pageModeTitle = '今日复习内容';
-        pageModeSource = viewModePayload.source || '';
-        visibleCards = getTodayReviewedCardsFromAll(cards);
-      } else if (!viewModePayload && this.data.pageMode === 'today_reviewed') {
-        pageMode = 'today_reviewed';
-        pageModeTitle = '今日复习内容';
-        visibleCards = getTodayReviewedCardsFromAll(cards);
+  /**
+   * Compute cardStats from local card array when backend stats are unavailable.
+   * Only counts cards that match a valid review state; cards with unknown states
+   * default to 'new' for display purposes.
+   */
+  computeLocalCardStats(cards) {
+    if (!Array.isArray(cards)) return;
+    const stats = { total: 0, new: 0, reviewing: 0, strengthening: 0, mastered: 0 };
+    let unknownCount = 0;
+    cards.forEach((c) => {
+      stats.total += 1;
+      const state = c.reviewStateV2 || c.review_state || '';
+      if (VALID_REVIEW_STATES.has(state)) {
+        stats[state] += 1;
+      } else if (state) {
+        console.warn('[index] unknown review_stateV2 for card', String(c && c.id || '').slice(0, 12), state);
+        stats.new += 1;
       } else {
-        pageMode = 'all';
-        pageModeTitle = '';
-        pageModeSource = '';
-        visibleCards = cards;
+        unknownCount += 1;
       }
-  
+    });
+    if (unknownCount > 0) {
+      console.warn('[index] found ' + unknownCount + ' cards without review_state, shown in 全部 tab only');
+    }
+    this.applyCardStats(stats);
+  },
 
-  this.setData({
-    cards: visibleCards,
-    pageMode,
-    pageModeTitle,
-    pageModeSource,
-    quickFilterOptions: pageMode === 'today_reviewed'
-      ? buildTodayReviewedQuickFilterOptions(visibleCards)
-      : buildHomeQuickFilterOptions(visibleCards),
-    selectedQuickFilter: this.data.selectedQuickFilter || 'all',
-    showMoreFilters: pageMode === 'today_reviewed' ? this.data.showMoreFilters : false
-  });
-
-  this.updateNavigationTitle(pageMode);
-  this.applySearch(this.data.searchKeyword, visibleCards, this.data.selectedCardIds);
-      
-    };
-  
+  async loadCardStats() {
     try {
-      const localCards = await getCards();
-      applyVisibleCards(localCards);
-      this.computePendingCount(localCards);
-
-      if (typeof options.onLocalCardsReady === 'function') {
-        options.onLocalCardsReady(localCards);
-      }
-
-      if (options.skipBackendRefresh === true) {
-        return;
-      }
-      
-      const shouldSyncBackend = options.forceBackendRefresh === true ||
-        Date.now() - lastHomeBackendSyncAt >= BACKEND_SYNC_COOLDOWN_MS;
-      
-      if (!shouldSyncBackend) {
-        return;
-      }
-      
-      try {
-        const freshCards = await refreshCardsCacheFromBackend();
-        lastHomeBackendSyncAt = Date.now();
-        applyVisibleCards(freshCards);
-        this.computePendingCount(freshCards);
-        this.retryFailedAnalysisInBackground(freshCards);
-      } catch (syncError) {
-        console.warn('[index] backend cards refresh failed, continue with cached cards', syncError);
-      }
+      const stats = await getCardStats();
+      this.applyCardStats(stats);
+      wx.setStorageSync('cardStatsCache', stats);
     } catch (error) {
-      wx.showToast({
-        title: '卡片加载失败',
-        icon: 'none'
-      });
+      console.warn('[index] card stats fetch failed', error);
     }
   },
 
-  applySearch(keyword, sourceCards, selectedCardIds) {
-    const cards = sourceCards || this.data.cards;
-    const selectedIds = selectedCardIds || this.data.selectedCardIds;
-    const normalizedKeyword = normalizeSearchText(keyword);
-    const keywordList = getSearchTokens(keyword);
+  async refreshBackendCards() {
+    try {
+      const freshCards = await refreshCardsCacheFromBackend();
+      if (Array.isArray(freshCards)) {
+        this.setData({ cards: freshCards });
+        this.applyFilters();
+      }
+    } catch (error) {
+      console.warn('[index] backend cards refresh failed, using cached', error);
+    }
+  },
+
+  // ========== Library Tab ==========
+
+  onLibraryTabTap(event) {
+    const { key } = event.currentTarget.dataset;
+    if (!key || key === this.data.currentLibraryTab) return;
+    this.setData({ currentLibraryTab: key });
+    this.applyFilters();
+  },
+
+  // ========== Filtering ==========
+
+  applyFilters() {
+    // Guard: cards must always be an array; if not (e.g. getCards() wasn't awaited), fall back to []
+    const rawCards = this.data.cards;
+    const cards = Array.isArray(rawCards) ? rawCards : [];
     const {
+      searchKeyword,
+      currentLibraryTab,
+      selectedCardIds,
       selectedCategoryFilter,
       selectedExamSceneFilter,
-      selectedExamModuleFilter,
-      selectedQuickFilter,
-      pageMode
+      selectedExamModuleFilter
     } = this.data;
-  
-    const categoryCount = cards.filter((card) => {
-      return matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
-    }).length;
-  
+
+    // Step 1: Filter by library tab (reviewStateV2)
+    // Cards without reviewStateV2 (old cards) only show in "全部" tab
+    let filtered = currentLibraryTab === 'all'
+      ? cards.slice()
+      : cards.filter((c) => c.reviewStateV2 && c.reviewStateV2 === currentLibraryTab);
+
+    // Step 2: Category / exam scene / exam module
+    filtered = filtered.filter((card) => {
+      const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
+      const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
+      const matchModule = matchesExactFilter(card.examModule, selectedExamModuleFilter, DEFAULT_EXAM_MODULE);
+      return matchCategory && matchScene && matchModule;
+    });
+
+    // Step 3: Compute category/exam counts for filter UI
+    const categoryCount = cards.filter((card) =>
+      matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY)
+    ).length;
     const examSceneCount = cards.filter((card) => {
       const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
       const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
       return matchCategory && matchScene;
     }).length;
-  
     const examModuleCount = cards.filter((card) => {
       const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
       const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
       const matchModule = matchesExactFilter(card.examModule, selectedExamModuleFilter, DEFAULT_EXAM_MODULE);
       return matchCategory && matchScene && matchModule;
     }).length;
-  
-    const filteredBySelect = cards.filter((card) => {
-      const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
-      const matchExamScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
-      const matchExamModule = matchesExactFilter(card.examModule, selectedExamModuleFilter, DEFAULT_EXAM_MODULE);
-  
-      return matchCategory && matchExamScene && matchExamModule;
-    });
-  
-    const nextQuickFilterOptions = pageMode === 'today_reviewed'
-      ? buildTodayReviewedQuickFilterOptions(filteredBySelect)
-      : buildHomeQuickFilterOptions(filteredBySelect);
 
-const quickFilterKeys = nextQuickFilterOptions.map((item) => item.key);
-const nextSelectedQuickFilter = quickFilterKeys.includes(selectedQuickFilter)
-  ? selectedQuickFilter
-  : 'all';
+    // Step 4: Search keyword
+    const normalizedKeyword = normalizeSearchText(searchKeyword);
+    const keywordList = getSearchTokens(searchKeyword);
+    if (normalizedKeyword) {
+      filtered = filtered.filter((card) => matchesCard(card, normalizedKeyword, keywordList));
+    }
 
-const filteredByQuick = filteredBySelect.filter((card) => {
-  if (pageMode === 'today_reviewed') {
-    return matchesTodayReviewedQuickFilter(card, nextSelectedQuickFilter);
-  }
+    // Step 5: Decorate
+    const decoratedFilteredCards = decorateCards(filtered, selectedCardIds);
 
-  return matchesQuickFilter(card, nextSelectedQuickFilter);
-});
+    const displayTotalCount = cards.length || (this.data.cardStats && this.data.cardStats.total) || 0;
+    const displayCurrentCount = filtered.length || 0;
 
-const finalFilteredCards = normalizedKeyword
-  ? filteredByQuick.filter((card) => matchesCard(card, normalizedKeyword, keywordList))
-  : filteredByQuick;
-
-  const decoratedFilteredCards = decorateCards(finalFilteredCards, selectedIds);
-
-  this.setData({
-    categoryCount,
-    examSceneCount,
-    examModuleCount,
-    searchKeyword: keyword,
-    totalCardCount: cards.length,
-    currentResultCount: finalFilteredCards.length,
-    filteredCards: decoratedFilteredCards,
-
-    // 这次暂时不用右侧快速滚动条，避免和“↑ 顶部”重复
-    showHomeFastScroll: false,
-
-    quickFilterOptions: nextQuickFilterOptions,
-    selectedQuickFilter: nextSelectedQuickFilter
-  });
-},
-
-onSearchInput(event) {
-  const value = event.detail.value || '';
-  const wasSearching = !!normalizeSearchText(this.data.searchKeyword);
-  const willSearching = !!normalizeSearchText(value);
-
-  // 从“非搜索状态”进入“搜索状态”：记录搜索前的位置
-  if (!wasSearching && willSearching) {
     this.setData({
-      searchRestoreScrollTop: Number(this.data.homePageScrollTop || 0),
-      isSearchActive: true,
-      showBackToTop: false
+      categoryCount,
+      examSceneCount,
+      examModuleCount,
+      totalCardCount: cards.length,
+      currentResultCount: filtered.length,
+      filteredCards: decoratedFilteredCards,
+      displayTotalCount,
+      displayCurrentCount,
+      showLibraryPreparationTip: computeLibraryPreparationTip(filtered, currentLibraryTab)
     });
+  },
 
-    this.applySearch(value);
+  // ========== Search ==========
 
-    // 搜索时回到顶部，方便直接看匹配结果
-    wx.pageScrollTo({
-      scrollTop: 0,
-      duration: 120
-    });
+  onSearchInput(event) {
+    const value = event.detail.value || '';
+    const wasSearching = !!normalizeSearchText(this.data.searchKeyword);
+    const willSearching = !!normalizeSearchText(value);
 
-    return;
-  }
-
-  // 用户手动删空输入框，也按“清空搜索”处理
-  if (wasSearching && !willSearching) {
-    this.clearSearch();
-    return;
-  }
-
-  this.applySearch(value);
-},
-
-clearSearch() {
-  const restoreTop = Number(this.data.searchRestoreScrollTop || 0);
-
-  this.setData({
-    isSearchActive: false,
-    showBackToTop: false,
-    showFixedSearch: restoreTop > 180
-  });
-
-  this.applySearch('');
-
-  wx.nextTick(() => {
-    wx.pageScrollTo({
-      scrollTop: restoreTop,
-      duration: 0
-    });
-  });
-},
-
-  onQuickFilterTap(event) {
-    const { key } = event.currentTarget.dataset;
-
-    if (!key || key === this.data.selectedQuickFilter) {
+    if (!wasSearching && willSearching) {
+      this.setData({
+        searchRestoreScrollTop: Number(this.data.homePageScrollTop || 0),
+        isSearchActive: true,
+        showBackToTop: false
+      });
+      this.setData({ searchKeyword: value });
+      this.applyFilters();
+      wx.pageScrollTo({ scrollTop: 0, duration: 120 });
       return;
     }
 
-    this.setData({
-      selectedQuickFilter: key
-    });
+    if (wasSearching && !willSearching) {
+      this.clearSearch();
+      return;
+    }
 
-    this.applySearch(this.data.searchKeyword, this.data.cards, this.data.selectedCardIds);
+    this.setData({ searchKeyword: value });
+    this.applyFilters();
+  },
+
+  clearSearch() {
+    const restoreTop = Number(this.data.searchRestoreScrollTop || 0);
+    this.setData({
+      isSearchActive: false,
+      showBackToTop: false,
+      showFixedSearch: restoreTop > 180,
+      searchKeyword: ''
+    });
+    this.applyFilters();
+    wx.nextTick(() => {
+      wx.pageScrollTo({ scrollTop: restoreTop, duration: 0 });
+    });
   },
 
   toggleMoreFilters() {
-    this.setData({
-      showMoreFilters: !this.data.showMoreFilters
-    });
+    this.setData({ showMoreFilters: !this.data.showMoreFilters });
   },
-
-  onPageScroll(event) {
-    const scrollTop = Number(event.scrollTop || 0);
-    const lastScrollTop = Number(this.data.lastPageScrollTop || 0);
-  
-    const isHomePage = this.data.pageMode !== 'today_reviewed';
-    const isSearching = !!normalizeSearchText(this.data.searchKeyword);
-    const isScrollingUp = scrollTop + 8 < lastScrollTop;
-    const isScrollingDown = scrollTop > lastScrollTop + 8;
-  
-    const showFixedSearch = (
-      isHomePage &&
-      !this.data.isManageMode &&
-      scrollTop > 180
-    );
-  
-    let showBackToTop = this.data.showBackToTop;
-  
-    // 接近顶部、非首页、管理模式、搜索中：隐藏
-    if (scrollTop <= 120 || !isHomePage || this.data.isManageMode || isSearching) {
-      showBackToTop = false;
-    }
-  
-    // 用户重新往下滑：隐藏
-    if (isScrollingDown) {
-      showBackToTop = false;
-    }
-  
-    // 用户开始往上滑：显示
-    if (
-      isHomePage &&
-      !this.data.isManageMode &&
-      !isSearching &&
-      scrollTop > 220 &&
-      isScrollingUp
-    ) {
-      showBackToTop = true;
-    }
-  
-    this.setData({
-      homePageScrollTop: scrollTop,
-      lastPageScrollTop: scrollTop,
-      showFixedSearch,
-      showBackToTop
-    });
-  },
-  
-  scrollToHomeTop() {
-    this.setData({
-      showBackToTop: false,
-      showFixedSearch: false,
-      homePageScrollTop: 0,
-      lastPageScrollTop: 0
-    });
-  
-    wx.pageScrollTo({
-      scrollTop: 0,
-      duration: 260
-    });
-  },
-
-
-  updateHomeFastScrollThumb(scrollTop) {
-    if (!this.data.showHomeFastScroll) {
-      return;
-    }
-  
-    wx.createSelectorQuery()
-      .in(this)
-      .select('.home-page')
-      .boundingClientRect((pageRect) => {
-        if (!pageRect) {
-          return;
-        }
-  
-        const systemInfo = wx.getSystemInfoSync();
-        const windowHeight = systemInfo.windowHeight || 0;
-        const pageHeight = pageRect.height || 0;
-        const maxScrollTop = Math.max(pageHeight - windowHeight, 1);
-        const ratio = Math.max(0, Math.min(1, scrollTop / maxScrollTop));
-        const thumbTop = Math.round(ratio * 100);
-  
-        this.setData({
-          homePageScrollTop: scrollTop,
-          homeFastScrollThumbTop: thumbTop,
-          homeFastScrollThumbStyle: `top: ${thumbTop}%;`
-        });
-      })
-      .exec();
-  },
-  
-  onHomeFastScrollTouchStart(event) {
-    this.handleHomeFastScrollTouch(event);
-  },
-  
-  onHomeFastScrollTouchMove(event) {
-    this.handleHomeFastScrollTouch(event);
-  },
-  
-  handleHomeFastScrollTouch(event) {
-    if (!this.data.showHomeFastScroll) {
-      return;
-    }
-  
-    const touch = event.touches && event.touches[0];
-  
-    if (!touch) {
-      return;
-    }
-  
-    wx.createSelectorQuery()
-      .in(this)
-      .select('.home-fast-scroll-track')
-      .boundingClientRect((trackRect) => {
-        if (!trackRect || !trackRect.height) {
-          return;
-        }
-  
-        wx.createSelectorQuery()
-          .in(this)
-          .select('.home-page')
-          .boundingClientRect((pageRect) => {
-            if (!pageRect) {
-              return;
-            }
-  
-            const systemInfo = wx.getSystemInfoSync();
-            const windowHeight = systemInfo.windowHeight || 0;
-            const pageHeight = pageRect.height || 0;
-            const maxScrollTop = Math.max(pageHeight - windowHeight, 0);
-  
-            const offsetY = touch.clientY - trackRect.top;
-            const ratio = Math.max(0, Math.min(1, offsetY / trackRect.height));
-            const targetScrollTop = Math.round(maxScrollTop * ratio);
-            const thumbTop = Math.round(ratio * 100);
-  
-            this.setData({
-              homePageScrollTop: targetScrollTop,
-              homeFastScrollThumbTop: thumbTop,
-              homeFastScrollThumbStyle: `top: ${thumbTop}%;`
-            });
-  
-            wx.pageScrollTo({
-              scrollTop: targetScrollTop,
-              duration: 0
-            });
-          })
-          .exec();
-      })
-      .exec();
-  },
-
-  scrollToHomeLetter(letter) {
-    if (!letter || this.data.pageMode === 'today_reviewed') {
-      return;
-    }
-  
-    const targetId = `home-letter-${letter === '#' ? 'sharp' : letter}`;
-  
-    this.setData({
-      activeHomeElevatorLetter: letter
-    });
-  
-    wx.pageScrollTo({
-      selector: `#${targetId}`,
-      duration: 180
-    });
-  },
-  
-  onHomeElevatorTap(event) {
-    const { letter } = event.currentTarget.dataset;
-    this.scrollToHomeLetter(letter);
-  },
-  
-  onHomeElevatorTouchStart(event) {
-    this.handleHomeElevatorTouch(event);
-  },
-  
-  onHomeElevatorTouchMove(event) {
-    this.handleHomeElevatorTouch(event);
-  },
-  
-  handleHomeElevatorTouch(event) {
-    if (this.data.pageMode === 'today_reviewed') {
-      return;
-    }
-  
-    const touch = event.touches && event.touches[0];
-  
-    if (!touch) {
-      return;
-    }
-  
-    const letters = this.data.homeElevatorLetters || [];
-  
-    if (letters.length === 0) {
-      return;
-    }
-  
-    wx.createSelectorQuery()
-      .in(this)
-      .select('.home-elevator-bar')
-      .boundingClientRect((rect) => {
-        if (!rect || !rect.height) {
-          return;
-        }
-  
-        const offsetY = touch.clientY - rect.top;
-        const ratio = Math.max(0, Math.min(1, offsetY / rect.height));
-        const index = Math.min(letters.length - 1, Math.floor(ratio * letters.length));
-        const letter = letters[index];
-  
-        if (letter && letter !== this.data.activeHomeElevatorLetter) {
-          this.scrollToHomeLetter(letter);
-        }
-      })
-      .exec();
-  },
-
-
 
   onCategoryFilterChange(event) {
     const categoryFilterIndex = Number(event.detail.value || 0);
     const selectedCategoryFilter = CATEGORY_FILTER_OPTIONS[categoryFilterIndex] || '全部';
-
-    this.setData({
-      categoryFilterIndex,
-      selectedCategoryFilter
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, this.data.selectedCardIds);
+    this.setData({ categoryFilterIndex, selectedCategoryFilter });
+    this.applyFilters();
   },
 
   onExamSceneFilterChange(event) {
     const examSceneFilterIndex = Number(event.detail.value || 0);
     const selectedExamSceneFilter = EXAM_SCENE_FILTER_OPTIONS[examSceneFilterIndex] || '全部';
-
-    this.setData({
-      examSceneFilterIndex,
-      selectedExamSceneFilter
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, this.data.selectedCardIds);
+    this.setData({ examSceneFilterIndex, selectedExamSceneFilter });
+    this.applyFilters();
   },
 
   onExamModuleFilterChange(event) {
     const examModuleFilterIndex = Number(event.detail.value || 0);
     const selectedExamModuleFilter = EXAM_MODULE_FILTER_OPTIONS[examModuleFilterIndex] || '全部';
-
-    this.setData({
-      examModuleFilterIndex,
-      selectedExamModuleFilter
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, this.data.selectedCardIds);
+    this.setData({ examModuleFilterIndex, selectedExamModuleFilter });
+    this.applyFilters();
   },
+
+  // ========== Review Entry ==========
+
+  handleReviewActionTap(e) {
+    const key = e.currentTarget.dataset.key;
+    const action = this.data.reviewActions && this.data.reviewActions[key];
+    if (!action) return;
+    if (this.data.isManageMode) return;
+
+    // Disabled action: show toast, no POST, no navigation
+    if (!action.enabled) {
+      wx.showToast({
+        title: action.disabledReason || '当前暂不可用',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // Daily with active session: resume directly without creating new session
+    if (key === 'daily' && this.data.hasActiveSession && this.data.activeSessionId) {
+      wx.navigateTo({
+        url: `/pages/review/review?session_id=${this.data.activeSessionId}`
+      });
+      return;
+    }
+
+    // Otherwise start a new review session of the specified type
+    this.handleStartReview(action.sessionType);
+  },
+
+  async handleStartReview(sessionType) {
+    if (this.data.reviewEntryLoading) return;
+
+    this.setData({ reviewEntryLoading: true });
+    wx.showLoading({ title: '准备复习中...', mask: true });
+
+    try {
+      const result = await createReviewSession({ session_type: sessionType });
+      const sessionId =
+        (result && (result.session_id || result.id)) ||
+        (result && result.data && (result.data.session_id || result.data.id)) ||
+        '';
+
+      if (!sessionId) {
+        throw new Error('missing session_id');
+      }
+
+      wx.navigateTo({
+        url: `/pages/review/review?session_id=${sessionId}`
+      });
+    } catch (error) {
+      console.warn('[index] create review session failed', error);
+      wx.showToast({
+        title: '暂时无法开始复习，请稍后再试',
+        icon: 'none'
+      });
+    } finally {
+      wx.hideLoading();
+      this.setData({ reviewEntryLoading: false });
+    }
+  },
+
+  // ========== Navigation ==========
 
   goToAddPage() {
-    if (this.data.isManageMode) {
-      return;
-    }
-
-    wx.navigateTo({
-      url: '/pages/add/add'
-    });
+    if (this.data.isManageMode) return;
+    wx.navigateTo({ url: '/pages/add/add' });
   },
 
-  goToReviewPage() {
+  openCard(event) {
+    const { id } = event.currentTarget.dataset;
     if (this.data.isManageMode) {
+      this.toggleCardSelection(id);
       return;
     }
-
-    wx.navigateTo({
-      url: '/pages/review/review'
-    });
+    wx.navigateTo({ url: `/pages/add/add?id=${id}` });
   },
 
+  // ========== Management Mode ==========
 
   enterManageMode(initialCardId) {
     const nextSelectedIds = initialCardId ? [initialCardId] : [];
-  
     this.setData({
       isManageMode: true,
       selectedCardIds: nextSelectedIds,
@@ -1314,19 +848,13 @@ clearSearch() {
       showBackToTop: false,
       showMoreFilters: false
     });
-  
-    this.applySearch(this.data.searchKeyword, this.data.cards, nextSelectedIds);
+    this.applyFilters();
   },
 
   exitManageMode() {
     this.closeBatchPanel();
-
-    this.setData({
-      isManageMode: false,
-      selectedCardIds: []
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, []);
+    this.setData({ isManageMode: false, selectedCardIds: [] });
+    this.applyFilters();
   },
 
   toggleCardSelection(cardId) {
@@ -1341,39 +869,35 @@ clearSearch() {
       return;
     }
 
-    this.setData({
-      selectedCardIds: nextSelectedIds
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, nextSelectedIds);
+    this.setData({ selectedCardIds: nextSelectedIds });
+    this.applyFilters();
   },
 
   selectAllCards() {
     const filteredCards = this.data.filteredCards || [];
-
     if (filteredCards.length === 0) {
-      wx.showToast({
-        title: '当前没有可选卡片',
-        icon: 'none'
-      });
+      wx.showToast({ title: '当前没有可选卡片', icon: 'none' });
       return;
     }
-
     const filteredCardIds = filteredCards.map((card) => card.id);
     const currentSelectedIds = this.data.selectedCardIds || [];
     const allFilteredSelected = filteredCardIds.every((id) => currentSelectedIds.includes(id));
     const nextSelectedIds = allFilteredSelected ? [] : filteredCardIds;
-
     if (nextSelectedIds.length === 0) {
       this.exitManageMode();
       return;
     }
+    this.setData({ selectedCardIds: nextSelectedIds });
+    this.applyFilters();
+  },
 
-    this.setData({
-      selectedCardIds: nextSelectedIds
-    });
-
-    this.applySearch(this.data.searchKeyword, this.data.cards, nextSelectedIds);
+  onCardLongPress(event) {
+    const { id } = event.currentTarget.dataset;
+    if (this.data.isManageMode) {
+      this.toggleCardSelection(id);
+      return;
+    }
+    this.enterManageMode(id);
   },
 
   openBatchPanel(type, title, options) {
@@ -1396,293 +920,121 @@ clearSearch() {
 
   handleBatchAssignExamScene() {
     const selectedCardIds = this.data.selectedCardIds || [];
-
     if (selectedCardIds.length === 0) {
-      wx.showToast({
-        title: '请先选择卡片',
-        icon: 'none'
-      });
+      wx.showToast({ title: '请先选择卡片', icon: 'none' });
       return;
     }
-
     this.openBatchPanel('examScene', '批量设置考试场景', BATCH_EXAM_SCENE_OPTIONS);
   },
 
   handleBatchAssignExamModule() {
     const selectedCardIds = this.data.selectedCardIds || [];
-
     if (selectedCardIds.length === 0) {
-      wx.showToast({
-        title: '请先选择卡片',
-        icon: 'none'
-      });
+      wx.showToast({ title: '请先选择卡片', icon: 'none' });
       return;
     }
-
     this.openBatchPanel('examModule', '批量设置考试模块', BATCH_EXAM_MODULE_OPTIONS);
   },
 
   handleBatchDelete() {
     const selectedCardIds = this.data.selectedCardIds || [];
-
     if (selectedCardIds.length === 0) {
-      wx.showToast({
-        title: '请先选择卡片',
-        icon: 'none'
-      });
+      wx.showToast({ title: '请先选择卡片', icon: 'none' });
       return;
     }
-
     wx.showModal({
       title: '批量删除',
       content: `确定删除选中的 ${selectedCardIds.length} 张卡片吗？`,
       confirmText: '删除',
       confirmColor: '#b85c5c',
       success: async (result) => {
-        if (!result.confirm) {
-          return;
-        }
-
+        if (!result.confirm) return;
         try {
           await deleteCards(selectedCardIds);
         } catch (error) {
-          wx.showToast({
-            title: '批量删除失败',
-            icon: 'none'
-          });
+          wx.showToast({ title: '批量删除失败', icon: 'none' });
           return;
         }
-
-        wx.showToast({
-          title: '已删除',
-          icon: 'success'
-        });
-
+        wx.showToast({ title: '已删除', icon: 'success' });
         const deletedIdSet = new Set(selectedCardIds.map((id) => String(id)));
-
-        const nextCards = (this.data.cards || []).filter((card) => {
-          return !deletedIdSet.has(String(card.id));
-        });
-
-        const nextFilteredCards = (this.data.filteredCards || []).filter((card) => {
-          return !deletedIdSet.has(String(card.id));
-        });
-
+        const nextCards = (this.data.cards || []).filter((card) => !deletedIdSet.has(String(card.id)));
         this.setData({
           cards: nextCards,
-          filteredCards: nextFilteredCards,
           isManageMode: false,
           selectedCardIds: [],
           isBatchPanelVisible: false,
           batchPanelType: '',
           batchPanelTitle: '',
-          batchPanelOptions: [],
-          totalCardCount: nextCards.length,
-          currentResultCount: nextFilteredCards.length
+          batchPanelOptions: []
         });
-
-        this.loadTodayReviewSummary();
-        this.applySearch(this.data.searchKeyword, nextCards, []);
-        this.computePendingCount(nextCards);
-        
+        this.applyFilters();
       }
     });
   },
-
-  patchCardAnalysisState(cardId, patch) {
-    const targetId = String(cardId);
-
-    const nextCards = (this.data.cards || []).map((card) => {
-      if (String(card.id) !== targetId) {
-        return card;
-      }
-
-      return {
-        ...card,
-        ...patch
-      };
-    });
-
-    this.setData({
-      cards: nextCards
-    });
-
-    this.applySearch(this.data.searchKeyword, nextCards, this.data.selectedCardIds);
-  },
-
-  retryFailedAnalysisInBackground(cards = []) {
-    if (this.data.pageMode === 'today_reviewed') {
-      return;
-    }
-
-    const failedCards = (cards || [])
-      .filter((card) => {
-        return String(card && card.analysisStatus || '') === 'failed';
-      })
-      .slice(0, 3);
-
-    failedCards.forEach((card) => {
-      this.retryOneFailedAnalysis(card);
-    });
-  },
-
-  async retryOneFailedAnalysis(card) {
-    if (!card || !card.id || !card.englishText) {
-      return;
-    }
-
-    const cardId = String(card.id);
-
-    if (retryingAnalysisCardIds.has(cardId)) {
-      return;
-    }
-
-    retryingAnalysisCardIds.add(cardId);
-
-    try {
-      const pendingPatch = {
-        analysisStatus: 'pending',
-        analysisRetriedAt: Date.now()
-      };
-
-      this.patchCardAnalysisState(card.id, pendingPatch);
-      await updateCardsMeta([card.id], pendingPatch);
-
-      const cloudResult = await wx.cloud.callFunction({
-        name: 'analyzeEnglish',
-        data: {
-          englishText: card.englishText,
-          text: card.englishText,
-          category: card.category || DEFAULT_CATEGORY,
-          examScene: card.examScene || DEFAULT_EXAM_SCENE,
-          examModule: card.examModule || DEFAULT_EXAM_MODULE
-        }
-      });
-
-      const normalized = normalizeAnalyzeEnglishResult(cloudResult);
-
-      if (!normalized.success) {
-        throw new Error('analyzeEnglish success=false');
-      }
-
-      const donePatch = {
-        analysisStatus: 'done',
-        analysisWarnings: normalized.warnings,
-        analysisErrors: normalized.errors,
-        analysisResult: normalized.raw,
-        analysisUpdatedAt: Date.now()
-      };
-
-      this.patchCardAnalysisState(card.id, donePatch);
-      await updateCardsMeta([card.id], donePatch);
-    } catch (error) {
-      const failedPatch = {
-        analysisStatus: 'failed',
-        analysisFailedAt: Date.now()
-      };
-
-      this.patchCardAnalysisState(card.id, failedPatch);
-
-      try {
-        await updateCardsMeta([card.id], failedPatch);
-      } catch (updateError) {
-        console.warn('更新分析失败状态失败', updateError);
-      }
-
-      console.warn('后台重试分析失败', error);
-    } finally {
-      retryingAnalysisCardIds.delete(cardId);
-    }
-  },
-
-  noop() {},
 
   async onBatchPanelOptionTap(event) {
     const { value } = event.currentTarget.dataset;
     const { batchPanelType, selectedCardIds } = this.data;
-
     if (!value || !batchPanelType || !selectedCardIds.length) {
       this.closeBatchPanel();
       return;
     }
-
     try {
       if (batchPanelType === 'examScene') {
         await updateCardsMeta(selectedCardIds, { examScene: value });
       }
-
       if (batchPanelType === 'examModule') {
         await updateCardsMeta(selectedCardIds, { examModule: value });
       }
     } catch (error) {
       this.closeBatchPanel();
-      wx.showToast({
-        title: '批量更新失败',
-        icon: 'none'
-      });
+      wx.showToast({ title: '批量更新失败', icon: 'none' });
       return;
     }
-
     this.closeBatchPanel();
-
-    wx.showToast({
-      title: `已归类到${value}`,
-      icon: 'success'
-    });
-
-    this.loadCards();
+    wx.showToast({ title: `已归类到${value}`, icon: 'success' });
+    this.refreshBackendCards();
   },
 
-  onCardLongPress(event) {
-    const { id } = event.currentTarget.dataset;
+  noop() {},
 
-    if (this.data.isManageMode) {
-      this.toggleCardSelection(id);
-      return;
+  // ========== Scroll ==========
+
+  onPageScroll(event) {
+    const scrollTop = Number(event.scrollTop || 0);
+    const lastScrollTop = Number(this.data.lastPageScrollTop || 0);
+    const isSearching = !!normalizeSearchText(this.data.searchKeyword);
+    const isScrollingUp = scrollTop + 8 < lastScrollTop;
+    const isScrollingDown = scrollTop > lastScrollTop + 8;
+
+    const showFixedSearch = !this.data.isManageMode && scrollTop > 180;
+
+    let showBackToTop = this.data.showBackToTop;
+    if (scrollTop <= 120 || this.data.isManageMode || isSearching) {
+      showBackToTop = false;
+    }
+    if (isScrollingDown) {
+      showBackToTop = false;
+    }
+    if (!this.data.isManageMode && !isSearching && scrollTop > 220 && isScrollingUp) {
+      showBackToTop = true;
     }
 
-    this.enterManageMode(id);
-  },
-
-  isTodayReviewedMode() {
-    return this.data.pageMode === 'today_reviewed';
-  },
-
-
-  openCard(event) {
-    const { id } = event.currentTarget.dataset;
-  
-    if (this.data.isManageMode) {
-      this.toggleCardSelection(id);
-      return;
-    }
-  
-    const from = this.isTodayReviewedMode() ? 'today_reviewed' : '';
-    const url = from
-      ? `/pages/add/add?id=${id}&from=${from}`
-      : `/pages/add/add?id=${id}`;
-  
-    wx.navigateTo({
-      url
-    });
-  },
-
-
-
-  exitTodayReviewedMode() {
-    if (this.data.pageModeSource === 'review') {
-      wx.navigateBack({
-        delta: 1
-      });
-      return;
-    }
-  
     this.setData({
-      pageMode: 'all',
-      pageModeTitle: '',
-      pageModeSource: ''
+      homePageScrollTop: scrollTop,
+      lastPageScrollTop: scrollTop,
+      showFixedSearch,
+      showBackToTop
     });
-  
-    this.loadCards();
+  },
+
+  scrollToHomeTop() {
+    this.setData({
+      showBackToTop: false,
+      showFixedSearch: false,
+      homePageScrollTop: 0,
+      lastPageScrollTop: 0
+    });
+    wx.pageScrollTo({ scrollTop: 0, duration: 260 });
   }
 });

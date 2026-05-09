@@ -2483,3 +2483,317 @@
   background: #fff6f7;
   border-color: #f1d4d8;
 }
+
+/* ===== Phase 4B: 今日任务看板 ===== */
+
+.dashboard-card {
+  margin-top: 20rpx;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid #dcebd8;
+  border-radius: 30rpx;
+  padding: 28rpx 32rpx 24rpx;
+  box-shadow: 0 12rpx 32rpx rgba(86, 126, 82, 0.10);
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.dashboard-title {
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #2f5f3a;
+}
+
+.dashboard-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #66af6a;
+  opacity: 0.5;
+}
+
+.dashboard-total-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+  margin-bottom: 22rpx;
+}
+
+.dashboard-total-num {
+  font-size: 56rpx;
+  font-weight: 850;
+  color: #2f5f3a;
+  line-height: 1.1;
+}
+
+.dashboard-total-label {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #7f8d82;
+  line-height: 1.4;
+}
+
+.dashboard-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 20rpx 0;
+  background: rgba(242, 249, 242, 0.7);
+  border-radius: 20rpx;
+  margin-bottom: 24rpx;
+}
+
+.dashboard-stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+}
+
+.dashboard-stat-num {
+  font-size: 40rpx;
+  font-weight: 850;
+  color: #2f5f3a;
+  line-height: 1.15;
+}
+
+.dashboard-stat-label {
+  font-size: 23rpx;
+  font-weight: 600;
+  color: #8a9a8e;
+  line-height: 1.4;
+}
+
+.dashboard-stat-divider {
+  width: 1rpx;
+  height: 56rpx;
+  background: #e2ede2;
+  flex-shrink: 0;
+}
+
+.dashboard-actions {
+  margin-bottom: 14rpx;
+}
+
+.dashboard-actions .primary-btn {
+  width: 100%;
+  height: 90rpx;
+  line-height: 90rpx;
+  font-size: 32rpx;
+}
+
+.dashboard-secondary-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.dashboard-secondary-actions .secondary-btn-sm {
+  flex: 1;
+  height: 74rpx;
+  line-height: 74rpx;
+  font-size: 26rpx;
+  border-radius: 22rpx;
+  padding: 0 16rpx;
+}
+
+/* ===== Phase 4B: 卡片库区域 ===== */
+
+.library-section {
+  margin-top: 32rpx;
+}
+
+.section-header {
+  margin-bottom: 18rpx;
+}
+
+.section-title {
+  font-size: 34rpx;
+  font-weight: 800;
+  color: #2f5f3a;
+  line-height: 1.3;
+}
+
+.section-subtitle {
+  margin-top: 6rpx;
+  font-size: 25rpx;
+  color: #7f8d82;
+  line-height: 1.5;
+}
+
+/* ===== Phase 4B: 卡片库 Tab ===== */
+
+.library-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 18rpx;
+}
+
+.library-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid #dfe9dc;
+  font-size: 25rpx;
+  font-weight: 700;
+  color: #657465;
+  box-shadow: 0 4rpx 12rpx rgba(86, 126, 82, 0.04);
+  transition: all 0.15s ease;
+}
+
+.library-tab-active {
+  color: #3f7449;
+  background: #f0faf4;
+  border-color: #ccebd8;
+  box-shadow: 0 6rpx 16rpx rgba(86, 126, 82, 0.10);
+}
+
+.library-tab-count {
+  font-size: 22rpx;
+  font-weight: 800;
+  opacity: 0.8;
+  margin-left: 2rpx;
+}
+
+/* ===== Phase 4B: 卡片状态标签 (reviewStateV2) ===== */
+
+.card-status-pill.state-new {
+  color: #5f768d;
+  background: #f3f7fb;
+  border-color: #dce7f1;
+}
+
+.card-status-pill.state-reviewing {
+  color: #5f7f6b;
+  background: #f1f8f4;
+  border-color: #d8eadf;
+}
+
+.card-status-pill.state-strengthening {
+  color: #a7772e;
+  background: #fff8ea;
+  border-color: #efd9ab;
+}
+
+.card-status-pill.state-mastered {
+  color: #3f8b61;
+  background: #f0faf4;
+  border-color: #ccebd8;
+}
+
+/* ===== Phase 4B: 首页旧快速筛选隐藏 ===== */
+
+.home-control-section,
+.today-control-section,
+.home-elevator-bar,
+.home-fast-scroll,
+.today-reviewed-hero,
+.home-summary-strip,
+.status-bar,
+.daily-message,
+.review-cta {
+  display: none;
+}
+
+/* ===== Phase 4B: 按钮禁用态 ===== */
+
+.primary-btn-disabled {
+  background: #e8ede9 !important;
+  color: #9aa89d !important;
+  border: 1rpx solid #dce8dc !important;
+  box-shadow: none !important;
+}
+
+.secondary-btn-disabled {
+  background: #f2f5f2 !important;
+  color: #9aa89d !important;
+  border: 1rpx solid #e0e8e0 !important;
+  box-shadow: none !important;
+}
+
+/* ===== Phase 4B: 弱化 Tab 数字 ===== */
+
+.library-tab-count {
+  opacity: 0.45 !important;
+  font-weight: 700 !important;
+  color: #9aaa9e !important;
+}
+
+/* ===== Phase 4B: 卡片状态标签（覆盖 reviewState，更高优先级） ===== */
+
+.card-status-pill.status-fix-required {
+  color: #bd6b74 !important;
+  background: #fff6f7 !important;
+  border-color: #f1d4d8 !important;
+}
+
+.card-status-pill.status-analyzing {
+  color: #6f7f91 !important;
+  background: #f4f7fa !important;
+  border-color: #e2e8ef !important;
+}
+
+.card-status-pill.status-analysis-failed {
+  color: #b47a25 !important;
+  background: #fff8ea !important;
+  border-color: #efd9ab !important;
+}
+
+.card-status-pill.status-analysis-stale {
+  color: #b47a25 !important;
+  background: #fff8ea !important;
+  border-color: #efd9ab !important;
+}
+
+.card-status-pill.status-preparing {
+  color: #8a9a8e !important;
+  background: #f2f8f2 !important;
+  border-color: #dcebdc !important;
+}
+
+/* ===== Phase 4B: 今日任务空状态/错误提示 ===== */
+
+.dashboard-empty-tip {
+  margin-top: 18rpx;
+  padding: 20rpx 16rpx;
+  border-radius: 18rpx;
+  background: rgba(242, 249, 242, 0.7);
+  text-align: center;
+  font-size: 24rpx;
+  color: #8a9a8e;
+  line-height: 1.5;
+}
+
+.dashboard-error-tip {
+  margin-top: 18rpx;
+  padding: 20rpx 16rpx;
+  border-radius: 18rpx;
+  background: #fff8f6;
+  text-align: center;
+  font-size: 24rpx;
+  color: #b47a6e;
+  line-height: 1.5;
+}
+
+/* ===== Phase 4B: 卡片库轻提示 ===== */
+
+.library-tip {
+  margin-bottom: 16rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 16rpx;
+  background: rgba(242, 249, 242, 0.8);
+  border: 1rpx solid #dcebd8;
+  font-size: 23rpx;
+  color: #7f8d82;
+  line-height: 1.5;
+}
