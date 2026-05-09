@@ -334,6 +334,9 @@ Page({
    * Foreground success: only apply if context is still valid.
    */
   _handleForegroundSuccess(clientActionId, response) {
+    // Set flag so home page refreshes overview/stats/cards on next onShow
+    try { wx.setStorageSync('homeNeedsRefresh', true); } catch (e) { /* ignore storage write error */ }
+
     const { currentClientActionId, sessionId, currentItem, batchItems, batchCurrentIndex } = this.data;
 
     const canApply = (
@@ -512,6 +515,7 @@ Page({
         },
         onSynced: (action, response) => {
           updateFromFeedbackResponse(response);
+          try { wx.setStorageSync('homeNeedsRefresh', true); } catch (e) { /* ignore */ }
         },
         onDropped: (action, error) => {
           console.warn('[review] action dropped during sync', action.client_action_id, error);

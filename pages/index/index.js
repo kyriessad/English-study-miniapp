@@ -257,6 +257,97 @@ function normalizeAnalyzeEnglishResult(cloudResult) {
   return { success, warnings, errors, raw: data };
 }
 
+/**
+ * Pick the first valid number from a list of candidate values.
+ * Returns 0 if none are valid. Uses nullish check to preserve real 0 values.
+ */
+function pickNumber() {
+  for (var i = 0; i < arguments.length; i++) {
+    var value = arguments[i];
+    if (value !== undefined && value !== null && value !== '') {
+      var num = Number(value);
+      if (!Number.isNaN(num)) return num;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Normalize review overview response, supporting both current nested backend
+ * structure and future flat target structure.
+ *
+ * Nested structure: { suggested: { total, new, review, ... }, completed_suggested: {...}, active_session }
+ * Flat target: { total_today, to_new, to_review, strengthening_in_review, active_session }
+ *
+ * Returns { totalToday, toNew, toReview, strengtheningInReview, activeSession, extraToday, raw }
+ * where all numeric fields default to 0 and are guaranteed to be numbers.
+ * extraToday: { newOnlyCount, freeReviewCount, totalCount } — supplementary counts from
+ * raw.extra_today for cases where suggested block omits the field.
+ */
+function normalizeReviewOverview(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { totalToday: 0, toNew: 0, toReview: 0, strengtheningInReview: 0, activeSession: null, raw: raw || {} };
+  }
+
+  var suggested = (raw.suggested && typeof raw.suggested === 'object') ? raw.suggested : null;
+
+  // toNew — tolerate multiple naming conventions
+  var toNew = pickNumber(
+    raw.to_new, raw.toNew, raw.new, raw.new_count,
+    suggested && suggested.to_new, suggested && suggested.toNew,
+    suggested && suggested.new, suggested && suggested.new_count
+  );
+
+  // toReview — tolerate multiple naming conventions
+  var toReview = pickNumber(
+    raw.to_review, raw.toReview, raw.review, raw.review_count,
+    raw.due, raw.due_count,
+    suggested && suggested.to_review, suggested && suggested.toReview,
+    suggested && suggested.review, suggested && suggested.review_count,
+    suggested && suggested.due, suggested && suggested.due_count
+  );
+
+  // strengtheningInReview — tolerate multiple naming conventions
+  var strengtheningInReview = pickNumber(
+    raw.strengthening_in_review, raw.strengtheningInReview,
+    raw.strengthening, raw.strengthening_count,
+    suggested && suggested.strengthening_in_review, suggested && suggested.strengtheningInReview,
+    suggested && suggested.strengthening, suggested && suggested.strengthening_count
+  );
+
+  // totalToday — try direct fields first, fallback to sum of parts
+  var totalToday = pickNumber(
+    raw.total_today, raw.totalToday, raw.total, raw.today_total,
+    suggested && suggested.total, suggested && suggested.total_today,
+    suggested && suggested.totalToday, suggested && suggested.today_total,
+    suggested && suggested.count, suggested && suggested.task_count,
+    suggested && suggested.total_count
+  );
+  if (totalToday === 0 && (toNew > 0 || toReview > 0 || strengtheningInReview > 0)) {
+    totalToday = toNew + toReview + strengtheningInReview;
+  }
+
+  var activeSession = raw.active_session || raw.activeSession || null;
+
+  // extra_today — supplementary counts for new/free/strengthening review
+  var extraToday = (raw.extra_today && typeof raw.extra_today === 'object') ? raw.extra_today : null;
+  var extraTodayResult = {
+    newOnlyCount: pickNumber(extraToday && extraToday.new_only_count, extraToday && extraToday.newOnlyCount, extraToday && extraToday.new_count, extraToday && extraToday.newCount),
+    freeReviewCount: pickNumber(extraToday && extraToday.free_review_count, extraToday && extraToday.freeReviewCount, extraToday && extraToday.free_count, extraToday && extraToday.freeCount),
+    totalCount: pickNumber(extraToday && extraToday.total_count, extraToday && extraToday.totalCount)
+  };
+
+  return {
+    totalToday: totalToday,
+    toNew: toNew,
+    toReview: toReview,
+    strengtheningInReview: strengtheningInReview,
+    activeSession: activeSession,
+    extraToday: extraTodayResult,
+    raw: raw
+  };
+}
+
 function matchesExactFilter(value, selectedValue, fallbackValue) {
   const normalizedValue = value || fallbackValue;
   return selectedValue === '全部' || normalizedValue === selectedValue;
@@ -357,6 +448,17 @@ Page({
   },
 
   async onShow() {
+    // Initialize requestSeq counters
+    if (this._overviewReqSeq === undefined) this._overviewReqSeq = 0;
+    if (this._statsReqSeq === undefined) this._statsReqSeq = 0;
+    if (this._cardsReqSeq === undefined) this._cardsReqSeq = 0;
+
+    // Check home refresh flag set by review page after feedback
+    var homeNeedsRefresh = wx.getStorageSync('homeNeedsRefresh');
+    if (homeNeedsRefresh) {
+      wx.removeStorageSync('homeNeedsRefresh');
+    }
+
     await this.loadLocalCache();
     this.triggerBackendLoginAfterHomeReady();
     this.loadAllBackendData();
@@ -466,44 +568,46 @@ Page({
 
   applyReviewOverview(overview) {
     if (!overview) return;
-    const totalToday = Number(overview.total_today || 0);
-    const toNew = Number(overview.to_new || 0);
-    const toReview = Number(overview.to_review || 0);
-    const strengtheningInReview = Number(overview.strengthening_in_review || 0);
-    const activeSession = overview.active_session || null;
+    var normalized = normalizeReviewOverview(overview);
+    var totalToday = normalized.totalToday;
+    var toNew = normalized.toNew;
+    var toReview = normalized.toReview;
+    var strengtheningInReview = normalized.strengtheningInReview;
+    var activeSession = normalized.activeSession;
 
-    const reviewActions = this.buildReviewActions(overview);
-    const allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
+    var reviewActions = this.buildReviewActions(normalized);
+    var allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
 
     this.setData({
-      reviewOverview: overview,
+      reviewOverview: normalized.raw,
       reviewOverviewError: false,
-      totalToday,
-      toNew,
-      toReview,
-      strengtheningInReview,
+      totalToday: totalToday,
+      toNew: toNew,
+      toReview: toReview,
+      strengtheningInReview: strengtheningInReview,
       hasActiveSession: !!activeSession,
       activeSessionId: activeSession ? activeSession.session_id : '',
-      reviewActions,
+      reviewActions: reviewActions,
       showEmptyTaskTip: allZero
     });
   },
 
-  buildReviewActions(overview) {
-    if (!overview) {
+  buildReviewActions(normalized) {
+    if (!normalized) {
       return {
         daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
         newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
         strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
       };
     }
-    const totalToday = Number(overview.total_today || 0);
-    const toNew = Number(overview.to_new || 0);
-    const strengtheningInReview = Number(overview.strengthening_in_review || 0);
-    const activeSession = overview.active_session || null;
+    var totalToday = normalized.totalToday || 0;
+    var toNew = normalized.toNew || 0;
+    var strengtheningInReview = normalized.strengtheningInReview || 0;
+    var activeSession = normalized.activeSession || null;
+    var raw = normalized.raw || {};
 
     // Daily / main button
-    let daily;
+    var daily;
     if (activeSession) {
       daily = { enabled: true, label: '继续复习', sessionType: 'daily_suggested' };
     } else if (totalToday > 0) {
@@ -513,8 +617,8 @@ Page({
     }
 
     // New cards button
-    const newAvailable = toNew > 0 || Number(overview.new_available_count || 0) > 0;
-    let newOnly;
+    var newAvailable = toNew > 0 || Number(raw.new_available_count || 0) > 0 || Number(normalized.extraToday.newOnlyCount || 0) > 0;
+    var newOnly;
     if (newAvailable) {
       newOnly = { enabled: true, label: '学习新卡', sessionType: 'new_only' };
     } else {
@@ -522,24 +626,27 @@ Page({
     }
 
     // Strengthening button
-    const strengtheningAvailable = strengtheningInReview > 0 || Number(overview.strengthening_available_count || 0) > 0;
-    let strengthening;
+    var strengtheningAvailable = strengtheningInReview > 0 || Number(raw.strengthening_available_count || 0) > 0 || Number(normalized.extraToday.freeReviewCount || 0) > 0;
+    var strengthening;
     if (strengtheningAvailable) {
       strengthening = { enabled: true, label: '复习需加强', sessionType: 'free_review' };
     } else {
       strengthening = { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' };
     }
 
-    return { daily, newOnly, strengthening };
+    return { daily: daily, newOnly: newOnly, strengthening: strengthening };
   },
 
   async loadReviewOverview() {
+    var seq = ++this._overviewReqSeq;
     try {
-      const overview = await getReviewOverview();
+      var overview = await getReviewOverview();
+      if (seq !== this._overviewReqSeq) return;
       this.applyReviewOverview(overview);
       wx.setStorageSync('reviewOverviewCache', overview);
     } catch (error) {
       console.warn('[index] review overview fetch failed', error);
+      if (seq !== this._overviewReqSeq) return;
       this.setData({
         reviewOverviewError: true,
         reviewActions: {
@@ -592,8 +699,10 @@ Page({
   },
 
   async loadCardStats() {
+    var seq = ++this._statsReqSeq;
     try {
-      const stats = await getCardStats();
+      var stats = await getCardStats();
+      if (seq !== this._statsReqSeq) return;
       this.applyCardStats(stats);
       wx.setStorageSync('cardStatsCache', stats);
     } catch (error) {
@@ -602,8 +711,10 @@ Page({
   },
 
   async refreshBackendCards() {
+    var seq = ++this._cardsReqSeq;
     try {
-      const freshCards = await refreshCardsCacheFromBackend();
+      var freshCards = await refreshCardsCacheFromBackend();
+      if (seq !== this._cardsReqSeq) return;
       if (Array.isArray(freshCards)) {
         this.setData({ cards: freshCards });
         this.applyFilters();
@@ -801,6 +912,17 @@ Page({
         (result && (result.session_id || result.id)) ||
         (result && result.data && (result.data.session_id || result.data.id)) ||
         '';
+      const items = (result && result.items) || (result && result.data && result.data.items) || [];
+
+      if (!sessionId && (!Array.isArray(items) || items.length === 0)) {
+        // Backend returned no session and no items — no cards available
+        this.loadAllBackendData();
+        wx.showToast({
+          title: '暂无可学习的卡片，首页数据已刷新',
+          icon: 'none'
+        });
+        return;
+      }
 
       if (!sessionId) {
         throw new Error('missing session_id');
@@ -968,6 +1090,8 @@ Page({
           batchPanelOptions: []
         });
         this.applyFilters();
+        // Force refresh home data (overview / stats / cards list) from backend
+        this.loadAllBackendData();
       }
     });
   },
