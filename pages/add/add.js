@@ -58,8 +58,25 @@ function normalizeBackendAnalysisStatus(status) {
   return BACKEND_ANALYSIS_STATUSES.includes(status) ? status : 'pending';
 }
 
+function normalizeUnderstandingSource(source, hasUserUnderstanding) {
+  if (hasUserUnderstanding) return 'user';
+
+  const normalized = String(source || '').trim().toLowerCase();
+
+  if (BACKEND_UNDERSTANDING_SOURCES.includes(normalized)) {
+    return normalized;
+  }
+
+  // 具体供应商 / 机器翻译别名统一归一化为 machine
+  if (['tencent', 'translation', 'translate', 'mt', 'machine_translation'].includes(normalized)) {
+    return 'machine';
+  }
+
+  return 'local';
+}
+
 function normalizeBackendUnderstandingSource(source) {
-  return BACKEND_UNDERSTANDING_SOURCES.includes(source) ? source : 'user';
+  return normalizeUnderstandingSource(source, false);
 }
 
 function toBackendIsoString(value) {
@@ -403,7 +420,7 @@ Page({
     const text = normalizeEnglishText(englishText);
     const useCache = options.useCache !== false;
     const cacheKey = this.makeAnalyzeCacheKey(text, category);
-  
+
     if (!text) {
       return {
         ok: false,
@@ -413,15 +430,15 @@ Page({
         },
         understanding: {
           candidate: '',
-          source: 'empty'
+          source: 'local'
         },
         cacheKey
       };
     }
-  
+
     if (useCache) {
       const cached = this.getAnalyzeCacheItem(cacheKey);
-  
+
       if (cached) {
         return {
           ...cached,
@@ -430,7 +447,7 @@ Page({
         };
       }
     }
-  
+
     if (!wx.cloud) {
       return {
         ok: false,
@@ -440,12 +457,12 @@ Page({
         },
         understanding: {
           candidate: '',
-          source: 'no_cloud'
+          source: 'local'
         },
         cacheKey
       };
     }
-  
+
     try {
       const response = await wx.cloud.callFunction({
         name: 'analyzeEnglish',
@@ -456,22 +473,30 @@ Page({
           cacheKey
         }
       });
-  
+
       const result = response && response.result ? response.result : {};
-  
+
       const normalizedResult = {
         ...result,
         cacheKey
       };
-  
+
+      // 归一化云函数返回的 understanding.source，防止 tencent 等供应商名透传到后端
+      if (normalizedResult.understanding && normalizedResult.understanding.source) {
+        normalizedResult.understanding = {
+          ...normalizedResult.understanding,
+          source: normalizeUnderstandingSource(normalizedResult.understanding.source, false)
+        };
+      }
+
       if (normalizedResult.ok !== false) {
         this.setAnalyzeCacheItem(cacheKey, normalizedResult);
       }
-  
+
       return normalizedResult;
     } catch (error) {
       console.error('analyzeEnglish 调用失败:', error);
-  
+
       return {
         ok: false,
         validation: {
@@ -480,9 +505,29 @@ Page({
         },
         understanding: {
           candidate: '',
-          source: 'failed'
+          source: 'local'
         },
         cacheKey
+      };
+    }
+  },
+
+
+  
+  async safeAnalyzeEnglish(englishText, category) {
+    try {
+      const result = await this.callAnalyzeEnglish(englishText, category, {
+        useCache: true
+      });
+      return {
+        ok: true,
+        data: result
+      };
+    } catch (err) {
+      console.warn('[add] safeAnalyzeEnglish failed, fallback to failed status:', err);
+      return {
+        ok: false,
+        error: err
       };
     }
   },
@@ -1480,13 +1525,13 @@ Page({
 
   async submitCard(saveMode) {
     if (this.data.isReadonlyDetailMode) return;
-  
+
     if (this.data.isSaving) {
       return;
     }
-  
+
     const { form, isEdit, cardId } = this.data;
-  
+
     this.setData({
       isSaving: true,
       validateLoading: true,
@@ -1494,25 +1539,23 @@ Page({
       englishValidationMessage: '正在检查英文内容...',
       englishValidationType: 'hint'
     });
-  
+
     try {
+      // 1. 表单校验
       const localResult = getLocalValidationResult(form.englishText, form.category);
-  
+
       if (localResult.errors.length > 0) {
         this.setData({
-          isSaving: false,
-          validateLoading: false,
-          isValidatingEnglish: false,
           englishValidationMessage: localResult.errors[0],
           englishValidationType: 'error'
         });
-  
         this.scrollToEnglishSection();
         return;
       }
-  
+
+      // 2. 检查当前卡片是否已有有效分析结果（编辑模式复用）
       let currentCard = null;
-  
+
       if (isEdit && cardId) {
         try {
           currentCard = await getCardById(cardId);
@@ -1520,18 +1563,18 @@ Page({
           currentCard = null;
         }
       }
-  
+
       const nextAnalyzeCacheKey = this.makeAnalyzeCacheKey(
         localResult.normalizedText,
         form.category
       );
-  
+
       const currentText = normalizeEnglishText(currentCard && currentCard.englishText);
       const currentCategory = currentCard && currentCard.category ? currentCard.category : '';
       const currentAnalyzeCacheKey = currentCard && currentCard.analyzeCacheKey
         ? currentCard.analyzeCacheKey
         : '';
-  
+
       const isSameAnalyzedContent = (
         currentCard &&
         currentCard.analysisStatus === 'done' &&
@@ -1539,64 +1582,80 @@ Page({
         currentCategory === form.category &&
         currentAnalyzeCacheKey === nextAnalyzeCacheKey
       );
-  
-      const shouldRunBackgroundCheck = !isSameAnalyzedContent;
-  
-      const nextForm = {
-        ...form,
-        englishText: localResult.normalizedText,
-  
-        analysisStatus: shouldRunBackgroundCheck
-          ? 'pending'
-          : currentCard.analysisStatus,
-  
-        analysisWarnings: shouldRunBackgroundCheck
-          ? (localResult.warnings || [])
-          : (currentCard.analysisWarnings || []),
-  
-        analysisErrors: shouldRunBackgroundCheck
-          ? []
-          : (currentCard.analysisErrors || []),
-  
-        analysisSource: shouldRunBackgroundCheck
-          ? 'local'
-          : (currentCard.analysisSource || ''),
-  
-        understandingSource: shouldRunBackgroundCheck
-          ? ''
-          : (currentCard.understandingSource || ''),
-  
-        analyzeCacheKey: shouldRunBackgroundCheck
-          ? nextAnalyzeCacheKey
-          : currentAnalyzeCacheKey,
-  
-        analyzedAt: shouldRunBackgroundCheck
-          ? ''
-          : (currentCard.analyzedAt || '')
-      };
-  
-      const savedCard = await this.saveCard(nextForm, saveMode);
-  
-      if (shouldRunBackgroundCheck && savedCard && savedCard.id) {
-        this.runBackgroundEnglishCheck(savedCard);
-      }
-  
-      if (!savedCard) {
-        this.setData({
-          isSaving: false,
-          validateLoading: false,
-          isValidatingEnglish: false
-        });
+
+      // 3. 安全调用 analyzeEnglish — 无论成功或失败都继续保存
+      if (!isSameAnalyzedContent) {
+        const analyzeResult = await this.safeAnalyzeEnglish(
+          localResult.normalizedText,
+          form.category
+        );
+
+        if (analyzeResult.ok) {
+          const data = analyzeResult.data;
+          const validation = data.validation || {};
+          const understanding = data.understanding || {};
+
+          const nextForm = {
+            ...form,
+            englishText: localResult.normalizedText,
+            analysisStatus: 'done',
+            analysisWarnings: Array.isArray(validation.warnings) ? validation.warnings : [],
+            analysisErrors: Array.isArray(validation.errors) ? validation.errors : [],
+            analysisSource: data.fromCache ? 'cache' : 'analyzeEnglish',
+            understandingSource: normalizeUnderstandingSource(understanding.source, !!form.myUnderstanding),
+            analyzeCacheKey: nextAnalyzeCacheKey,
+            analyzedAt: new Date().toISOString()
+          };
+
+          const savedCard = await this.saveCard(nextForm, saveMode);
+
+          // 后台补充确认：编辑后仍跑一次背景校验，保证首页后续刷新拿到最新状态
+          if (savedCard && savedCard.id) {
+            this.runBackgroundEnglishCheck(savedCard);
+          }
+        } else {
+          // analyzeEnglish 超时/失败：标记 failed，保存不中断
+          const nextForm = {
+            ...form,
+            englishText: localResult.normalizedText,
+            analysisStatus: 'failed',
+            analysisWarnings: ['分析暂时失败，可稍后重试'],
+            analysisErrors: [],
+            analysisSource: 'analyzeEnglish',
+            understandingSource: normalizeUnderstandingSource('local', !!form.myUnderstanding),
+            analyzeCacheKey: nextAnalyzeCacheKey,
+            analyzedAt: new Date().toISOString()
+          };
+
+          await this.saveCard(nextForm, saveMode);
+        }
+      } else {
+        // 内容未变，复用原有分析结果
+        const nextForm = {
+          ...form,
+          englishText: localResult.normalizedText,
+          analysisStatus: currentCard.analysisStatus,
+          analysisWarnings: currentCard.analysisWarnings || [],
+          analysisErrors: currentCard.analysisErrors || [],
+          analysisSource: currentCard.analysisSource || '',
+          understandingSource: currentCard.understandingSource || '',
+          analyzeCacheKey: currentAnalyzeCacheKey,
+          analyzedAt: currentCard.analyzedAt || ''
+        };
+
+        await this.saveCard(nextForm, saveMode);
       }
     } catch (error) {
       console.error('submitCard failed:', error);
-  
+      wx.showToast({
+        title: '保存失败，请重试',
+        icon: 'none'
+      });
+    } finally {
       this.setData({
         isSaving: false,
         validateLoading: false,
-        isValidatingEnglish: false,
-        englishValidationMessage: '保存失败，请稍后重试。',
-        englishValidationType: 'error'
+        isValidatingEnglish: false
       });
     }
   },
@@ -1673,7 +1732,7 @@ Page({
           analysisWarnings: warnings,
           analysisErrors: errors,
           analysisSource: result.fromCache ? 'cache' : 'analyzeEnglish',
-          understandingSource: understanding.source || '',
+          understandingSource: normalizeUnderstandingSource(understanding.source, false),
           analyzeCacheKey: this.makeAnalyzeCacheKey(nextEnglishText, sourceCategory),
           analyzedAt: new Date().toISOString()
         };
@@ -1702,6 +1761,7 @@ Page({
           analysisWarnings: ['请检查网络，可先保存。'],
           analysisErrors: [],
           analysisSource: 'analyzeEnglish',
+          understandingSource: normalizeUnderstandingSource(latestCard.understandingSource, false),
           analyzedAt: new Date().toISOString()
         });
       } catch (updateError) {

@@ -704,7 +704,7 @@ function buildBackendCardCreatePayload(form = {}) {
   const fields = buildCardFields(form, {});
   const localTempId = trimValue(form.local_temp_id || form.localTempId || '') || createLocalTempId();
 
-  return {
+  const payload = {
     local_temp_id: localTempId,
     content: trimValue(fields.englishText),
     card_type: mapCategoryToBackendCardType(fields.category),
@@ -715,8 +715,12 @@ function buildBackendCardCreatePayload(form = {}) {
     analysis_status: trimValue(fields.analysisStatus) || 'pending',
     analysis_level: getBackendAnalysisLevelFromLocal(fields),
     analysis_messages: buildBackendAnalysisMessagesFromLocal(fields),
-    understanding_source: trimValue(fields.understandingSource) || 'user'
+    understanding_source: trimValue(fields.understandingSource) || 'local'
   };
+
+  
+
+  return payload;
 }
 
 function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
