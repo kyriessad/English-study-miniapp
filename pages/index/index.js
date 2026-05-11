@@ -439,6 +439,14 @@ function normalizeReviewOverview(raw) {
 
   var activeSession = raw.active_session || raw.activeSession || null;
 
+  // 4C-3: is_all_done 且无 active_session 时，suggested 是计划量而非剩余量
+  if (raw.is_all_done === true && !activeSession) {
+    totalToday = 0;
+    toNew = 0;
+    toReview = 0;
+    strengtheningInReview = 0;
+  }
+
   // extra_today — supplementary counts for new/free/strengthening review
   var extraToday = (raw.extra_today && typeof raw.extra_today === 'object') ? raw.extra_today : null;
   var extraTodayResult = {
