@@ -1092,49 +1092,7 @@ Page({
   },
 
   async handleStartNewOnlySession() {
-    var state = this.data.newOnlyEntryState;
-    if (!state || !state.enabled) return;
-    if (this.data.isManageMode) return;
-    if (this.data.reviewEntryLoading) return;
-
-    var activeSession = this._getActiveSession();
-    var activeSessionType = (activeSession && (activeSession.session_type || activeSession.sessionType || activeSession.type)) || '';
-
-    console.log('[phase4c-new-only] click', {
-      activeSession: activeSession,
-      activeSessionType: activeSessionType,
-      willCreate: !activeSession,
-      willContinue: !!(activeSession && activeSessionType === 'new_only')
-    });
-
-    // No active session: create directly
-    if (!activeSession) {
-      await this.doCreateNewOnlySession(false);
-      return;
-    }
-
-    // Active session is already new_only: continue, don't create new
-    if (activeSessionType === 'new_only') {
-      console.log('[phase4c-new-only] active new_only session', activeSession);
-      wx.showToast({ title: '继续新卡学习', icon: 'none' });
-      return;
-    }
-
-    // Active session exists with different type: show conflict modal
-    var that = this;
-    wx.showModal({
-      title: '切换学习？',
-      content: '当前有一组学习还没完成。切换后，上一组未完成学习会被结束。',
-      cancelText: '继续原学习',
-      confirmText: '切换学习',
-      success: function (res) {
-        if (!res.confirm) {
-          wx.showToast({ title: '已保留当前学习', icon: 'none' });
-          return;
-        }
-        that.doCreateNewOnlySession(true);
-      }
-    });
+    return this.doCreateNewOnlySession(true);
   },
 
   async doCreateNewOnlySession(restart) {
@@ -1144,20 +1102,48 @@ Page({
     wx.showLoading({ title: '准备学习中...', mask: true });
 
     try {
-      var sessionData = { session_type: 'new_only', limit: 5 };
-      if (restart) {
-        sessionData.restart = true;
-      }
+      // 4C-1b: 主动新学的入口始终带 restart:true，避免被旧 active session 卡住
+      var sessionData = { session_type: 'new_only', limit: 5, restart: true };
       console.log('[phase4c-new-only] creating session', sessionData);
       var result = await createReviewSession(sessionData);
       console.log('[phase4c-new-only] session created', result);
-      wx.showToast({ title: '已创建新卡学习', icon: 'none' });
-    } catch (err) {
-      console.warn('[phase4c-new-only] create session failed', err);
-      wx.showToast({ title: '暂时无法开始学习', icon: 'none' });
-    } finally {
+
+      // Extract session_id from response
+      var sessionId = (result && (result.session_id || result.id)) ||
+        (result && result.data && (result.data.session_id || result.data.id)) || '';
+
+      var items = (result && result.items) || (result && result.data && result.data.items) || [];
+
+      // No session_id and no items — no cards available
+      if (!sessionId && (!Array.isArray(items) || items.length === 0)) {
+        wx.hideLoading();
+        this.setData({ reviewEntryLoading: false });
+        wx.showToast({ title: '暂无可学习的新卡', icon: 'none' });
+        this.loadAllBackendData();
+        return;
+      }
+
+      // Session created but no items / remaining_count is 0
+      var remainingCount = Number(result && (result.remaining_count || result.remainingCount || 0));
+      if (sessionId && (!Array.isArray(items) || items.length === 0) && remainingCount === 0) {
+        wx.hideLoading();
+        this.setData({ reviewEntryLoading: false });
+        wx.showToast({ title: '暂无可学习的新卡', icon: 'none' });
+        this.loadAllBackendData();
+        return;
+      }
+
+      // Navigate to existing review page
       wx.hideLoading();
       this.setData({ reviewEntryLoading: false });
+      wx.navigateTo({
+        url: '/pages/review/review?session_id=' + sessionId + '&session_type=new_only&source=new_only'
+      });
+    } catch (err) {
+      console.warn('[phase4c-new-only] create session failed', err);
+      wx.hideLoading();
+      this.setData({ reviewEntryLoading: false });
+      wx.showToast({ title: '暂时无法开始学习，请稍后再试', icon: 'none' });
     }
   },
 

@@ -307,9 +307,13 @@ function createReviewSession(data) {
   });
 }
 
-function getTodayReview({ limit = 5, restart = false } = {}) {
+function getTodayReview({ limit = 5, restart = false, session_type } = {}) {
+  var params = { limit: limit, restart: restart ? 'true' : '' };
+  if (session_type) {
+    params.session_type = session_type;
+  }
   return request({
-    url: `/api/reviews/today${buildQueryString({ limit, restart: restart ? 'true' : '' })}`,
+    url: '/api/reviews/today' + buildQueryString(params),
     method: 'GET'
   });
 }

@@ -158,10 +158,14 @@ Page({
     masteredPercentText: '0%',
     needStrengthenPercentText: '0%',
     hasMoreExtraTasks: false,
+    reviewMode: 'today',
   },
 
   onLoad(options) {
     const sessionId = (options && (options.session_id || options.sessionId)) || '';
+    const sessionType = (options && (options.session_type || options.sessionType)) || '';
+    const source = (options && options.source) || '';
+
     if (!sessionId) {
       wx.showToast({
         title: '复习上下文丢失，请重新开始',
@@ -172,7 +176,16 @@ Page({
       }, 1500);
       return;
     }
-    this.loadBackendReviewSession({ restart: false });
+
+    // 4C-1b: Support new_only review sessions
+    var effectiveSessionType = sessionType || source || '';
+    if (effectiveSessionType === 'new_only') {
+      this.setData({ reviewMode: 'new_only' });
+    }
+
+    this.loadBackendReviewSession({
+      sessionType: effectiveSessionType || undefined
+    });
   },
 
   onShow() {
@@ -190,12 +203,16 @@ Page({
       return;
     }
 
-    this.loadBackendReviewSession({ restart: false });
+    // 4C-1b: Pass stored reviewMode (today/new_only) when reloading
+    var sessionType = this.data.reviewMode === 'new_only' ? 'new_only' : '';
+    this.loadBackendReviewSession({ sessionType: sessionType || undefined });
   },
 
   // ========== Session Loading ==========
 
-  async loadBackendReviewSession({ restart = false } = {}) {
+  async loadBackendReviewSession({ restart, sessionType } = {}) {
+    // 4C-1b: new_only 模式必须传 restart=true，避免后端因 active session 不匹配拒绝
+    var effectiveRestart = sessionType === 'new_only' ? true : (restart !== undefined ? restart : false);
     const reviewBatchSize = getStoredReviewBatchSize();
 
     this.setData({
@@ -210,7 +227,8 @@ Page({
     try {
       const response = await getTodayReview({
         limit: reviewBatchSize,
-        restart,
+        restart: effectiveRestart,
+        ...(sessionType ? { session_type: sessionType } : {}),
       });
 
       // Update session progress cache

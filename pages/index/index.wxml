@@ -92,20 +92,19 @@
       部分卡片需要重试分析或补全内容，准备好后会进入学习任务。
     </view>
 
-    <!-- 4C-1a: New-only study entry card (only in 未学习 tab) -->
-    <view wx:if="{{currentLibraryTab === 'new' && !isManageMode}}" class="new-study-card">
+    <!-- 4C-1a/1b: New-only study entry card (only in 未学习 tab) -->
+    <view wx:if="{{currentLibraryTab === 'new' && !isManageMode}}" class="new-study-card" catchtap="handleStartNewOnlySession">
       <view class="new-study-card-header">
         <text class="new-study-card-title">学习新卡</text>
         <view class="new-study-card-dot"></view>
       </view>
       <text class="new-study-card-subtitle">{{newOnlyEntryState.subtitle}}</text>
       <view class="new-study-card-action">
-        <button
+        <view
           class="new-study-btn {{newOnlyEntryState.enabled ? '' : 'new-study-btn-disabled'}}"
-          disabled="{{!newOnlyEntryState.enabled}}"
-          bindtap="handleStartNewOnlySession"
-        >{{newOnlyEntryState.label}}</button>
-        <view wx:if="{{newOnlyEntryState.enabled}}" class="new-study-arrow">→</view>
+          catchtap="handleStartNewOnlySession"
+        >{{newOnlyEntryState.label}}</view>
+        <view wx:if="{{newOnlyEntryState.enabled}}" class="new-study-arrow" catchtap="handleStartNewOnlySession">→</view>
       </view>
     </view>
 
