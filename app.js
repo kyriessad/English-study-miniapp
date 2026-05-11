@@ -7,6 +7,7 @@ const {
   BACKEND_AUTH_STORAGE_KEYS,
   refreshBackendAuth
 } = require('./utils/apiClient');
+const { runLegacyStorageCleanup } = require('./utils/legacyStorageCleanup');
 
 App({
   onLaunch() {
@@ -25,10 +26,11 @@ App({
     }
 
     this.restoreBackendAuthFromStorage();
+    runLegacyStorageCleanup();
 
     // 重要：
     // 现在先不在启动阶段自动登录 Python 后端。
-    // 阶段 B 继续验收“新增卡片同步失败不影响本地保存”。
+    // 阶段 B 继续验收”新增卡片同步失败不影响本地保存”。
     // this.initBackendLoginSafe();
   },
 

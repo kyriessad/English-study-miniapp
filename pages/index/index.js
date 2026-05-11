@@ -704,7 +704,6 @@ Page({
       var stats = await getCardStats();
       if (seq !== this._statsReqSeq) return;
       this.applyCardStats(stats);
-      wx.setStorageSync('cardStatsCache', stats);
     } catch (error) {
       console.warn('[index] card stats fetch failed', error);
     }
