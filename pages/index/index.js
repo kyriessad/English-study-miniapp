@@ -105,8 +105,126 @@ function getCardDisplayStatus(card) {
 }
 
 /**
- * Check whether to show the library preparation tip in the "new" tab.
+ * 4C-1a: Check if a new card has usable answer content for new-only study.
+ * Compatible with both backend fields and local legacy structures.
  */
+function isNewCardReadyForNewOnly(card) {
+  if (!card) return false;
+
+  // Backend explicitly says ready
+  if (card.isReviewReady === true || card.is_review_ready === true) {
+    return true;
+  }
+
+  // Backend explicitly says not ready — respect that
+  if (card.isReviewReady === false || card.is_review_ready === false) {
+    return false;
+  }
+
+  // No explicit ready flag: fallback to checking answer fields (local cards)
+  var answerFields = [
+    card.understanding,
+    card.userUnderstanding,
+    card.user_understanding,
+    card.myUnderstanding,
+    card.meaning,
+    card.meaningCn,
+    card.meaning_cn,
+    card.translation,
+    card.contextTranslation,
+    card.context_translation,
+    card.aiUnderstanding,
+    card.ai_understanding,
+    card.answer,
+    card.chinese
+  ];
+  return answerFields.some(function (v) {
+    return typeof v === 'string' && v.trim().length > 0;
+  });
+}
+
+/**
+ * 4C-1a: Compute the state of the new-only study entry in the "未学习" tab.
+ * Priority: ready > no cards > pending > manual_fix > other
+ * Returns { enabled, label, subtitle }.
+ */
+function computeNewOnlyButtonState(cards) {
+  var newCards = [];
+  if (Array.isArray(cards)) {
+    newCards = cards.filter(function (c) {
+      if (!c) return false;
+      var state = c.reviewStateV2 || c.review_state || c.reviewState || '';
+      return state === 'new';
+    });
+  }
+
+  var newTotal = newCards.length;
+  var newReadyCount = 0;
+  var newPendingCount = 0;
+  var newManualFixCount = 0;
+  var sampleNewCards = [];
+
+  newCards.forEach(function (c) {
+    var ready = isNewCardReadyForNewOnly(c);
+    if (ready) newReadyCount += 1;
+
+    var anStatus = String(c.analysisStatus || c.analysis_status || '').trim();
+    if (anStatus === 'pending' || anStatus === 'analyzing') {
+      newPendingCount += 1;
+    }
+
+    if (c.needsManualFix === true || c.needs_manual_fix === true) {
+      newManualFixCount += 1;
+    }
+
+    if (sampleNewCards.length < 3) {
+      sampleNewCards.push({
+        englishText: c.englishText,
+        reviewStateV2: c.reviewStateV2,
+        review_state: c.review_state,
+        analysisStatus: c.analysisStatus,
+        analysis_status: c.analysis_status,
+        isReviewReady: c.isReviewReady,
+        is_review_ready: c.is_review_ready,
+        needsManualFix: c.needsManualFix,
+        needs_manual_fix: c.needs_manual_fix,
+        understanding: c.understanding,
+        userUnderstanding: c.userUnderstanding,
+        user_understanding: c.user_understanding,
+        meaning: c.meaning,
+        meaningCn: c.meaningCn,
+        translation: c.translation
+      });
+    }
+  });
+
+  console.log('[phase4c-new-only] counts', {
+    newTotal: newTotal,
+    newReadyCount: newReadyCount,
+    newPendingCount: newPendingCount,
+    newManualFixCount: newManualFixCount,
+    sampleNewCards: sampleNewCards
+  });
+
+  if (newReadyCount > 0) {
+    return { enabled: true, label: '学习几张新卡', subtitle: '还有 ' + newReadyCount + ' 张新卡可以开始学习' };
+  }
+
+  if (newTotal === 0) {
+    return { enabled: false, label: '暂不可学', subtitle: '暂无未学习卡片' };
+  }
+
+  if (newPendingCount > 0) {
+    return { enabled: false, label: '暂不可学', subtitle: '新卡释义生成中，稍后可学' };
+  }
+
+  if (newManualFixCount > 0) {
+    return { enabled: false, label: '暂不可学', subtitle: '有新卡需要补全释义后才能学习' };
+  }
+
+  return { enabled: false, label: '暂不可学', subtitle: '暂无可学习新卡' };
+}
+
 function computeLibraryPreparationTip(filteredCards, currentLibraryTab) {
   if (currentLibraryTab !== 'new') return false;
   if (!Array.isArray(filteredCards) || filteredCards.length === 0) return false;
@@ -444,7 +562,8 @@ Page({
       strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
     },
     showEmptyTaskTip: false,
-    showLibraryPreparationTip: false
+    showLibraryPreparationTip: false,
+    newOnlyEntryState: { enabled: false, label: '暂不可学', subtitle: '暂无未学习卡片' }
   },
 
   async onShow() {
@@ -812,7 +931,8 @@ Page({
       filteredCards: decoratedFilteredCards,
       displayTotalCount,
       displayCurrentCount,
-      showLibraryPreparationTip: computeLibraryPreparationTip(filtered, currentLibraryTab)
+      showLibraryPreparationTip: computeLibraryPreparationTip(filtered, currentLibraryTab),
+      newOnlyEntryState: computeNewOnlyButtonState(cards)
     });
   },
 
@@ -955,7 +1075,91 @@ Page({
     }
   },
 
-  // ========== Navigation ==========
+  // ========== 4C-1a: New-only Study Entry ==========
+
+  /**
+   * Extract active session from review overview with multiple field-name fallbacks.
+   * Returns null if no active session is found.
+   */
+  _getActiveSession() {
+    var overview = this.data.reviewOverview;
+    if (!overview || typeof overview !== 'object') return null;
+    var session = overview.active_session || overview.activeSession || null;
+    // Must be a valid session object with a session_id or id field
+    if (!session || typeof session !== 'object') return null;
+    if (!session.session_id && !session.id) return null;
+    return session;
+  },
+
+  async handleStartNewOnlySession() {
+    var state = this.data.newOnlyEntryState;
+    if (!state || !state.enabled) return;
+    if (this.data.isManageMode) return;
+    if (this.data.reviewEntryLoading) return;
+
+    var activeSession = this._getActiveSession();
+    var activeSessionType = (activeSession && (activeSession.session_type || activeSession.sessionType || activeSession.type)) || '';
+
+    console.log('[phase4c-new-only] click', {
+      activeSession: activeSession,
+      activeSessionType: activeSessionType,
+      willCreate: !activeSession,
+      willContinue: !!(activeSession && activeSessionType === 'new_only')
+    });
+
+    // No active session: create directly
+    if (!activeSession) {
+      await this.doCreateNewOnlySession(false);
+      return;
+    }
+
+    // Active session is already new_only: continue, don't create new
+    if (activeSessionType === 'new_only') {
+      console.log('[phase4c-new-only] active new_only session', activeSession);
+      wx.showToast({ title: '继续新卡学习', icon: 'none' });
+      return;
+    }
+
+    // Active session exists with different type: show conflict modal
+    var that = this;
+    wx.showModal({
+      title: '切换学习？',
+      content: '当前有一组学习还没完成。切换后，上一组未完成学习会被结束。',
+      cancelText: '继续原学习',
+      confirmText: '切换学习',
+      success: function (res) {
+        if (!res.confirm) {
+          wx.showToast({ title: '已保留当前学习', icon: 'none' });
+          return;
+        }
+        that.doCreateNewOnlySession(true);
+      }
+    });
+  },
+
+  async doCreateNewOnlySession(restart) {
+    if (this.data.reviewEntryLoading) return;
+
+    this.setData({ reviewEntryLoading: true });
+    wx.showLoading({ title: '准备学习中...', mask: true });
+
+    try {
+      var sessionData = { session_type: 'new_only', limit: 5 };
+      if (restart) {
+        sessionData.restart = true;
+      }
+      console.log('[phase4c-new-only] creating session', sessionData);
+      var result = await createReviewSession(sessionData);
+      console.log('[phase4c-new-only] session created', result);
+      wx.showToast({ title: '已创建新卡学习', icon: 'none' });
+    } catch (err) {
+      console.warn('[phase4c-new-only] create session failed', err);
+      wx.showToast({ title: '暂时无法开始学习', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+      this.setData({ reviewEntryLoading: false });
+    }
+  },
 
   goToAddPage() {
     if (this.data.isManageMode) return;
