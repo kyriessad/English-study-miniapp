@@ -922,6 +922,24 @@ Page({
     const displayTotalCount = cards.length || (this.data.cardStats && this.data.cardStats.total) || 0;
     const displayCurrentCount = filtered.length || 0;
 
+    // 4C-3: newOnlyEntryState — 以后端 overview.extra_today 为权威，本地兜底
+    var tabNewOnlyState = computeNewOnlyButtonState(cards);
+    var ov = this.data.reviewOverview;
+    if (ov) {
+      var extraToday = ov.extra_today || ov.extraToday || null;
+      if (extraToday) {
+        var rawCount = extraToday.new_only_count !== undefined ? extraToday.new_only_count : extraToday.newOnlyCount;
+        if (rawCount !== undefined) {
+          var count = Number(rawCount);
+          if (!isNaN(count)) {
+            tabNewOnlyState = count > 0
+              ? { enabled: true, label: '学习几张新卡', subtitle: '还有 ' + count + ' 张新卡可以开始学习' }
+              : { enabled: false, label: '暂无新可学', subtitle: '暂无可学习的新卡' };
+          }
+        }
+      }
+    }
+
     this.setData({
       categoryCount,
       examSceneCount,
@@ -932,7 +950,7 @@ Page({
       displayTotalCount,
       displayCurrentCount,
       showLibraryPreparationTip: computeLibraryPreparationTip(filtered, currentLibraryTab),
-      newOnlyEntryState: computeNewOnlyButtonState(cards)
+      newOnlyEntryState: tabNewOnlyState,
     });
   },
 
