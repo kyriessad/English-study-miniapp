@@ -1153,7 +1153,7 @@ Page({
         url: '/pages/review/review?session_id=' + sessionId + '&session_type=new_only&source=new_only'
       });
     } catch (err) {
-      console.warn('[phase4c-new-only] create session failed', err);
+      console.warn('[index] create new-only session failed', err);
       wx.hideLoading();
       this.setData({ reviewEntryLoading: false });
       wx.showToast({ title: '暂时无法开始学习，请稍后再试', icon: 'none' });
