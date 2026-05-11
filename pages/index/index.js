@@ -198,14 +198,6 @@ function computeNewOnlyButtonState(cards) {
     }
   });
 
-  console.log('[phase4c-new-only] counts', {
-    newTotal: newTotal,
-    newReadyCount: newReadyCount,
-    newPendingCount: newPendingCount,
-    newManualFixCount: newManualFixCount,
-    sampleNewCards: sampleNewCards
-  });
-
   if (newReadyCount > 0) {
     return { enabled: true, label: '学习几张新卡', subtitle: '还有 ' + newReadyCount + ' 张新卡可以开始学习' };
   }
@@ -1039,7 +1031,10 @@ Page({
     wx.showLoading({ title: '准备复习中...', mask: true });
 
     try {
-      const result = await createReviewSession({ session_type: sessionType });
+      const sessionData = sessionType === 'new_only'
+        ? { session_type: 'new_only', limit: 5, restart: true }
+        : { session_type: sessionType };
+      const result = await createReviewSession(sessionData);
       const sessionId =
         (result && (result.session_id || result.id)) ||
         (result && result.data && (result.data.session_id || result.data.id)) ||
@@ -1092,11 +1087,31 @@ Page({
   },
 
   async handleStartNewOnlySession() {
+    if (this.data.reviewEntryLoading) return;
+
+    const entryState = this.data.newOnlyEntryState || {};
+    if (!entryState.enabled) {
+      wx.showToast({
+        title: entryState.hint || entryState.subtitle || '暂无可学习的新卡',
+        icon: 'none'
+      });
+      return;
+    }
+
     return this.doCreateNewOnlySession(true);
   },
 
   async doCreateNewOnlySession(restart) {
     if (this.data.reviewEntryLoading) return;
+
+    var entryState = this.data.newOnlyEntryState || {};
+    if (!entryState.enabled) {
+      wx.showToast({
+        title: entryState.hint || entryState.subtitle || '暂无可学习的新卡',
+        icon: 'none'
+      });
+      return;
+    }
 
     this.setData({ reviewEntryLoading: true });
     wx.showLoading({ title: '准备学习中...', mask: true });
@@ -1104,9 +1119,7 @@ Page({
     try {
       // 4C-1b: 主动新学的入口始终带 restart:true，避免被旧 active session 卡住
       var sessionData = { session_type: 'new_only', limit: 5, restart: true };
-      console.log('[phase4c-new-only] creating session', sessionData);
       var result = await createReviewSession(sessionData);
-      console.log('[phase4c-new-only] session created', result);
 
       // Extract session_id from response
       var sessionId = (result && (result.session_id || result.id)) ||

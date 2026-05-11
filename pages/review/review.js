@@ -723,6 +723,7 @@ Page({
   },
 
   goToHomePage() {
+    try { wx.setStorageSync('homeNeedsRefresh', true); } catch (e) { /* ignore */ }
     wx.navigateBack({
       delta: 1,
     });
