@@ -559,6 +559,16 @@ Page({
   // ========== Backend Data ==========
 
   async loadAllBackendData() {
+    // Phase 4B-S Step 4: 冷启动无 token 时先登录再请求，避免 401
+    var app = getApp();
+    if (app && !app.globalData.backendAccessToken && typeof app.initBackendLoginSafe === 'function') {
+      try {
+        await app.initBackendLoginSafe();
+      } catch (e) {
+        // login 失败不阻塞首页，继续用本地缓存或空态兜底
+      }
+    }
+
     await Promise.all([
       this.loadReviewOverview(),
       this.loadCardStats(),
