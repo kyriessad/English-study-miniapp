@@ -4,6 +4,8 @@ const {
   getHistorySummaryStats
 } = require('../../utils/historyReviewStorageFacade');
 
+const { getReviewHistory } = require('../../utils/apiClient');
+
 const RANGE_OPTIONS = [
   { key: '7d', label: '近7天' },
   { key: '30d', label: '近30天' },
@@ -12,11 +14,12 @@ const RANGE_OPTIONS = [
 
 const QUICK_FILTER_OPTIONS = [
   { key: 'all', label: '全部' },
-  { key: 'again', label: '没记住' },
-  { key: 'hard', label: '模糊' },
-  { key: 'good', label: '记住了' }
+  { key: 'again', label: '想不起来' },
+  { key: 'hard', label: '不太稳' },
+  { key: 'good', label: '已掌握' }
 ];
 
+// Legacy fallback only: maps old local reviewRecords labels to tagType
 function getResultTagType(result) {
   if (result === '没记住') {
     return 'again';
@@ -78,7 +81,9 @@ function decorateHistoryCards(cards = []) {
       item.lastReviewTimeInRange
     ),
     reviewCountText: `本时段复习 ${Number(item.reviewCountInRange || 0)} 次`,
-    resultTagType: getResultTagType(item.lastResultInRange)
+    resultTagType: item._rawResult
+      ? (REVIEW_RESULT_TAG_TYPES[item._rawResult] || 'default')
+      : getResultTagType(item.lastResultInRange)
   }));
 }
 
@@ -163,6 +168,100 @@ function buildQuickFilterOptionsWithCounts(allSummaries = []) {
   }));
 }
 
+// Phase 5-1C: backend history result labels
+const REVIEW_RESULT_LABELS = {
+  forgot: '想不起来',
+  shaky: '不太稳',
+  got_it: '基本掌握',
+  fluent: '很熟了'
+};
+
+const REVIEW_RESULT_TAG_TYPES = {
+  forgot: 'again',
+  shaky: 'hard',
+  got_it: 'good',
+  fluent: 'good'
+};
+
+const CARD_TYPE_MAP = {
+  word: '单词',
+  phrase: '短语',
+  sentence: '句子'
+};
+
+function mapBackendHistoryItem(item) {
+  const reviewedAt = new Date(item.last_reviewed_at);
+  const year = reviewedAt.getFullYear();
+  const month = String(reviewedAt.getMonth() + 1).padStart(2, '0');
+  const day = String(reviewedAt.getDate()).padStart(2, '0');
+  const hours = String(reviewedAt.getHours()).padStart(2, '0');
+  const minutes = String(reviewedAt.getMinutes()).padStart(2, '0');
+
+  return {
+    cardId: String(item.card_id),
+    englishText: item.content || '',
+    myUnderstanding: item.understanding || '',
+    notes: item.note || '',
+    category: CARD_TYPE_MAP[item.card_type] || '单词',
+    examScene: item.exam_scene || '未分类',
+    examModule: item.exam_module || '未分类',
+    reviewCountInRange: item.review_count_in_range,
+    lastResultInRange: REVIEW_RESULT_LABELS[item.last_result] || '—',
+    lastReviewDateInRange: `${year}-${month}-${day}`,
+    lastReviewTimeInRange: `${hours}:${minutes}`,
+    _rawResult: item.last_result
+  };
+}
+
+function buildBackendQuickFilterOptions(cards = []) {
+  const total = cards.length;
+  const againCount = cards.filter((c) => c._rawResult === 'forgot').length;
+  const hardCount = cards.filter((c) => c._rawResult === 'shaky').length;
+  const goodCount = cards.filter((c) => c._rawResult === 'got_it' || c._rawResult === 'fluent').length;
+
+  return QUICK_FILTER_OPTIONS.map((opt) => {
+    let cnt;
+    if (opt.key === 'all') cnt = total;
+    else if (opt.key === 'again') cnt = againCount;
+    else if (opt.key === 'hard') cnt = hardCount;
+    else cnt = goodCount;
+    return { ...opt, count: cnt, displayLabel: `${opt.label}（${cnt}）` };
+  });
+}
+
+function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword) {
+  const params = { limit: 100, offset: 0 };
+
+  if (rangeKey !== 'all') {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    params.date_to = `${y}-${m}-${d}`;
+
+    const fromDate = new Date(now);
+    fromDate.setDate(fromDate.getDate() - (rangeKey === '7d' ? 7 : 30));
+    const fy = fromDate.getFullYear();
+    const fm = String(fromDate.getMonth() + 1).padStart(2, '0');
+    const fd = String(fromDate.getDate()).padStart(2, '0');
+    params.date_from = `${fy}-${fm}-${fd}`;
+  }
+
+  const trimmedSearch = (searchKeyword || '').trim();
+  if (trimmedSearch) {
+    params.search = trimmedSearch;
+  }
+
+  if (resultKey === 'again') {
+    params.result = 'forgot';
+  } else if (resultKey === 'hard') {
+    params.result = 'shaky';
+  }
+  // 'good' handled frontend-side (covers got_it + fluent)
+
+  return params;
+}
+
 Page({
   data: {
     rangeOptions: RANGE_OPTIONS,
@@ -192,17 +291,71 @@ Page({
     this.loadHistoryData();
   },
 
-  loadHistoryData() {
+  async loadHistoryData() {
     const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
-  
+
+    try {
+      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword);
+      const response = await getReviewHistory(params);
+
+      if (response && Array.isArray(response.items)) {
+        if (response.items.length > 0) {
+          this._renderBackendData(response, selectedQuickFilter);
+          return;
+        }
+        // Backend returned empty — fallback if local has legacy data
+        if (this._hasLocalHistory(selectedRange)) {
+          this._fallbackToLocalHistory();
+          return;
+        }
+      }
+
+      this._renderEmpty();
+    } catch (error) {
+      console.warn('[history] Backend unavailable, fallback to local', error);
+      this._fallbackToLocalHistory();
+    }
+  },
+
+  _renderBackendData(response, selectedQuickFilter) {
+    const allMapped = (response.items || []).map(mapBackendHistoryItem);
+
+    let filtered = allMapped;
+    if (selectedQuickFilter === 'good') {
+      filtered = allMapped.filter((item) => item._rawResult === 'got_it' || item._rawResult === 'fluent');
+    }
+
+    const decoratedCards = decorateHistoryCards(filtered);
+
+    // Phase 5-2B: temporary stat from list items; Phase 5-2C will use /history/summary
+    const approxTotalReviews = allMapped.reduce((sum, item) => sum + Number(item.reviewCountInRange || 0), 0);
+
+    this.setData({
+      quickFilterOptions: buildBackendQuickFilterOptions(allMapped),
+      allSummaries: allMapped,
+      filteredCards: decoratedCards,
+      historyDateGroups: buildHistoryDateGroups(decoratedCards),
+      showHistoryFastScroll: decoratedCards.length >= 15,
+      historyFastScrollThumbTop: 0,
+      historyFastScrollThumbStyle: 'top: 0%;',
+      historyPageScrollTop: 0,
+      stats: {
+        totalReviewsInRange: approxTotalReviews,
+        totalCardsInRange: allMapped.length
+      }
+    });
+  },
+
+  _fallbackToLocalHistory() {
+    const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
+
     const allSummaries = getHistoryCardSummaries(selectedRange);
     const statusFilteredSummaries = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
     const searchedSummaries = searchHistoryCards(statusFilteredSummaries, searchKeyword);
     const decoratedCards = decorateHistoryCards(searchedSummaries);
     const stats = getHistorySummaryStats(selectedRange);
-  
+
     this.setData({
-      rangeOptions: RANGE_OPTIONS,
       quickFilterOptions: buildQuickFilterOptionsWithCounts(allSummaries),
       allSummaries,
       filteredCards: decoratedCards,
@@ -215,17 +368,77 @@ Page({
     });
   },
 
+  _renderEmpty() {
+    const defaultStats = { totalReviewsInRange: 0, totalCardsInRange: 0 };
+
+    this.setData({
+      quickFilterOptions: QUICK_FILTER_OPTIONS.map((opt) => ({
+        ...opt,
+        count: 0,
+        displayLabel: `${opt.label}（0）`
+      })),
+      allSummaries: [],
+      filteredCards: [],
+      historyDateGroups: [],
+      showHistoryFastScroll: false,
+      historyFastScrollThumbTop: 0,
+      historyFastScrollThumbStyle: 'top: 0%;',
+      historyPageScrollTop: 0,
+      stats: defaultStats
+    });
+  },
+
+  _hasLocalHistory(rangeKey) {
+    try {
+      const stats = getHistorySummaryStats(rangeKey);
+      return stats && stats.totalReviewsInRange > 0;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  _applyFrontendFilters() {
+    const { allSummaries, selectedQuickFilter, searchKeyword } = this.data;
+    const isBackendData = allSummaries.length > 0 && !!allSummaries[0]._rawResult;
+
+    let resultFiltered = allSummaries;
+    if (selectedQuickFilter !== 'all') {
+      if (isBackendData) {
+        if (selectedQuickFilter === 'again') {
+          resultFiltered = allSummaries.filter((item) => item._rawResult === 'forgot');
+        } else if (selectedQuickFilter === 'hard') {
+          resultFiltered = allSummaries.filter((item) => item._rawResult === 'shaky');
+        } else if (selectedQuickFilter === 'good') {
+          resultFiltered = allSummaries.filter((item) => item._rawResult === 'got_it' || item._rawResult === 'fluent');
+        }
+      } else {
+        resultFiltered = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
+      }
+    }
+
+    const searched = searchHistoryCards(resultFiltered, searchKeyword);
+    const decorated = decorateHistoryCards(searched);
+
+    this.setData({
+      filteredCards: decorated,
+      historyDateGroups: buildHistoryDateGroups(decorated),
+      showHistoryFastScroll: decorated.length >= 15,
+      historyFastScrollThumbTop: 0,
+      historyFastScrollThumbStyle: 'top: 0%;',
+      historyPageScrollTop: 0
+    });
+  },
 
   onRangeChange(event) {
     const rangeIndex = Number(event.detail.value || 0);
     const selectedOption = RANGE_OPTIONS[rangeIndex] || RANGE_OPTIONS[0];
-  
+
     this.setData({
       rangeIndex,
       selectedRange: selectedOption.key,
       selectedRangeLabel: selectedOption.label
     });
-  
+
     this.loadHistoryData();
   },
 
@@ -233,25 +446,14 @@ Page({
 
   onQuickFilterTap(event) {
     const { key } = event.currentTarget.dataset;
-  
+
     if (!key || key === this.data.selectedQuickFilter) {
       return;
     }
-  
-    const statusFilteredSummaries = filterHistoryCardSummariesByResult(this.data.allSummaries, key);
-    const searchedSummaries = searchHistoryCards(statusFilteredSummaries, this.data.searchKeyword);
-    const decoratedCards = decorateHistoryCards(searchedSummaries);
-  
-    this.setData({
-      selectedQuickFilter: key,
-      filteredCards: decoratedCards,
-      historyDateGroups: buildHistoryDateGroups(decoratedCards),
-      showHistoryFastScroll: decoratedCards.length >= 15,
-      historyFastScrollThumbTop: 0,
-      historyFastScrollThumbStyle: 'top: 0%;',
-      historyPageScrollTop: 0
-    });
-  
+
+    this.setData({ selectedQuickFilter: key });
+    this._applyFrontendFilters();
+
     wx.pageScrollTo({
       scrollTop: 0,
       duration: 120
@@ -260,23 +462,10 @@ Page({
 
   onSearchInput(event) {
     const searchKeyword = event.detail.value || '';
-    const statusFilteredSummaries = filterHistoryCardSummariesByResult(
-      this.data.allSummaries,
-      this.data.selectedQuickFilter
-    );
-    const searchedSummaries = searchHistoryCards(statusFilteredSummaries, searchKeyword);
-    const decoratedCards = decorateHistoryCards(searchedSummaries);
-  
-    this.setData({
-      searchKeyword,
-      filteredCards: decoratedCards,
-      historyDateGroups: buildHistoryDateGroups(decoratedCards),
-      showHistoryFastScroll: decoratedCards.length >= 15,
-      historyFastScrollThumbTop: 0,
-      historyFastScrollThumbStyle: 'top: 0%;',
-      historyPageScrollTop: 0
-    });
-  
+
+    this.setData({ searchKeyword });
+    this._applyFrontendFilters();
+
     wx.pageScrollTo({
       scrollTop: 0,
       duration: 120
