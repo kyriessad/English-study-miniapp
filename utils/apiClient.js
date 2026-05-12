@@ -22,9 +22,25 @@ function buildUrl(path) {
 }
 
 function buildQueryString(params = {}) {
-  const pairs = Object.keys(params || {})
-    .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== '')
-    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`);
+  const pairs = [];
+
+  Object.keys(params || {}).forEach((key) => {
+    const val = params[key];
+
+    if (val === undefined || val === null || val === '') {
+      return;
+    }
+
+    if (Array.isArray(val)) {
+      val.forEach((v) => {
+        if (v !== undefined && v !== null && v !== '') {
+          pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`);
+        }
+      });
+    } else {
+      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+    }
+  });
 
   return pairs.length ? `?${pairs.join('&')}` : '';
 }

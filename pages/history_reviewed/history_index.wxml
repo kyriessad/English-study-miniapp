@@ -68,7 +68,9 @@
         placeholder="搜索 {{allSummaries.length}} 张复习卡片的英文内容、释义或备注"
         placeholder-class="history-search-placeholder"
         bindinput="onSearchInput"
+        bindconfirm="onSearchConfirm"
       />
+      <view wx:if="{{searchKeyword}}" class="history-search-clear" bindtap="onSearchClear">×</view>
     </view>
 </view>
 

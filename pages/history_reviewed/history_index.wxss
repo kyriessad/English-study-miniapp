@@ -171,6 +171,20 @@ page {
   color: #1f2937;
 }
 
+.history-search-clear {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #c8d0c8;
+  color: #fff;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 .history-search-placeholder {
   color: #a0a9b5;
 }

@@ -229,7 +229,7 @@ function buildBackendQuickFilterOptions(cards = []) {
   });
 }
 
-function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword, limit = 100, offset = 0) {
+function buildBackendHistoryParams(rangeKey, resultKey, activeSearchKeyword, limit = 100, offset = 0) {
   const params = { limit, offset };
 
   if (rangeKey !== 'all') {
@@ -247,17 +247,19 @@ function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword, limit = 1
     params.date_from = `${fy}-${fm}-${fd}`;
   }
 
-  const trimmedSearch = (searchKeyword || '').trim();
+  const trimmedSearch = (activeSearchKeyword || '').trim();
   if (trimmedSearch) {
     params.search = trimmedSearch;
   }
 
   if (resultKey === 'again') {
-    params.result = 'forgot';
+    params.result = ['forgot'];
   } else if (resultKey === 'hard') {
-    params.result = 'shaky';
+    params.result = ['shaky'];
+  } else if (resultKey === 'good') {
+    params.result = ['got_it', 'fluent'];
   }
-  // 'good' handled frontend-side (covers got_it + fluent)
+  // 'all' — no result param
 
   return params;
 }
@@ -311,6 +313,7 @@ Page({
     rangeIndex: 0,
     selectedQuickFilter: 'all',
     searchKeyword: '',
+    activeSearchKeyword: '',
 
     stats: {
       totalReviewsInRange: 0,
@@ -337,8 +340,8 @@ Page({
     this.loadHistoryData();
   },
 
-  async loadHistoryData() {
-    const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
+  async loadHistoryData({ refreshSummary = true } = {}) {
+    const { selectedRange, selectedQuickFilter, activeSearchKeyword } = this.data;
     const requestSeq = (this.data.historyRequestSeq || 0) + 1;
 
     this.setData({
@@ -350,8 +353,7 @@ Page({
     });
 
     try {
-      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword,this.data.backendHistoryLimit || 100,
-        0);
+      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, activeSearchKeyword, this.data.backendHistoryLimit || 100, 0);
       const response = await getReviewHistory(params);
 
       if (requestSeq !== this.data.historyRequestSeq) {
@@ -362,16 +364,25 @@ Page({
       if (response && Array.isArray(response.items)) {
         if (response.items.length > 0) {
           console.log('[history-summary] backend list success, use backend summary');
-          await this._renderBackendData(response, selectedQuickFilter, requestSeq);
+          await this._renderBackendData(response, requestSeq, { refreshSummary });
           return;
         }
-        // Backend returned empty — fallback if local has legacy data
-        if (this._hasLocalHistory(selectedRange)) {
-          if (requestSeq === this.data.historyRequestSeq) {
-            this._fallbackToLocalHistory();
+
+        // Backend returned empty list
+        if (requestSeq === this.data.historyRequestSeq) {
+          if (refreshSummary) {
+            // Full reload: fallback to local if available, else empty
+            if (this._hasLocalHistory(selectedRange)) {
+              this._fallbackToLocalHistory();
+            } else {
+              this._renderEmpty();
+            }
+          } else {
+            // Quick filter: keep summary/counts, show empty list
+            this._renderBackendEmpty();
           }
-          return;
         }
+        return;
       }
 
       if (requestSeq === this.data.historyRequestSeq) {
@@ -384,74 +395,88 @@ Page({
     }
   },
 
-  async _renderBackendData(response, selectedQuickFilter, requestSeq) {
+  async _renderBackendData(response, requestSeq, { refreshSummary = true } = {}) {
     const allMapped = (response.items || []).map(mapBackendHistoryItem);
-
     const loadedCount = allMapped.length;
     const total = Number(response.total || loadedCount);
 
-    let filtered = allMapped;
-    if (selectedQuickFilter === 'good') {
-      filtered = allMapped.filter((item) => item._rawResult === 'got_it' || item._rawResult === 'fluent');
-    }
+    if (refreshSummary) {
+      const { selectedRange, activeSearchKeyword } = this.data;
+      const summaryParams = {};
+      if (selectedRange !== 'all') {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        summaryParams.date_to = `${y}-${m}-${d}`;
 
-    const decoratedCards = decorateHistoryCards(filtered);
-
-    // Phase 5-2C: fetch backend summary for top stats and filter counts
-    const { selectedRange } = this.data;
-    const summaryParams = {};
-    if (selectedRange !== 'all') {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
-      summaryParams.date_to = `${y}-${m}-${d}`;
-
-      const fromDate = new Date(now);
-      fromDate.setDate(fromDate.getDate() - (selectedRange === '7d' ? 7 : 30));
-      const fy = fromDate.getFullYear();
-      const fm = String(fromDate.getMonth() + 1).padStart(2, '0');
-      const fd = String(fromDate.getDate()).padStart(2, '0');
-      summaryParams.date_from = `${fy}-${fm}-${fd}`;
-    }
-
-    let stats;
-    let quickFilterOptions;
-
-    try {
-      const summaryRes = await this.fetchBackendHistorySummary(summaryParams);
-      if (requestSeq !== this.data.historyRequestSeq) {
-        console.log('[history-page] stale summary response ignored', requestSeq);
-        return;
+        const fromDate = new Date(now);
+        fromDate.setDate(fromDate.getDate() - (selectedRange === '7d' ? 7 : 30));
+        const fy = fromDate.getFullYear();
+        const fm = String(fromDate.getMonth() + 1).padStart(2, '0');
+        const fd = String(fromDate.getDate()).padStart(2, '0');
+        summaryParams.date_from = `${fy}-${fm}-${fd}`;
       }
-      console.log('[history-summary] backend summary success', summaryRes);
-      const normalized = normalizeBackendHistorySummary(summaryRes);
-      stats = normalized.stats;
-      quickFilterOptions = normalized.quickFilterOptions;
-    } catch (summaryErr) {
-      if (requestSeq !== this.data.historyRequestSeq) return;
-      console.warn('[history-summary] backend summary failed, fallback to backend list stats', summaryErr);
-      stats = computeHistoryStatsFromItems(allMapped);
-      quickFilterOptions = buildBackendQuickFilterOptions(allMapped);
+
+      const trimmedSearch = (activeSearchKeyword || '').trim();
+      if (trimmedSearch) {
+        summaryParams.search = trimmedSearch;
+      }
+
+      let stats;
+      let quickFilterOptions;
+
+      try {
+        const summaryRes = await this.fetchBackendHistorySummary(summaryParams);
+        if (requestSeq !== this.data.historyRequestSeq) {
+          console.log('[history-page] stale summary response ignored', requestSeq);
+          return;
+        }
+        console.log('[history-summary] backend summary success', summaryRes);
+        const normalized = normalizeBackendHistorySummary(summaryRes);
+        stats = normalized.stats;
+        quickFilterOptions = normalized.quickFilterOptions;
+      } catch (summaryErr) {
+        if (requestSeq !== this.data.historyRequestSeq) return;
+        console.warn('[history-summary] backend summary failed, fallback to backend list stats', summaryErr);
+        stats = computeHistoryStatsFromItems(allMapped);
+        quickFilterOptions = buildBackendQuickFilterOptions(allMapped);
+      }
+
+      const hasMore = loadedCount < total;
+      this.setData({
+        quickFilterOptions,
+        allSummaries: allMapped,
+        stats,
+        usingBackendHistory: true,
+        backendHistoryTotal: total,
+        backendHistoryHasMore: hasMore,
+        backendHistoryLoadingMore: false
+      });
+    } else {
+      const hasMore = loadedCount < total;
+      this.setData({
+        allSummaries: allMapped,
+        usingBackendHistory: true,
+        backendHistoryTotal: total,
+        backendHistoryHasMore: hasMore,
+        backendHistoryLoadingMore: false
+      });
     }
 
-    const hasMore = loadedCount < total;
+    this._renderHistoryDisplayList(allMapped);
+    this._scrollHistoryToTop();
+  },
 
+  _renderHistoryDisplayList(rawList) {
+    const decoratedCards = decorateHistoryCards(rawList);
     this.setData({
-      quickFilterOptions,
-      allSummaries: allMapped,
       filteredCards: decoratedCards,
       historyDateGroups: buildHistoryDateGroups(decoratedCards),
       showHistoryFastScroll: decoratedCards.length >= 15,
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
-      historyPageScrollTop: 0,
-      stats,
-      usingBackendHistory: true,
-      backendHistoryTotal: total,
-      backendHistoryHasMore: hasMore
-    }, () => {
-      this._scrollHistoryToTop();
+      historyPageScrollTop: 0
     });
   },
 
@@ -472,8 +497,8 @@ Page({
     this.setData({ backendHistoryLoadingMore: true });
 
     try {
-      const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
-      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword,
+      const { selectedRange, selectedQuickFilter, activeSearchKeyword } = this.data;
+      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, activeSearchKeyword,
         this.data.backendHistoryLimit || 100,
         this.data.allSummaries.length);
       params.limit = this.data.backendHistoryLimit || 100;
@@ -505,7 +530,7 @@ Page({
         backendHistoryLoadingMore: false
       });
 
-      this._applyFrontendFilters();
+      this._renderHistoryDisplayList(nextAllSummaries);
     } catch (error) {
       if (requestSeq !== this.data.historyRequestSeq) return;
       console.warn('[history-page] load more failed', error);
@@ -515,11 +540,11 @@ Page({
   },
 
   _fallbackToLocalHistory() {
-    const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
+    const { selectedRange, selectedQuickFilter, activeSearchKeyword } = this.data;
 
     const allSummaries = getHistoryCardSummaries(selectedRange);
     const statusFilteredSummaries = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
-    const searchedSummaries = searchHistoryCards(statusFilteredSummaries, searchKeyword);
+    const searchedSummaries = searchHistoryCards(statusFilteredSummaries, activeSearchKeyword);
     const decoratedCards = decorateHistoryCards(searchedSummaries);
     const stats = getHistorySummaryStats(selectedRange);
 
@@ -558,6 +583,19 @@ Page({
     });
   },
 
+  _renderBackendEmpty() {
+    this.setData({
+      allSummaries: [],
+      filteredCards: [],
+      historyDateGroups: [],
+      showHistoryFastScroll: false,
+      backendHistoryTotal: 0,
+      backendHistoryHasMore: false,
+      backendHistoryLoadingMore: false,
+      usingBackendHistory: true
+    });
+  },
+
   _scrollHistoryToTop() {
     wx.pageScrollTo({
       scrollTop: 0,
@@ -575,7 +613,7 @@ Page({
   },
 
   _applyFrontendFilters() {
-    const { allSummaries, selectedQuickFilter, searchKeyword } = this.data;
+    const { allSummaries, selectedQuickFilter, activeSearchKeyword } = this.data;
     const isBackendData = allSummaries.length > 0 && !!allSummaries[0]._rawResult;
 
     let resultFiltered = allSummaries;
@@ -593,7 +631,7 @@ Page({
       }
     }
 
-    const searched = searchHistoryCards(resultFiltered, searchKeyword);
+    const searched = searchHistoryCards(resultFiltered, activeSearchKeyword);
     const decorated = decorateHistoryCards(searched);
 
     this.setData({
@@ -629,7 +667,8 @@ Page({
     }
 
     this.setData({ selectedQuickFilter: key });
-    this._applyFrontendFilters();
+
+    this.loadHistoryData({ refreshSummary: false });
 
     wx.pageScrollTo({
       scrollTop: 0,
@@ -641,12 +680,38 @@ Page({
     const searchKeyword = event.detail.value || '';
 
     this.setData({ searchKeyword });
-    this._applyFrontendFilters();
 
-    wx.pageScrollTo({
-      scrollTop: 0,
-      duration: 120
-    });
+    // Auto-clear when input becomes empty while there was an active search
+    if (searchKeyword.trim() === '' && this.data.activeSearchKeyword) {
+      this.setData({ activeSearchKeyword: '' });
+
+      if (this.data.usingBackendHistory) {
+        this.loadHistoryData({ refreshSummary: true });
+      } else {
+        this._applyFrontendFilters();
+      }
+    }
+  },
+
+  onSearchConfirm(event) {
+    const keyword = (event.detail.value || '').trim();
+    this.setData({ activeSearchKeyword: keyword });
+
+    if (this.data.usingBackendHistory) {
+      this.loadHistoryData({ refreshSummary: true });
+    } else {
+      this._applyFrontendFilters();
+    }
+  },
+
+  onSearchClear() {
+    this.setData({ searchKeyword: '', activeSearchKeyword: '' });
+
+    if (this.data.usingBackendHistory) {
+      this.loadHistoryData({ refreshSummary: true });
+    } else {
+      this._applyFrontendFilters();
+    }
   },
 
   onPageScroll(event) {
