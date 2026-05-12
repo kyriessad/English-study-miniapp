@@ -333,7 +333,8 @@ Page({
     backendHistoryHasMore: false,
     backendHistoryLoadingMore: false,
     historyRequestSeq: 0,
-    usingBackendHistory: false
+    usingBackendHistory: false,
+    summaryLoadFailed: false
   },
 
   onShow() {
@@ -349,7 +350,8 @@ Page({
       backendHistoryTotal: 0,
       backendHistoryHasMore: false,
       backendHistoryLoadingMore: false,
-      usingBackendHistory: false
+      usingBackendHistory: false,
+      summaryLoadFailed: false
     });
 
     try {
@@ -423,8 +425,10 @@ Page({
         summaryParams.search = trimmedSearch;
       }
 
+      const wasSummaryPreviouslyFailed = this.data.summaryLoadFailed;
       let stats;
       let quickFilterOptions;
+      let summaryLoadFailed = false;
 
       try {
         const summaryRes = await this.fetchBackendHistorySummary(summaryParams);
@@ -438,9 +442,21 @@ Page({
         quickFilterOptions = normalized.quickFilterOptions;
       } catch (summaryErr) {
         if (requestSeq !== this.data.historyRequestSeq) return;
-        console.warn('[history-summary] backend summary failed, fallback to backend list stats', summaryErr);
-        stats = computeHistoryStatsFromItems(allMapped);
-        quickFilterOptions = buildBackendQuickFilterOptions(allMapped);
+        console.warn('[history-summary] backend summary failed, not falling back to page-one stats', summaryErr);
+        summaryLoadFailed = true;
+        stats = { totalReviewsInRange: '-', totalCardsInRange: '-' };
+        quickFilterOptions = QUICK_FILTER_OPTIONS.map((opt) => ({
+          ...opt,
+          count: '-',
+          displayLabel: `${opt.label}（-）`
+        }));
+
+        if (!wasSummaryPreviouslyFailed) {
+          wx.showToast({
+            title: '统计数据拉取失败，但不影响复习',
+            icon: 'none'
+          });
+        }
       }
 
       const hasMore = loadedCount < total;
@@ -449,6 +465,7 @@ Page({
         allSummaries: allMapped,
         stats,
         usingBackendHistory: true,
+        summaryLoadFailed,
         backendHistoryTotal: total,
         backendHistoryHasMore: hasMore,
         backendHistoryLoadingMore: false
@@ -501,8 +518,6 @@ Page({
       const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, activeSearchKeyword,
         this.data.backendHistoryLimit || 100,
         this.data.allSummaries.length);
-      params.limit = this.data.backendHistoryLimit || 100;
-      params.offset = this.data.allSummaries.length;
 
       const response = await getReviewHistory(params);
 
@@ -562,6 +577,7 @@ Page({
     });
   },
 
+  // 后端成功返回空列表不等于后端不可用，空状态渲染不能切换数据源模式
   _renderEmpty() {
     const defaultStats = { totalReviewsInRange: 0, totalCardsInRange: 0 };
 
@@ -578,8 +594,7 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats: defaultStats,
-      usingBackendHistory: false
+      stats: defaultStats
     });
   },
 
@@ -682,10 +697,9 @@ Page({
     this.setData({ searchKeyword });
 
     // Auto-clear when input becomes empty while there was an active search
+    // Covers: Backspace/Delete to empty without pressing Enter
     if (searchKeyword.trim() === '' && this.data.activeSearchKeyword) {
-      this.setData({ activeSearchKeyword: '' });
-
-      this.loadHistoryData({ refreshSummary: true });
+      this._resetHistorySearch();
     }
   },
 
@@ -693,13 +707,25 @@ Page({
     const keyword = (event.detail.value || '').trim();
     this.setData({ activeSearchKeyword: keyword });
 
-    this.loadHistoryData({ refreshSummary: true });
+    if (this.data.usingBackendHistory) {
+      this.loadHistoryData({ refreshSummary: true });
+    } else {
+      this._applyFrontendFilters();
+    }
   },
 
   onSearchClear() {
+    this._resetHistorySearch();
+  },
+
+  _resetHistorySearch() {
     this.setData({ searchKeyword: '', activeSearchKeyword: '' });
 
-    this.loadHistoryData({ refreshSummary: true });
+    if (this.data.usingBackendHistory) {
+      this.loadHistoryData({ refreshSummary: true });
+    } else {
+      this._applyFrontendFilters();
+    }
   },
 
   onPageScroll(event) {
