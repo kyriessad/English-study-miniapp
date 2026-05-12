@@ -450,6 +450,8 @@ Page({
       usingBackendHistory: true,
       backendHistoryTotal: total,
       backendHistoryHasMore: hasMore
+    }, () => {
+      this._scrollHistoryToTop();
     });
   },
 
@@ -553,6 +555,13 @@ Page({
       historyPageScrollTop: 0,
       stats: defaultStats,
       usingBackendHistory: false
+    });
+  },
+
+  _scrollHistoryToTop() {
+    wx.pageScrollTo({
+      scrollTop: 0,
+      duration: 120
     });
   },
 

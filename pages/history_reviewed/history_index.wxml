@@ -115,6 +115,15 @@
   </block>
 </view>
 
+  <!-- 底部加载状态 -->
+  <view
+    wx:if="{{usingBackendHistory && filteredCards.length > 0 && (backendHistoryLoadingMore || !backendHistoryHasMore)}}"
+    class="history-load-more-status"
+  >
+    <text wx:if="{{backendHistoryLoadingMore}}">正在加载更多...</text>
+    <text wx:elif="{{!backendHistoryHasMore}}">没有更多了</text>
+  </view>
+
   <!-- 右侧快速滚动条：只提供拖动，不显示日期/A-Z -->
   <view
   wx:if="{{showHistoryFastScroll}}"

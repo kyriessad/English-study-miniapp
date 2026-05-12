@@ -663,3 +663,11 @@ page {
   padding: 8rpx 17rpx;
   font-size: 23rpx;
 }
+
+/* 底部加载状态 */
+.history-load-more-status {
+  padding: 24rpx 0 32rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #8a9a8a;
+}
