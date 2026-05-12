@@ -364,23 +364,20 @@ Page({
       }
 
       if (response && Array.isArray(response.items)) {
+        // HTTP 200: backend is available regardless of empty result
+        this.setData({ usingBackendHistory: true });
+
         if (response.items.length > 0) {
           console.log('[history-summary] backend list success, use backend summary');
           await this._renderBackendData(response, requestSeq, { refreshSummary });
           return;
         }
 
-        // Backend returned empty list
+        // Backend returned empty list — not a backend failure
         if (requestSeq === this.data.historyRequestSeq) {
           if (refreshSummary) {
-            // Full reload: fallback to local if available, else empty
-            if (this._hasLocalHistory(selectedRange)) {
-              this._fallbackToLocalHistory();
-            } else {
-              this._renderEmpty();
-            }
+            this._renderEmpty();
           } else {
-            // Quick filter: keep summary/counts, show empty list
             this._renderBackendEmpty();
           }
         }
