@@ -4,7 +4,7 @@ const {
   getHistorySummaryStats
 } = require('../../utils/historyReviewStorageFacade');
 
-const { getReviewHistory } = require('../../utils/apiClient');
+const { getReviewHistory, getReviewHistorySummary } = require('../../utils/apiClient');
 
 const RANGE_OPTIONS = [
   { key: '7d', label: '近7天' },
@@ -262,6 +262,45 @@ function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword) {
   return params;
 }
 
+function computeHistoryStatsFromItems(items = []) {
+  const totalReviewsInRange = items.reduce(
+    (sum, item) => sum + Number(item.reviewCountInRange || 0),
+    0
+  );
+  return {
+    totalReviewsInRange,
+    totalCardsInRange: items.length
+  };
+}
+
+function normalizeBackendHistorySummary(summary) {
+  const counts = (summary && summary.latest_result_card_counts) || {};
+  const totalCards = summary.unique_cards || 0;
+  const totalReviews = summary.total_reviews || 0;
+
+  const quickFilterOptions = QUICK_FILTER_OPTIONS.map((opt) => {
+    let cnt;
+    if (opt.key === 'all') {
+      cnt = totalCards;
+    } else if (opt.key === 'again') {
+      cnt = counts.forgot || 0;
+    } else if (opt.key === 'hard') {
+      cnt = counts.shaky || 0;
+    } else {
+      cnt = (counts.got_it || 0) + (counts.fluent || 0);
+    }
+    return { ...opt, count: cnt, displayLabel: `${opt.label}（${cnt}）` };
+  });
+
+  return {
+    stats: {
+      totalReviewsInRange: totalReviews,
+      totalCardsInRange: totalCards
+    },
+    quickFilterOptions
+  };
+}
+
 Page({
   data: {
     rangeOptions: RANGE_OPTIONS,
@@ -300,7 +339,8 @@ Page({
 
       if (response && Array.isArray(response.items)) {
         if (response.items.length > 0) {
-          this._renderBackendData(response, selectedQuickFilter);
+          console.log('[history-summary] backend list success, use backend summary');
+          await this._renderBackendData(response, selectedQuickFilter);
           return;
         }
         // Backend returned empty — fallback if local has legacy data
@@ -312,12 +352,12 @@ Page({
 
       this._renderEmpty();
     } catch (error) {
-      console.warn('[history] Backend unavailable, fallback to local', error);
+      console.warn('[history-summary] backend list failed, use local stats', error);
       this._fallbackToLocalHistory();
     }
   },
 
-  _renderBackendData(response, selectedQuickFilter) {
+  async _renderBackendData(response, selectedQuickFilter) {
     const allMapped = (response.items || []).map(mapBackendHistoryItem);
 
     let filtered = allMapped;
@@ -327,11 +367,41 @@ Page({
 
     const decoratedCards = decorateHistoryCards(filtered);
 
-    // Phase 5-2B: temporary stat from list items; Phase 5-2C will use /history/summary
-    const approxTotalReviews = allMapped.reduce((sum, item) => sum + Number(item.reviewCountInRange || 0), 0);
+    // Phase 5-2C: fetch backend summary for top stats and filter counts
+    const { selectedRange } = this.data;
+    const summaryParams = {};
+    if (selectedRange !== 'all') {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      summaryParams.date_to = `${y}-${m}-${d}`;
+
+      const fromDate = new Date(now);
+      fromDate.setDate(fromDate.getDate() - (selectedRange === '7d' ? 7 : 30));
+      const fy = fromDate.getFullYear();
+      const fm = String(fromDate.getMonth() + 1).padStart(2, '0');
+      const fd = String(fromDate.getDate()).padStart(2, '0');
+      summaryParams.date_from = `${fy}-${fm}-${fd}`;
+    }
+
+    let stats;
+    let quickFilterOptions;
+
+    try {
+      const summaryRes = await this.fetchBackendHistorySummary(summaryParams);
+      console.log('[history-summary] backend summary success', summaryRes);
+      const normalized = normalizeBackendHistorySummary(summaryRes);
+      stats = normalized.stats;
+      quickFilterOptions = normalized.quickFilterOptions;
+    } catch (summaryErr) {
+      console.warn('[history-summary] backend summary failed, fallback to backend list stats', summaryErr);
+      stats = computeHistoryStatsFromItems(allMapped);
+      quickFilterOptions = buildBackendQuickFilterOptions(allMapped);
+    }
 
     this.setData({
-      quickFilterOptions: buildBackendQuickFilterOptions(allMapped),
+      quickFilterOptions,
       allSummaries: allMapped,
       filteredCards: decoratedCards,
       historyDateGroups: buildHistoryDateGroups(decoratedCards),
@@ -339,11 +409,12 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats: {
-        totalReviewsInRange: approxTotalReviews,
-        totalCardsInRange: allMapped.length
-      }
+      stats
     });
+  },
+
+  async fetchBackendHistorySummary(params) {
+    return await getReviewHistorySummary(params);
   },
 
   _fallbackToLocalHistory() {
