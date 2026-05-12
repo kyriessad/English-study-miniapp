@@ -64,6 +64,7 @@
     <view wx:else class="detail-section detail-section--orphan">
       <view class="orphan-text">该卡片已被删除或不可用，无法查看当前内容</view>
     </view>
+
   </block>
 
   <view wx:else class="state-card">

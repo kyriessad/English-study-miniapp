@@ -102,6 +102,7 @@ Page({
       if (this._isUnmounted) return;
 
       const detail = normalizeHistoryDetail(raw);
+
       this.setData({
         detail,
         hasLoaded: true,
