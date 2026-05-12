@@ -381,12 +381,23 @@ function getReviewHistorySummary(params = {}) {
   });
 }
 
+/**
+ * Phase 5-5C: get single history review log detail.
+ */
+function getReviewHistoryDetail(logId) {
+  return request({
+    url: `/api/reviews/history/${encodeURIComponent(logId)}`,
+    method: 'GET'
+  });
+}
+
 module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
   clearBackendAuth,
   getAccessToken,
   getCurrentBackendUser,
+  getReviewHistoryDetail,
   getSessionSummary,
   getReviewHistory,
   getReviewHistorySummary,

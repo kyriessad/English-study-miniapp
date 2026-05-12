@@ -198,6 +198,7 @@ function mapBackendHistoryItem(item) {
   const minutes = String(reviewedAt.getMinutes()).padStart(2, '0');
 
   return {
+    logId: item.review_log_id ? String(item.review_log_id) : '',
     cardId: String(item.card_id),
     englishText: item.content || '',
     myUnderstanding: item.understanding || '',
@@ -554,7 +555,9 @@ Page({
   _fallbackToLocalHistory() {
     const { selectedRange, selectedQuickFilter, activeSearchKeyword } = this.data;
 
-    const allSummaries = getHistoryCardSummaries(selectedRange);
+    const allSummaries = getHistoryCardSummaries(selectedRange).map(function(item) {
+      return Object.assign({}, item, { logId: item.logId || item.cardId || '' });
+    });
     const statusFilteredSummaries = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
     const searchedSummaries = searchHistoryCards(statusFilteredSummaries, activeSearchKeyword);
     const decoratedCards = decorateHistoryCards(searchedSummaries);
@@ -823,13 +826,29 @@ Page({
       .exec();
   },
 
+  onHistoryItemTap(e) {
+    const id = e.currentTarget.dataset.id;
+
+    if (!id) {
+      wx.showToast({
+        title: '缺少历史记录 ID',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/history_detail/history_detail?id=${id}`
+    });
+  },
+
   openCard(event) {
     const { id } = event.currentTarget.dataset;
-  
+
     if (!id) {
       return;
     }
-  
+
     wx.navigateTo({
       url: `/pages/add/add?id=${id}&from=history`
     });

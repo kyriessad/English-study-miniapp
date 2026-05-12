@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/add/add",
     "pages/review/review",
-    "pages/history_reviewed/history_index"
+    "pages/history_reviewed/history_index",
+    "pages/history_detail/history_detail"
   ],
   "window": {
     "navigationBarTitleText": "英语知识卡片本",

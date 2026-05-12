@@ -1,0 +1,72 @@
+<view class="history-detail-page">
+  <view wx:if="{{loading}}" class="state-card">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:elif="{{error}}" class="state-card">
+    <view class="state-title">无法打开历史详情</view>
+    <view class="state-desc">{{errorMessage}}</view>
+  </view>
+
+  <block wx:elif="{{detail}}">
+    <view class="detail-section">
+      <view class="section-title">复习信息</view>
+      <view class="info-row">
+        <view class="info-label">复习结果</view>
+        <view class="info-value">{{detail.result_label}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">复习时间</view>
+        <view class="info-value">{{detail.reviewed_at_formatted}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">学习来源</view>
+        <view class="info-value">{{detail.session_type_label}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{detail.card}}" class="detail-section">
+      <view class="section-title">卡片当前内容</view>
+      <view class="info-row">
+        <view class="info-label">英文内容</view>
+        <view class="info-value">{{detail.card.content}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">我的理解</view>
+        <view class="info-value">{{detail.card.understanding}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">补充备注</view>
+        <view class="info-value">{{detail.card.note}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">卡片类型</view>
+        <view class="info-value">{{detail.card.card_type}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">考试场景</view>
+        <view class="info-value">{{detail.card.exam_scene}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">考试模块</view>
+        <view class="info-value">{{detail.card.exam_module}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">当前卡片状态</view>
+        <view class="info-value">{{detail.card.review_state}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">下次复习时间</view>
+        <view class="info-value">{{detail.card.next_review_at_formatted}}</view>
+      </view>
+    </view>
+
+    <view wx:else class="detail-section detail-section--orphan">
+      <view class="orphan-text">该卡片已被删除或不可用，无法查看当前内容</view>
+    </view>
+  </block>
+
+  <view wx:else class="state-card">
+    <text>暂无详情数据</text>
+  </view>
+</view>

@@ -1,0 +1,95 @@
+page {
+  min-height: 100%;
+  background: linear-gradient(180deg, #f5fbf7 0%, #f7f9fb 44%, #f6f7fb 100%);
+  color: #1f2937;
+}
+
+.history-detail-page {
+  min-height: 100vh;
+  padding: 34rpx 32rpx 48rpx;
+  box-sizing: border-box;
+}
+
+/* 状态卡片（loading / error / empty） */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 32rpx;
+  text-align: center;
+  color: #8a94a6;
+  font-size: 28rpx;
+}
+
+.state-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #4b5563;
+  margin-bottom: 16rpx;
+}
+
+.state-desc {
+  font-size: 26rpx;
+  color: #8a94a6;
+  line-height: 1.6;
+}
+
+/* 详情区域 */
+.detail-section {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 26rpx;
+  padding: 28rpx;
+  margin-bottom: 22rpx;
+  box-shadow: 0 10rpx 26rpx rgba(31, 41, 55, 0.05);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #1f3742;
+  margin-bottom: 22rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 2rpx solid #eef1f5;
+}
+
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 12rpx 0;
+}
+
+.info-row + .info-row {
+  border-top: 1rpx solid #f3f4f6;
+}
+
+.info-label {
+  width: 180rpx;
+  flex-shrink: 0;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #7a8794;
+  line-height: 1.5;
+}
+
+.info-value {
+  flex: 1;
+  font-size: 28rpx;
+  color: #1f2937;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* 孤儿卡片 */
+.detail-section--orphan {
+  background: rgba(255, 248, 240, 0.96);
+  border: 2rpx solid #f0dcc8;
+}
+
+.orphan-text {
+  font-size: 26rpx;
+  color: #9a8a6a;
+  text-align: center;
+  line-height: 1.6;
+  padding: 24rpx 0;
+}

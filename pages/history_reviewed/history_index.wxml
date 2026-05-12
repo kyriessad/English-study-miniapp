@@ -83,8 +83,8 @@
       <block wx:for="{{group.cards}}" wx:key="cardId" wx:for-item="item">
         <view
           class="history-card history-card--{{item.resultTagType}}"
-          bindtap="openCard"
-          data-id="{{item.cardId}}"
+          bindtap="onHistoryItemTap"
+          data-id="{{item.logId}}"
         >
           <view class="history-card__content">
             <view class="history-card__head">
