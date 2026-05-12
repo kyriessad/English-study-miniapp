@@ -5,6 +5,18 @@ const {
   updateBackendCard
 } = require('./apiClient');
 
+// =====================================================================
+// Phase 4D-1: 职责分区注释
+//
+// 分区标识说明：
+//   [CURRENT]              — 当前主链路，切勿删除
+//   [COMPAT-HISTORY]       — 历史复习页依赖，不能删（只读旧 reviewRecords）
+//   [LEGACY]               — 旧逻辑，无页面直接调用，暂保留，后续再评估
+//   [DEAD-CANDIDATE]       — 无页面调用，确认无用前不能删除
+//   [CROSS-ZONE UTILITY]   — 被多个分区使用的工具函数
+//   [CORE]                 — 当前/兼容/旧逻辑共用的核心函数
+// =====================================================================
+
 const STORAGE_KEY = 'cardsCache';
 const LEGACY_STORAGE_KEY = 'englishKnowledgeCards';
 const COLLECTION_NAME = 'englishKnowledgeCards';
@@ -63,6 +75,7 @@ const REVIEW_RECORDS_STORAGE_KEY = 'reviewRecords';
 const REVIEW_INTERVAL_DAYS = [1, 2, 4, 7, 15, 30, 60];
 const MAX_MASTERY_LEVEL = REVIEW_INTERVAL_DAYS.length - 1;
 
+// ===== [DEAD-CANDIDATE] 调试工具 / 无页面调用 =====
 async function cleanupDuplicateCardsInCloud() {
   const db = wx.cloud.database();
   const collection = db.collection(COLLECTION_NAME);
@@ -230,6 +243,8 @@ async function checkDuplicateIds() {
 
 
 
+// ===== [CROSS-ZONE UTILITY] 基础工具函数 =====
+
 function padNumber(value) {
   return String(value).padStart(2, '0');
 }
@@ -248,6 +263,7 @@ function pickFirstDefinedValue(...values) {
   return '';
 }
 
+// ===== [LEGACY] 旧本地复习逻辑 — 今日复习缓存（updateReviewResult 不再走通，无页面调用）=====
 function getTodayDateKey(date = new Date()) {
   const year = date.getFullYear();
   const month = padNumber(date.getMonth() + 1);
@@ -405,6 +421,10 @@ function getTodayReviewedCardsFromAll(cards = [], date = new Date()) {
     });
 }
 
+// ===== [COMPAT-HISTORY] 历史复习记录兼容层 =====
+// 历史页 pages/history_reviewed/history_index 当前读取旧本地 reviewRecords；
+// 新复习主链路已走后端 submitReviewFeedback，不再写入 reviewRecords，
+// 因此历史页数据存在断档。Phase 4D-1 只标记，不修复。
 function createReviewRecordId(cardId) {
   return `rr_${Date.now()}_${String(cardId || '').trim()}_${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -637,6 +657,10 @@ function getHistorySummaryStats(rangeKey = 'all') {
   };
 }
 
+// ===== End of [COMPAT-HISTORY] =====
+
+// ===== [CURRENT] 工具函数 / 后端数据同步工具 =====
+
 
 
 function createCardId() {
@@ -835,6 +859,7 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
   });
 }
 
+// ===== [CURRENT] 卡片 CRUD — upsertCachedCard / removeCachedCards / sortCards / getCardSortTime =====
 function upsertCachedCard(card) {
   const normalizedCard = normalizeCard(card);
   const normalizedId = normalizeCardId(normalizedCard.id);
@@ -881,6 +906,7 @@ function getCardSortTime(card) {
   return Number(card && (card.updatedAt || card.createdAt) || 0);
 }
 
+// ===== [LEGACY] 旧微信云同步 — isUnsyncedStatus / choosePreferredCard =====
 function isUnsyncedStatus(status) {
   return status === SYNC_STATUS_PENDING ||
     status === SYNC_STATUS_FAILED ||
@@ -1188,6 +1214,7 @@ function migrateLegacyReviewedCard(card) {
   return migrated;
 }
 
+// [CORE] normalizeCard — 被 [CURRENT]、[COMPAT-HISTORY]、[LEGACY] 共用
 function normalizeCard(card) {
   const source = migrateLegacyReviewedCard(card || {});
   const normalizedReviewCount = Math.max(Number(source.reviewCount || 0), 0);
@@ -1301,6 +1328,7 @@ function dedupeCards(cards) {
   return sortCards(Array.from(cardMap.values()));
 }
 
+// [CORE] getStoredCardsRaw — 存储基元，全文件依赖
 function getStoredCardsRaw() {
   const cards = wx.getStorageSync(STORAGE_KEY);
 
@@ -1328,6 +1356,7 @@ function getLocalCards(options = {}) {
   return cards.filter((card) => !card.deleted);
 }
 
+// ===== [LEGACY] 旧微信云同步 — mergeCards =====
 function mergeCards(localCards, cloudCards) {
   const localList = Array.isArray(localCards) ? localCards : [];
   const cloudList = Array.isArray(cloudCards) ? cloudCards : [];
@@ -1404,6 +1433,7 @@ function mergeCards(localCards, cloudCards) {
 }
 
 
+// [CORE] saveLocalCards — 存储基元，全文件依赖
 function saveLocalCards(cards) {
   wx.setStorageSync(STORAGE_KEY, dedupeCards(cards));
 }
@@ -1412,6 +1442,7 @@ function saveLocalCards(cards) {
 
 
 
+// ===== [LEGACY] 旧微信云同步 — 云数据库操作 =====
 function canUseCloudDatabase() {
   return Boolean(wx.cloud && typeof wx.cloud.database === 'function');
 }
@@ -1728,6 +1759,7 @@ async function performSyncCardToCloud(card) {
   }
 }
 
+// ===== [LEGACY] 旧微信云同步 — 同步引擎 =====
 function syncCardToCloud(card) {
   const cardId = String(card && card.id || '');
 
@@ -1889,6 +1921,7 @@ function scheduleBackgroundSync() {
 
 
 
+// ===== [LEGACY] 旧微信云同步 — syncLocalCacheWithCloud =====
 async function syncLocalCacheWithCloud() {
   if (!canUseCloudDatabase()) {
     const localCards = getLocalCards();
@@ -1929,6 +1962,7 @@ async function syncLocalCacheWithCloud() {
   return backgroundCloudRefreshPromise;
 }
 
+// ===== [CURRENT] 后端数据同步 =====
 async function fetchAllBackendCards() {
   const allCards = [];
   const limit = 100;
@@ -1977,6 +2011,7 @@ async function refreshCardsCacheFromBackend() {
   return backgroundBackendRefreshPromise;
 }
 
+// ===== [CURRENT] 卡片 CRUD 主链路 =====
 async function getCards() {
   const localCards = getLocalCards();
   saveLocalCards(getStoredCardsRaw());
@@ -2145,6 +2180,7 @@ async function updateCardsMeta(cardIds, updates) {
 }
 
 
+// ===== [LEGACY] 旧微信云同步 — syncDeleteCardsNow（当前 deleteCard / deleteCards 走后端 API）=====
 async function syncDeleteCardsNow(cardIds = []) {
   const idSet = new Set((cardIds || []).map((item) => String(item)).filter(Boolean));
 
@@ -2199,6 +2235,7 @@ async function deleteCards(cardIds) {
   removeCachedCards(normalizedIds);
 }
 
+// ===== [LEGACY] 旧本地复习逻辑 — 已被 review.js 后端 submitReviewFeedback 替代，不再走通 =====
 async function updateReviewResult(cardId, reviewState) {
   const currentCards = getStoredCardsRaw();
   const currentCard = getCardByIdFromCards(cardId, currentCards);
@@ -2498,6 +2535,7 @@ async function getReviewCards() {
   return sortReviewCards(cards);
 }
 
+// ===== module.exports — 任何函数实际移除前必须确认所有导入方已迁移 =====
 module.exports = {
   STORAGE_KEY,
   COLLECTION_NAME,
