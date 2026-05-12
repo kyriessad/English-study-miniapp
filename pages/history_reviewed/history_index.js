@@ -685,11 +685,7 @@ Page({
     if (searchKeyword.trim() === '' && this.data.activeSearchKeyword) {
       this.setData({ activeSearchKeyword: '' });
 
-      if (this.data.usingBackendHistory) {
-        this.loadHistoryData({ refreshSummary: true });
-      } else {
-        this._applyFrontendFilters();
-      }
+      this.loadHistoryData({ refreshSummary: true });
     }
   },
 
@@ -697,21 +693,13 @@ Page({
     const keyword = (event.detail.value || '').trim();
     this.setData({ activeSearchKeyword: keyword });
 
-    if (this.data.usingBackendHistory) {
-      this.loadHistoryData({ refreshSummary: true });
-    } else {
-      this._applyFrontendFilters();
-    }
+    this.loadHistoryData({ refreshSummary: true });
   },
 
   onSearchClear() {
     this.setData({ searchKeyword: '', activeSearchKeyword: '' });
 
-    if (this.data.usingBackendHistory) {
-      this.loadHistoryData({ refreshSummary: true });
-    } else {
-      this._applyFrontendFilters();
-    }
+    this.loadHistoryData({ refreshSummary: true });
   },
 
   onPageScroll(event) {
