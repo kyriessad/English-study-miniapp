@@ -1,4 +1,4 @@
-const { DEFAULT_EXAM_SCENE, DEFAULT_EXAM_MODULE } = require('./recordStorage');
+const { DEFAULT_EXAM_SCENE, DEFAULT_EXAM_MODULE } = require('./cardStorageFacade');
 
 const CARD_CATEGORIES = ['单词', '短语', '句子'];
 const EXAM_SCENE_OPTIONS = ['高考', '四级', '六级', '考研', '托福', '雅思', DEFAULT_EXAM_SCENE];

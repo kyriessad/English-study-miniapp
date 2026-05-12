@@ -1,4 +1,4 @@
-const { DEFAULT_EXAM_SCENE, DEFAULT_EXAM_MODULE } = require('./recordStorage');
+const { DEFAULT_EXAM_SCENE, DEFAULT_EXAM_MODULE } = require('./cardStorageFacade');
 
 const INPUT_CONTEXT_KEY = 'englishCardInputContext';
 

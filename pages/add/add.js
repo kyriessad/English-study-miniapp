@@ -6,7 +6,7 @@ const {
   updateBackendCardSyncState,
   DEFAULT_EXAM_SCENE,
   DEFAULT_EXAM_MODULE
-} = require('../../utils/recordStorage');
+} = require('../../utils/cardStorageFacade');
 
 const {
   CARD_CATEGORIES,

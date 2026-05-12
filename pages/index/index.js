@@ -3,7 +3,7 @@ const {
   refreshCardsCacheFromBackend,
   deleteCards,
   updateCardsMeta
-} = require('../../utils/recordStorage');
+} = require('../../utils/cardStorageFacade');
 
 const {
   EXAM_SCENE_OPTIONS,
