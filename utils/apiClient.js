@@ -345,6 +345,26 @@ function getSessionSummary(sessionId) {
   });
 }
 
+/**
+ * Phase 5-1C: get history review list grouped by card.
+ */
+function getReviewHistory(params = {}) {
+  return request({
+    url: '/api/reviews/history' + buildQueryString(params),
+    method: 'GET'
+  });
+}
+
+/**
+ * Phase 5-1C: get history review summary stats.
+ */
+function getReviewHistorySummary(params = {}) {
+  return request({
+    url: '/api/reviews/history/summary' + buildQueryString(params),
+    method: 'GET'
+  });
+}
+
 module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
@@ -352,6 +372,8 @@ module.exports = {
   getAccessToken,
   getCurrentBackendUser,
   getSessionSummary,
+  getReviewHistory,
+  getReviewHistorySummary,
   listBackendCards,
   loginWithWechatCode,
   refreshBackendAuth,
