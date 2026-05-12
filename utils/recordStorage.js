@@ -2165,7 +2165,7 @@ async function updateCardsMeta(cardIds, updates) {
     return {
       ...card,
       ...normalizedUpdates,
-      syncStatus: SYNC_STATUS_PENDING,
+      backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
       syncError: '',
       deleted: false,
       date: timeInfo.date,
