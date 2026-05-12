@@ -229,8 +229,8 @@ function buildBackendQuickFilterOptions(cards = []) {
   });
 }
 
-function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword) {
-  const params = { limit: 100, offset: 0 };
+function buildBackendHistoryParams(rangeKey, resultKey, searchKeyword, limit = 100, offset = 0) {
+  const params = { limit, offset };
 
   if (rangeKey !== 'all') {
     const now = new Date();
@@ -323,7 +323,14 @@ Page({
     showHistoryFastScroll: false,
     historyFastScrollThumbTop: 0,
     historyFastScrollThumbStyle: 'top: 0%;',
-    historyPageScrollTop: 0
+    historyPageScrollTop: 0,
+
+    backendHistoryLimit: 100,
+    backendHistoryTotal: 0,
+    backendHistoryHasMore: false,
+    backendHistoryLoadingMore: false,
+    historyRequestSeq: 0,
+    usingBackendHistory: false
   },
 
   onShow() {
@@ -332,33 +339,56 @@ Page({
 
   async loadHistoryData() {
     const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
+    const requestSeq = (this.data.historyRequestSeq || 0) + 1;
+
+    this.setData({
+      historyRequestSeq: requestSeq,
+      backendHistoryTotal: 0,
+      backendHistoryHasMore: false,
+      backendHistoryLoadingMore: false,
+      usingBackendHistory: false
+    });
 
     try {
-      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword);
+      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword,this.data.backendHistoryLimit || 100,
+        0);
       const response = await getReviewHistory(params);
+
+      if (requestSeq !== this.data.historyRequestSeq) {
+        console.log('[history-page] stale list response ignored', requestSeq);
+        return;
+      }
 
       if (response && Array.isArray(response.items)) {
         if (response.items.length > 0) {
           console.log('[history-summary] backend list success, use backend summary');
-          await this._renderBackendData(response, selectedQuickFilter);
+          await this._renderBackendData(response, selectedQuickFilter, requestSeq);
           return;
         }
         // Backend returned empty — fallback if local has legacy data
         if (this._hasLocalHistory(selectedRange)) {
-          this._fallbackToLocalHistory();
+          if (requestSeq === this.data.historyRequestSeq) {
+            this._fallbackToLocalHistory();
+          }
           return;
         }
       }
 
-      this._renderEmpty();
+      if (requestSeq === this.data.historyRequestSeq) {
+        this._renderEmpty();
+      }
     } catch (error) {
+      if (requestSeq !== this.data.historyRequestSeq) return;
       console.warn('[history-summary] backend list failed, use local stats', error);
       this._fallbackToLocalHistory();
     }
   },
 
-  async _renderBackendData(response, selectedQuickFilter) {
+  async _renderBackendData(response, selectedQuickFilter, requestSeq) {
     const allMapped = (response.items || []).map(mapBackendHistoryItem);
+
+    const loadedCount = allMapped.length;
+    const total = Number(response.total || loadedCount);
 
     let filtered = allMapped;
     if (selectedQuickFilter === 'good') {
@@ -390,15 +420,22 @@ Page({
 
     try {
       const summaryRes = await this.fetchBackendHistorySummary(summaryParams);
+      if (requestSeq !== this.data.historyRequestSeq) {
+        console.log('[history-page] stale summary response ignored', requestSeq);
+        return;
+      }
       console.log('[history-summary] backend summary success', summaryRes);
       const normalized = normalizeBackendHistorySummary(summaryRes);
       stats = normalized.stats;
       quickFilterOptions = normalized.quickFilterOptions;
     } catch (summaryErr) {
+      if (requestSeq !== this.data.historyRequestSeq) return;
       console.warn('[history-summary] backend summary failed, fallback to backend list stats', summaryErr);
       stats = computeHistoryStatsFromItems(allMapped);
       quickFilterOptions = buildBackendQuickFilterOptions(allMapped);
     }
+
+    const hasMore = loadedCount < total;
 
     this.setData({
       quickFilterOptions,
@@ -409,12 +446,70 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats
+      stats,
+      usingBackendHistory: true,
+      backendHistoryTotal: total,
+      backendHistoryHasMore: hasMore
     });
   },
 
   async fetchBackendHistorySummary(params) {
     return await getReviewHistorySummary(params);
+  },
+
+  onReachBottom() {
+    this._loadMoreBackendHistory();
+  },
+
+  async _loadMoreBackendHistory() {
+    if (this.data.backendHistoryLoadingMore) return;
+    if (!this.data.backendHistoryHasMore) return;
+    if (!this.data.usingBackendHistory) return;
+
+    const requestSeq = this.data.historyRequestSeq;
+    this.setData({ backendHistoryLoadingMore: true });
+
+    try {
+      const { selectedRange, selectedQuickFilter, searchKeyword } = this.data;
+      const params = buildBackendHistoryParams(selectedRange, selectedQuickFilter, searchKeyword,
+        this.data.backendHistoryLimit || 100,
+        this.data.allSummaries.length);
+      params.limit = this.data.backendHistoryLimit || 100;
+      params.offset = this.data.allSummaries.length;
+
+      const response = await getReviewHistory(params);
+
+      if (requestSeq !== this.data.historyRequestSeq) {
+        console.log('[history-page] stale load more response ignored', requestSeq);
+        this.setData({ backendHistoryLoadingMore: false });
+        return;
+      }
+
+      if (!response || !Array.isArray(response.items)) {
+        this.setData({ backendHistoryLoadingMore: false });
+        wx.showToast({ title: '加载更多失败', icon: 'none' });
+        return;
+      }
+
+      const mappedItems = (response.items || []).map(mapBackendHistoryItem);
+      const nextAllSummaries = this.data.allSummaries.concat(mappedItems);
+      const total = Number(response.total || nextAllSummaries.length);
+      const hasMore = nextAllSummaries.length < total;
+
+      this.setData({
+        allSummaries: nextAllSummaries,
+        backendHistoryTotal: total,
+        backendHistoryHasMore: hasMore,
+        backendHistoryLoadingMore: false
+      });
+
+      this._applyFrontendFilters();
+    } catch (error) {
+      if (requestSeq !== this.data.historyRequestSeq) return;
+      console.warn('[history-page] load more failed', error);
+      this.setData({ backendHistoryLoadingMore: false });
+      wx.showToast({ title: '加载更多失败', icon: 'none' });
+    }
   },
 
   _fallbackToLocalHistory() {
@@ -435,7 +530,8 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats
+      stats,
+      usingBackendHistory: false
     });
   },
 
@@ -455,7 +551,8 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats: defaultStats
+      stats: defaultStats,
+      usingBackendHistory: false
     });
   },
 
