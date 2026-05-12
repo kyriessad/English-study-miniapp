@@ -2,7 +2,7 @@ const {
   getHistoryCardSummaries,
   filterHistoryCardSummariesByResult,
   getHistorySummaryStats
-} = require('../../utils/recordStorage');
+} = require('../../utils/historyReviewStorageFacade');
 
 const RANGE_OPTIONS = [
   { key: '7d', label: '近7天' },
