@@ -2464,13 +2464,7 @@ async function deleteCards(cardIds) {
     invalidateSessionCachesAfterDelete();
   }
 
-  // Report failures
-  if (failedIds.length > 0) {
-    if (successIds.length === 0) {
-      throw new Error('删除失败，请稍后重试');
-    }
-    throw new Error('部分卡片删除失败，请稍后重试');
-  }
+  return { successIds: successIds, failedIds: failedIds };
 }
 
 // ===== [LEGACY] 旧本地复习逻辑 — 已被 review.js 后端 submitReviewFeedback 替代，不再走通 =====

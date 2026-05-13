@@ -21,7 +21,7 @@ Phase 6C 目标是首页视觉与入口回归，重点不是新增复杂功能�
   - Light in the cracks（短语）
   - Grow through what you go through.（句子）
 - 点击预设卡片后直接创建卡片；
-- 创建成功后 toast 显示"已添加到卡片库"；
+- 创建成功后 toast 显示"已保存"；
 - 后端关闭但本地保存成功时，toast 显示"已保存"。
 
 ### 2. 有卡片时首页结构

@@ -671,6 +671,13 @@ Page({
         const cachedOverview = wx.getStorageSync('reviewOverviewCache');
         if (cachedOverview) {
           this.applyReviewOverview(cachedOverview);
+        } else {
+          this.setData({
+            reviewOverview: null,
+            activeSessionId: '',
+            activeSessionType: '',
+            hasActiveSession: false
+          });
         }
       } catch (e) { /* ignore */ }
     } catch (error) {
@@ -1444,25 +1451,40 @@ Page({
       confirmColor: '#b85c5c',
       success: async (result) => {
         if (!result.confirm) return;
-        var deleteError = null;
+        var deleteResult = { successIds: [], failedIds: [] };
         try {
-          await deleteCards(selectedCardIds);
+          deleteResult = await deleteCards(selectedCardIds);
         } catch (error) {
-          deleteError = error;
+          // Unexpected error (not per-card failures) — treat all as failed
+          deleteResult = { successIds: [], failedIds: selectedCardIds.slice() };
         }
+        var successIds = deleteResult.successIds || [];
+        var failedIds = deleteResult.failedIds || [];
+
         // Show appropriate toast
-        if (deleteError) {
-          wx.showToast({
-            title: (deleteError && deleteError.message) || '删除失败，请稍后重试',
-            icon: 'none',
-            duration: 2000
-          });
+        if (failedIds.length > 0) {
+          if (successIds.length === 0) {
+            wx.showToast({
+              title: '删除失败，请稍后重试',
+              icon: 'none',
+              duration: 2000
+            });
+          } else {
+            wx.showToast({
+              title: '部分卡片删除失败，请稍后重试',
+              icon: 'none',
+              duration: 2000
+            });
+          }
         } else {
           wx.showToast({ title: '已删除', icon: 'success' });
         }
-        // Always refresh UI — successful deletions are already in storage
-        const deletedIdSet = new Set(selectedCardIds.map((id) => String(id)));
-        const nextCards = (this.data.cards || []).filter((card) => !deletedIdSet.has(String(card.id)));
+
+        // Only remove successfully deleted cards from UI
+        var successIdSet = new Set(successIds.map(function (id) { return String(id); }));
+        var nextCards = (this.data.cards || []).filter(function (card) {
+          return !successIdSet.has(String(card.id));
+        });
         this.setData({
           cards: nextCards,
           isManageMode: false,
@@ -1470,7 +1492,23 @@ Page({
           isBatchPanelVisible: false,
           batchPanelType: '',
           batchPanelTitle: '',
-          batchPanelOptions: []
+          batchPanelOptions: [],
+          reviewOverview: null,
+          reviewOverviewError: false,
+          totalToday: 0,
+          toNew: 0,
+          toReview: 0,
+          strengtheningInReview: 0,
+          hasActiveSession: false,
+          activeSessionId: '',
+          activeSessionType: '',
+          completedToday: 0,
+          reviewActions: {
+            daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
+            newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
+            strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
+          },
+          showEmptyTaskTip: false
         });
         this.applyFilters();
         // Force refresh home data (overview / stats / cards list) from backend
