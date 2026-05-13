@@ -2369,7 +2369,26 @@ async function deleteCard(cardId) {
     return;
   }
 
-  await deleteBackendCard(normalizedId);
+  // Check local card to decide whether backend DELETE is needed
+  var currentCards = getStoredCardsRaw();
+  var card = getCardByIdFromCards(normalizedId, currentCards);
+
+  // Pending local card with no backend_card_id: skip backend DELETE
+  var isPendingLocal = card &&
+    card.backend_sync_status === BACKEND_SYNC_STATUS_PENDING &&
+    !card.backend_card_id;
+
+  if (!isPendingLocal) {
+    try {
+      await deleteBackendCard(normalizedId);
+    } catch (error) {
+      // 404: card already gone on backend — proceed with local removal
+      if (!(error && error.statusCode === 404)) {
+        throw error;
+      }
+    }
+  }
+
   removeCachedCards([normalizedId]);
 }
 
@@ -2382,11 +2401,50 @@ async function deleteCards(cardIds) {
     return;
   }
 
-  for (const cardId of normalizedIds) {
-    await deleteBackendCard(cardId);
+  var currentCards = getStoredCardsRaw();
+  var successIds = [];
+  var failedIds = [];
+
+  for (var i = 0; i < normalizedIds.length; i++) {
+    var cardId = normalizedIds[i];
+    try {
+      var card = getCardByIdFromCards(cardId, currentCards);
+
+      // Pending local card with no backend_card_id: skip backend DELETE
+      var isPendingLocal = card &&
+        card.backend_sync_status === BACKEND_SYNC_STATUS_PENDING &&
+        !card.backend_card_id;
+
+      if (!isPendingLocal) {
+        try {
+          await deleteBackendCard(cardId);
+        } catch (error) {
+          // 404: card already gone on backend — proceed with local removal
+          if (!(error && error.statusCode === 404)) {
+            failedIds.push(cardId);
+            continue;
+          }
+        }
+      }
+
+      successIds.push(cardId);
+    } catch (e) {
+      failedIds.push(cardId);
+    }
   }
 
-  removeCachedCards(normalizedIds);
+  // Remove successful ones from local cache
+  if (successIds.length > 0) {
+    removeCachedCards(successIds);
+  }
+
+  // Report failures
+  if (failedIds.length > 0) {
+    if (successIds.length === 0) {
+      throw new Error('删除失败，请稍后重试');
+    }
+    throw new Error('部分卡片删除失败，请稍后重试');
+  }
 }
 
 // ===== [LEGACY] 旧本地复习逻辑 — 已被 review.js 后端 submitReviewFeedback 替代，不再走通 =====

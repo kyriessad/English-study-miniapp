@@ -1,95 +1,74 @@
 <view class="page home-page">
   <!-- ===== Header ===== -->
   <view class="header">
-    <view class="title">英语学习</view>
-    <view class="subtitle">先完成今天的学习，再管理你的卡片库</view>
+    <view class="title">英语知识卡片本</view>
+    <view class="subtitle-home">今天已学习 {{completedToday}} 张，还有 {{totalToday}} 张待学习</view>
   </view>
 
-  <!-- ===== Today's Task Dashboard ===== -->
-  <view class="dashboard-card">
-    <view class="dashboard-header">
-      <text class="dashboard-title">今日学习</text>
-      <view class="dashboard-dot"></view>
+  <!-- ===== Status Overview Card ===== -->
+  <view class="status-overview-card">
+    <view class="status-overview-item">
+      <text class="status-overview-num">{{toNew + toReview}}</text>
+      <text class="status-overview-label">待学习</text>
     </view>
-
-    <view class="dashboard-total-row">
-      <text class="dashboard-total-num">{{totalToday}}</text>
-      <text class="dashboard-total-label">今日任务</text>
-    </view>
-
-    <view class="dashboard-stats">
-      <view class="dashboard-stat-item">
-        <text class="dashboard-stat-num">{{toNew}}</text>
-        <text class="dashboard-stat-label">新卡</text>
-      </view>
-      <view class="dashboard-stat-divider"></view>
-      <view class="dashboard-stat-item">
-        <text class="dashboard-stat-num">{{toReview}}</text>
-        <text class="dashboard-stat-label">到期复习</text>
-      </view>
-      <view class="dashboard-stat-divider"></view>
-      <view class="dashboard-stat-item">
-        <text class="dashboard-stat-num">{{strengtheningInReview}}</text>
-        <text class="dashboard-stat-label">需加强</text>
-      </view>
-    </view>
-
-    <view class="dashboard-actions">
-      <button
-        class="primary-btn {{reviewActions.daily.enabled ? '' : 'primary-btn-disabled'}}"
-        disabled="{{!reviewActions.daily.enabled || reviewEntryLoading}}"
-        data-key="daily"
-        bindtap="handleReviewActionTap"
-      >{{reviewActions.daily.label}}</button>
-    </view>
-
-    <view class="dashboard-secondary-actions">
-      <button
-        class="secondary-btn secondary-btn-sm {{reviewActions.newOnly.enabled ? '' : 'secondary-btn-disabled'}}"
-        disabled="{{!reviewActions.newOnly.enabled || reviewEntryLoading}}"
-        data-key="newOnly"
-        bindtap="handleReviewActionTap"
-      >{{reviewActions.newOnly.label}}</button>
-      <button
-        class="secondary-btn secondary-btn-sm {{reviewActions.strengthening.enabled ? '' : 'secondary-btn-disabled'}}"
-        disabled="{{!reviewActions.strengthening.enabled || reviewEntryLoading}}"
-        data-key="strengthening"
-        bindtap="handleReviewActionTap"
-      >{{reviewActions.strengthening.label}}</button>
-    </view>
-
-    <!-- Empty task tip: all-zero -->
-    <view wx:if="{{showEmptyTaskTip}}" class="dashboard-empty-tip">
-      今天暂无推荐任务，可以先整理卡片库或稍后再来。
-    </view>
-
-    <!-- Error tip: overview load failed -->
-    <view wx:elif="{{reviewOverviewError}}" class="dashboard-error-tip">
-      今日任务暂不可用，请稍后再试。
+    <view class="status-overview-divider"></view>
+    <view class="status-overview-item">
+      <text class="status-overview-num">{{strengtheningInReview}}</text>
+      <text class="status-overview-label">待加强</text>
     </view>
   </view>
 
-  <!-- ===== Phase 5-8B: Action Queue Sync Status ===== -->
-  <view wx:if="{{syncingAction || pendingActionCount > 0 || droppedActionCount > 0}}" class="sync-status-bar">
-    <view wx:if="{{syncingAction}}" class="sync-status-row">
-      <text class="sync-status-text syncing-text">复习记录同步中...</text>
+  <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% ===== -->
+  <view class="main-actions">
+    <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
+    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">进入复习页</button>
+  </view>
+
+  <!-- ===== Weak Sync Hint ===== -->
+  <view wx:if="{{pendingActionCount > 0}}" class="weak-sync-bar">
+    <text class="weak-sync-text">有 {{pendingActionCount}} 条复习记录待同步，网络恢复后会自动保存</text>
+  </view>
+
+  <!-- ===== 0-Card Quick Start ===== -->
+  <view wx:if="{{totalCardCount === 0}}" class="quick-start-section">
+    <view class="quick-start-guide">不知道从哪里开始？试试添加一张示例卡片。</view>
+
+    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="word" bindtap="handleCreateExampleCard">
+      <view class="preset-card-top">
+        <view class="preset-card-type">单词</view>
+        <view class="preset-card-plus">＋</view>
+      </view>
+      <view class="preset-card-content">Serendipity</view>
+      <view class="preset-card-meaning">不期而遇的美好</view>
     </view>
-    <view wx:elif="{{pendingActionCount > 0}}" class="sync-status-row">
-      <text class="sync-status-text pending-text">有 {{pendingActionCount}} 条复习记录待同步</text>
+
+    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="phrase" bindtap="handleCreateExampleCard">
+      <view class="preset-card-top">
+        <view class="preset-card-type">短语</view>
+        <view class="preset-card-plus">＋</view>
+      </view>
+      <view class="preset-card-content">Light in the cracks</view>
+      <view class="preset-card-meaning">裂缝里的光</view>
     </view>
-    <view wx:if="{{droppedActionCount > 0}}" class="sync-status-row sync-dropped-row" bindtap="onTapDroppedHint">
-      <text class="sync-status-text dropped-text">有 {{droppedActionCount}} 条复习记录同步失败 · 点击清除</text>
+
+    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="sentence" bindtap="handleCreateExampleCard">
+      <view class="preset-card-top">
+        <view class="preset-card-type">句子</view>
+        <view class="preset-card-plus">＋</view>
+      </view>
+      <view class="preset-card-content">Grow through what you go through.</view>
+      <view class="preset-card-meaning">经历什么，就从什么中成长</view>
     </view>
   </view>
 
-  <!-- ===== Card Library ===== -->
-  <view class="library-section">
+  <!-- ===== Card Library (only when cards exist) ===== -->
+  <view wx:if="{{totalCardCount > 0}}" class="library-section">
     <view class="section-header">
       <text class="section-title">卡片库</text>
       <text class="section-subtitle">按学习状态管理全部卡片</text>
     </view>
 
-    <!-- Library Tabs -->
+    <!-- Library Tabs / Filter Pills -->
     <view class="library-tabs">
       <view
         wx:for="{{libraryTabs}}"
@@ -103,12 +82,12 @@
       </view>
     </view>
 
-    <!-- Library preparation tip: shown in 未学习 tab when some cards aren't ready -->
+    <!-- Library preparation tip -->
     <view wx:if="{{showLibraryPreparationTip}}" class="library-tip">
       部分卡片需要重试分析或补全内容，准备好后会进入学习任务。
     </view>
 
-    <!-- 4C-1a/1b: New-only study entry card (only in 未学习 tab) -->
+    <!-- New-only study entry card (only in 未学习 tab) -->
     <view wx:if="{{currentLibraryTab === 'new' && !isManageMode}}" class="new-study-card">
       <view class="new-study-card-header">
         <text class="new-study-card-title">学习新卡</text>
@@ -125,8 +104,8 @@
       </view>
     </view>
 
-    <!-- Search -->
-    <view class="search-row {{showFixedSearch ? 'search-row-fixed' : ''}}">
+    <!-- Search (only when > 10 cards) -->
+    <view wx:if="{{totalCardCount > 10}}" class="search-row {{showFixedSearch ? 'search-row-fixed' : ''}}">
       <view class="search-box">
         <text class="search-icon">⌕</text>
         <input
@@ -148,7 +127,7 @@
       </view>
     </view>
 
-    <view wx:if="{{showFixedSearch}}" class="search-row-spacer"></view>
+    <view wx:if="{{totalCardCount > 10 && showFixedSearch}}" class="search-row-spacer"></view>
 
     <!-- Advanced Filters -->
     <view wx:if="{{showMoreFilters && !isManageMode}}" class="filter-card">
@@ -222,11 +201,7 @@
 
     <!-- Card List -->
     <view class="list-section">
-      <view wx:if="{{cards.length === 0}}" class="empty-state">
-        还没有卡片，先添加一张你想记住的英文内容吧。
-      </view>
-
-      <view wx:elif="{{filteredCards.length === 0}}" class="empty-state">
+      <view wx:if="{{filteredCards.length === 0 && displayCurrentCount === 0 && totalCardCount > 0}}" class="empty-state">
         没有找到匹配的卡片，换个关键词或筛选条件试试。
       </view>
 
@@ -261,12 +236,6 @@
 
             <view class="card-meta">
               <view class="card-meta-text">{{item.reviewCountText}}</view>
-              <view
-                wx:if="{{item.analysisStatusVisible}}"
-                class="analysis-status-pill {{item.analysisStatusClass}}"
-              >
-                {{item.analysisStatusLabel}}
-              </view>
             </view>
           </view>
         </block>

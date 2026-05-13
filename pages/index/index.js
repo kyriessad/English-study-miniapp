@@ -2,7 +2,8 @@ const {
   getCards,
   refreshCardsCacheFromBackend,
   deleteCards,
-  updateCardsMeta
+  updateCardsMeta,
+  addCard
 } = require('../../utils/cardStorageFacade');
 
 const {
@@ -37,16 +38,16 @@ const retryingAnalysisCardIds = new Set();
 
 const LIBRARY_TABS = [
   { key: 'all', label: '全部' },
-  { key: 'new', label: '未学习' },
+  { key: 'new', label: '待学习' },
   { key: 'reviewing', label: '学习中' },
-  { key: 'strengthening', label: '需加强' },
+  { key: 'strengthening', label: '待加强' },
   { key: 'mastered', label: '已掌握' }
 ];
 
 const STATE_LABELS = {
-  new: '未学习',
+  new: '待学习',
   reviewing: '学习中',
-  strengthening: '需加强',
+  strengthening: '待加强',
   mastered: '已掌握'
 };
 const VALID_REVIEW_STATES = new Set(['new', 'reviewing', 'strengthening', 'mastered']);
@@ -80,43 +81,16 @@ function getCardTimestampMs(card) {
  * Priority: needs_manual_fix > analysis failed > analysis pending (with staleness check) > is_review_ready=false > review state
  */
 function getCardDisplayStatus(card) {
-  if (!card) return { label: '未学习', className: 'state-new' };
+  if (!card) return { label: '待学习', className: 'state-new' };
 
-  // Priority 0: card saved locally but not yet synced to backend
-  if (card.backend_sync_status === 'pending') {
-    return { label: '待同步', className: 'status-pending-sync' };
+  // Only show "需补充理解" when card needs manual fix AND is not review-ready
+  if (card.needs_manual_fix === true && card.is_review_ready === false) {
+    return { label: '需补充理解', className: 'status-fix-required' };
   }
 
-  var analysisStatus = String(card.analysisStatus || card.analysis_status || '').trim();
-
-  // Priority 1: card needs manual fix
-  if (card.needs_manual_fix === true) {
-    return { label: '需补全', className: 'status-fix-required' };
-  }
-
-  // Priority 2: analysis failed (unambiguous — always show 待重试)
-  if (analysisStatus === 'failed') {
-    return { label: '待重试', className: 'status-analysis-failed' };
-  }
-
-  // Priority 3: analysis pending — check freshness
-  if (analysisStatus === 'pending') {
-    var ts = getCardTimestampMs(card);
-    var stale = ts === 0 || (Date.now() - ts > 300000); // 5 minutes
-    if (stale) {
-      return { label: '待重试', className: 'status-analysis-stale' };
-    }
-    return { label: 'AI分析中', className: 'status-analyzing' };
-  }
-
-  // Priority 4: card is not ready for review
-  if (card.is_review_ready === false) {
-    return { label: '准备中', className: 'status-preparing' };
-  }
-
-  // Default: show review state
+  // Default: show review state only — hide analysis_status / backend_sync_status
   var stateV2 = card.reviewStateV2 || 'new';
-  return { label: STATE_LABELS[stateV2] || '未学习', className: 'state-' + stateV2 };
+  return { label: STATE_LABELS[stateV2] || '待学习', className: 'state-' + stateV2 };
 }
 
 /**
@@ -584,7 +558,11 @@ Page({
     // Phase 5-8B: action queue sync status
     pendingActionCount: 0,
     droppedActionCount: 0,
-    syncingAction: false
+    syncingAction: false,
+
+    // Phase 6C: home page polish
+    completedToday: 0,
+    creatingExampleCard: false
   },
 
   async onShow() {
@@ -740,6 +718,17 @@ Page({
     var reviewActions = this.buildReviewActions(normalized);
     var allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
 
+    // Phase 6C: extract completed today count
+    var completedToday = 0;
+    var raw = normalized.raw || {};
+    if (raw.completed_suggested && typeof raw.completed_suggested === 'object') {
+      completedToday = pickNumber(
+        raw.completed_suggested.total,
+        raw.completed_suggested.total_today,
+        raw.completed_suggested.count
+      );
+    }
+
     this.setData({
       reviewOverview: normalized.raw,
       reviewOverviewError: false,
@@ -751,7 +740,8 @@ Page({
       activeSessionId: activeSession ? (activeSession.id || activeSession.session_id || '') : '',
       activeSessionType: activeSession ? (activeSession.session_type || '') : '',
       reviewActions: reviewActions,
-      showEmptyTaskTip: allZero
+      showEmptyTaskTip: allZero,
+      completedToday: completedToday
     });
   },
 
@@ -1260,6 +1250,80 @@ Page({
     wx.navigateTo({ url: '/pages/add/add' });
   },
 
+  goToReview() {
+    if (this.data.isManageMode) return;
+    if (this.data.reviewEntryLoading) return;
+
+    // If active session exists, navigate directly — reuse existing logic
+    var activeSession = this._getActiveSession();
+    if (activeSession && this.data.activeSessionId) {
+      var activeType = activeSession.session_type || activeSession.sessionType || '';
+      wx.navigateTo({
+        url: '/pages/review/review?session_id=' + this.data.activeSessionId +
+            '&session_type=' + activeType
+      });
+      return;
+    }
+
+    // No active session — create a new daily_suggested session
+    this.handleStartReview('daily_suggested');
+  },
+
+  handleCreateExampleCard(e) {
+    if (this.data.creatingExampleCard) return;
+    if (this.data.isManageMode) return;
+
+    var cardType = e.currentTarget.dataset.type;
+    var presets = {
+      word: {
+        englishText: 'Serendipity',
+        myUnderstanding: '不期而遇的美好；意外发现美好事物的能力',
+        category: '单词',
+        examScene: '未分类',
+        examModule: '未分类',
+        notes: '来自首页示例'
+      },
+      phrase: {
+        englishText: 'Light in the cracks',
+        myUnderstanding: '裂缝里的光；困境中仍然存在的希望',
+        category: '短语',
+        examScene: '未分类',
+        examModule: '未分类',
+        notes: '来自首页示例'
+      },
+      sentence: {
+        englishText: 'Grow through what you go through.',
+        myUnderstanding: '经历什么，就从什么中成长',
+        category: '句子',
+        examScene: '未分类',
+        examModule: '未分类',
+        notes: '来自首页示例'
+      }
+    };
+
+    var form = presets[cardType];
+    if (!form) return;
+
+    var self = this;
+    this.setData({ creatingExampleCard: true });
+
+    addCard(form).then(function (savedCard) {
+      var pendingSync = savedCard && savedCard.backend_sync_status === 'pending';
+      wx.showToast({
+        title: pendingSync ? '已先保存到本地，网络恢复后会自动同步' : '已添加到卡片库',
+        icon: pendingSync ? 'none' : 'success',
+        duration: 2000
+      });
+      // Refresh home data
+      self.loadAllBackendData();
+      self.loadLocalCache();
+    }).catch(function () {
+      wx.showToast({ title: '创建失败，请重试', icon: 'none' });
+    }).then(function () {
+      self.setData({ creatingExampleCard: false });
+    });
+  },
+
   openCard(event) {
     const { id } = event.currentTarget.dataset;
     if (this.data.isManageMode) {
@@ -1381,13 +1445,23 @@ Page({
       confirmColor: '#b85c5c',
       success: async (result) => {
         if (!result.confirm) return;
+        var deleteError = null;
         try {
           await deleteCards(selectedCardIds);
         } catch (error) {
-          wx.showToast({ title: '批量删除失败', icon: 'none' });
-          return;
+          deleteError = error;
         }
-        wx.showToast({ title: '已删除', icon: 'success' });
+        // Show appropriate toast
+        if (deleteError) {
+          wx.showToast({
+            title: (deleteError && deleteError.message) || '删除失败，请稍后重试',
+            icon: 'none',
+            duration: 2000
+          });
+        } else {
+          wx.showToast({ title: '已删除', icon: 'success' });
+        }
+        // Always refresh UI — successful deletions are already in storage
         const deletedIdSet = new Set(selectedCardIds.map((id) => String(id)));
         const nextCards = (this.data.cards || []).filter((card) => !deletedIdSet.has(String(card.id)));
         this.setData({
