@@ -13,8 +13,17 @@ const {
 const {
   getReviewOverview,
   getCardStats,
-  createReviewSession
+  createReviewSession,
+  submitReviewFeedback,
+  refreshBackendAuth
 } = require('../../utils/apiClient');
+
+const {
+  getPendingActionCount,
+  getDroppedActionCount,
+  flushActionQueue,
+  clearDroppedActions
+} = require('../../utils/actionQueue');
 
 const DEFAULT_CATEGORY = '单词';
 const DEFAULT_EXAM_SCENE = '未分类';
@@ -513,6 +522,7 @@ Page({
     strengtheningInReview: 0,
     hasActiveSession: false,
     activeSessionId: '',
+    activeSessionType: '',
 
     // Card library
     cardStats: null,
@@ -569,7 +579,12 @@ Page({
     },
     showEmptyTaskTip: false,
     showLibraryPreparationTip: false,
-    newOnlyEntryState: { enabled: false, label: '暂不可学', subtitle: '暂无未学习卡片' }
+    newOnlyEntryState: { enabled: false, label: '暂不可学', subtitle: '暂无未学习卡片' },
+
+    // Phase 5-8B: action queue sync status
+    pendingActionCount: 0,
+    droppedActionCount: 0,
+    syncingAction: false
   },
 
   async onShow() {
@@ -585,8 +600,12 @@ Page({
     }
 
     await this.loadLocalCache();
+    this._updateActionQueueStatus();
     this.triggerBackendLoginAfterHomeReady();
     this.loadAllBackendData();
+
+    // Phase 5-8B: background flush — non-blocking, after local cache renders
+    this._maybeStartBackgroundFlush();
   },
 
   triggerBackendLoginAfterHomeReady() {
@@ -684,21 +703,29 @@ Page({
   // ========== Backend Data ==========
 
   async loadAllBackendData() {
-    // Phase 4B-S Step 4: 冷启动无 token 时先登录再请求，避免 401
-    var app = getApp();
-    if (app && !app.globalData.backendAccessToken && typeof app.initBackendLoginSafe === 'function') {
-      try {
-        await app.initBackendLoginSafe();
-      } catch (e) {
-        // login 失败不阻塞首页，继续用本地缓存或空态兜底
-      }
-    }
+    // Phase 5-8B: instance-level lock to prevent concurrent GET bursts from rapid onShow
+    if (this._loadingHomeData) return;
+    this._loadingHomeData = true;
 
-    await Promise.all([
-      this.loadReviewOverview(),
-      this.loadCardStats(),
-      this.refreshBackendCards()
-    ]);
+    try {
+      // Phase 4B-S Step 4: 冷启动无 token 时先登录再请求，避免 401
+      var app = getApp();
+      if (app && !app.globalData.backendAccessToken && typeof app.initBackendLoginSafe === 'function') {
+        try {
+          await app.initBackendLoginSafe();
+        } catch (e) {
+          // login 失败不阻塞首页，继续用本地缓存或空态兜底
+        }
+      }
+
+      await Promise.all([
+        this.loadReviewOverview(),
+        this.loadCardStats(),
+        this.refreshBackendCards()
+      ]);
+    } finally {
+      this._loadingHomeData = false;
+    }
   },
 
   applyReviewOverview(overview) {
@@ -721,7 +748,8 @@ Page({
       toReview: toReview,
       strengtheningInReview: strengtheningInReview,
       hasActiveSession: !!activeSession,
-      activeSessionId: activeSession ? activeSession.session_id : '',
+      activeSessionId: activeSession ? (activeSession.id || activeSession.session_id || '') : '',
+      activeSessionType: activeSession ? (activeSession.session_type || '') : '',
       reviewActions: reviewActions,
       showEmptyTaskTip: allZero
     });
@@ -1044,16 +1072,23 @@ Page({
       return;
     }
 
-    // Daily with active session: resume directly without creating new session
-    if (key === 'daily' && this.data.hasActiveSession && this.data.activeSessionId) {
-      wx.navigateTo({
-        url: `/pages/review/review?session_id=${this.data.activeSessionId}`
-      });
-      return;
+    var targetSessionType = action.sessionType;
+    var activeSession = this._getActiveSession();
+
+    // If active session matches target type, reuse it — no POST needed
+    if (activeSession && this.data.activeSessionId) {
+      var activeType = activeSession.session_type || activeSession.sessionType || '';
+      if (activeType === targetSessionType) {
+        wx.navigateTo({
+          url: '/pages/review/review?session_id=' + this.data.activeSessionId +
+              '&session_type=' + targetSessionType
+        });
+        return;
+      }
     }
 
-    // Otherwise start a new review session of the specified type
-    this.handleStartReview(action.sessionType);
+    // Otherwise create a new session (handleStartReview decides restart)
+    this.handleStartReview(targetSessionType);
   },
 
   async handleStartReview(sessionType) {
@@ -1063,9 +1098,16 @@ Page({
     wx.showLoading({ title: '准备复习中...', mask: true });
 
     try {
-      const sessionData = sessionType === 'new_only'
-        ? { session_type: 'new_only', limit: 5, restart: true }
-        : { session_type: sessionType };
+      // If a different-type active session exists, must pass restart=true to avoid 409
+      var activeSession = this._getActiveSession();
+      var needsRestart = !!(activeSession &&
+        (activeSession.session_type || activeSession.sessionType || '') !== sessionType);
+
+      var sessionData = {
+        session_type: sessionType,
+        limit: 5,
+        ...(needsRestart ? { restart: true } : {})
+      };
       const result = await createReviewSession(sessionData);
       const sessionId =
         (result && (result.session_id || result.id)) ||
@@ -1088,7 +1130,7 @@ Page({
       }
 
       wx.navigateTo({
-        url: `/pages/review/review?session_id=${sessionId}`
+        url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
       });
     } catch (error) {
       console.warn('[index] create review session failed', error);
@@ -1145,12 +1187,33 @@ Page({
       return;
     }
 
+    // If an active new_only session already exists, reuse it — no POST needed
+    var activeSession = this._getActiveSession();
+    if (activeSession) {
+      var activeType = activeSession.session_type || activeSession.sessionType || '';
+      if (activeType === 'new_only') {
+        var activeId = activeSession.session_id || activeSession.id || '';
+        if (activeId) {
+          wx.navigateTo({
+            url: '/pages/review/review?session_id=' + activeId + '&session_type=new_only&source=new_only'
+          });
+          return;
+        }
+      }
+    }
+
     this.setData({ reviewEntryLoading: true });
     wx.showLoading({ title: '准备学习中...', mask: true });
 
     try {
-      // 4C-1b: 主动新学的入口始终带 restart:true，避免被旧 active session 卡住
-      var sessionData = { session_type: 'new_only', limit: 5, restart: true };
+      // If a different-type active session blocks, restart:true abandons it
+      var needsRestart = !!(activeSession &&
+        (activeSession.session_type || activeSession.sessionType || '') !== 'new_only');
+      var sessionData = {
+        session_type: 'new_only',
+        limit: 5,
+        ...(needsRestart ? { restart: true } : {})
+      };
       var result = await createReviewSession(sessionData);
 
       // Extract session_id from response
@@ -1407,5 +1470,107 @@ Page({
       lastPageScrollTop: 0
     });
     wx.pageScrollTo({ scrollTop: 0, duration: 260 });
+  },
+
+  // ========== Phase 5-8B: Action Queue Status & Background Flush ==========
+
+  _updateActionQueueStatus() {
+    try {
+      var pending = getPendingActionCount();
+      var dropped = getDroppedActionCount();
+      this.setData({
+        pendingActionCount: pending,
+        droppedActionCount: dropped
+      });
+    } catch (e) {
+      // silently ignore — actionQueue storage may be unavailable
+    }
+  },
+
+  _maybeStartBackgroundFlush() {
+    var self = this;
+    var pending = getPendingActionCount();
+    if (pending <= 0) {
+      console.log('[home-action-queue] no pending action, skip');
+      return;
+    }
+
+    console.log('[home-action-queue] pending found, background flush start');
+    this.setData({ syncingAction: true });
+
+    // Track pre-flush pending count for Toast decision
+    var pendingBeforeFlush = pending;
+
+      flushActionQueue({
+        mode: 'background',
+        sendAction: function (action) {
+          return submitReviewFeedback({
+            client_action_id: action.client_action_id,
+            session_id: action.payload.session_id,
+            session_item_id: action.payload.session_item_id,
+            card_id: action.payload.card_id,
+            result: action.payload.result
+          });
+        },
+        onSynced: function (action, response) {
+          console.log('[home-action-queue] synced action', action.client_action_id);
+        },
+        onDropped: function (action, error) {
+          console.warn('[home-action-queue] action dropped', action.client_action_id, error);
+        },
+        onAuthError: function (action, error) {
+          // apiClient.request already handles 401→refresh→replay.
+          // If we reach here, token refresh also failed.
+          console.warn('[home-action-queue] auth error during flush, giving up', error);
+          return Promise.resolve(false);
+        },
+        onFlushStop: function (action, error, errorType) {
+          console.warn('[home-action-queue] flush stopped', errorType, error);
+        }
+      }).then(function () {
+        console.log('[home-action-queue] background flush done');
+        self._updateActionQueueStatus();
+
+        var pendingAfterFlush = getPendingActionCount();
+        if (pendingBeforeFlush > 0 && pendingAfterFlush === 0) {
+          wx.showToast({
+            title: '后台同步完成，下拉刷新可查看最新数据',
+            icon: 'none',
+            duration: 2500
+          });
+        }
+      }).catch(function (err) {
+        console.warn('[home-action-queue] background flush failed, keep queue', err);
+        self._updateActionQueueStatus();
+      }).finally(function () {
+        self.setData({ syncingAction: false });
+      });
+  },
+
+  onTapDroppedHint: function () {
+    var self = this;
+    var dropped = getDroppedActionCount();
+    if (dropped <= 0) return;
+
+    wx.showModal({
+      title: '清除失效记录',
+      content: '有 ' + dropped + ' 条离线复习记录由于无法同步已被标记为失效。清除后，系统将无法记录这部分复习进度，您后续可能会重复遇到这些卡片。是否确认清除？',
+      confirmText: '清除',
+      cancelText: '取消',
+      success: function (res) {
+        if (!res.confirm) return;
+        try {
+          clearDroppedActions();
+        } catch (e) {
+          console.warn('[home-action-queue] clearDroppedActions failed', e);
+        }
+        self._updateActionQueueStatus();
+        wx.showToast({
+          title: '已清除失效记录',
+          icon: 'success',
+          duration: 2000
+        });
+      }
+    });
   }
 });

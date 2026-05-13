@@ -152,6 +152,7 @@ Page({
     unfinishedSessionText: '',
     pendingReviewSession: null,
     reviewMode: 'today',
+    currentSessionType: '',
     todayReviewSummary: { total: 0, easy: 0, good: 0, hard: 0, again: 0 },
     masteredPercent: 0,
     needStrengthenPercent: 0,
@@ -178,13 +179,15 @@ Page({
     }
 
     // 4C-1b: Support new_only review sessions
-    var effectiveSessionType = sessionType || source || '';
+    var effectiveSessionType = sessionType || source || 'daily_suggested';
     if (effectiveSessionType === 'new_only') {
       this.setData({ reviewMode: 'new_only' });
     }
 
+    this.setData({ currentSessionType: effectiveSessionType });
+
     this.loadBackendReviewSession({
-      sessionType: effectiveSessionType || undefined
+      sessionType: effectiveSessionType
     });
   },
 
@@ -203,16 +206,19 @@ Page({
       return;
     }
 
-    // 4C-1b: Pass stored reviewMode (today/new_only) when reloading
-    var sessionType = this.data.reviewMode === 'new_only' ? 'new_only' : '';
-    this.loadBackendReviewSession({ sessionType: sessionType || undefined });
+    // 4C-1b: Reload using stored session type from onLoad
+    this.loadBackendReviewSession({ sessionType: this.data.currentSessionType || undefined });
   },
 
   // ========== Session Loading ==========
 
   async loadBackendReviewSession({ restart, sessionType } = {}) {
-    // 4C-1b: new_only 模式必须传 restart=true，避免后端因 active session 不匹配拒绝
-    var effectiveRestart = sessionType === 'new_only' ? true : (restart !== undefined ? restart : false);
+    // restart only when explicitly requested; reusing an existing session must not restart
+    var effectiveRestart = restart === true;
+    // Always carry sessionType so backend can match the correct active session
+    if (!sessionType) {
+      sessionType = this.data.currentSessionType || undefined;
+    }
     const reviewBatchSize = getStoredReviewBatchSize();
 
     this.setData({
@@ -572,9 +578,11 @@ Page({
    */
   async _recoverSession() {
     try {
+      var sessionType = this.data.currentSessionType || undefined;
       const todayResponse = await getTodayReview({
         limit: getStoredReviewBatchSize(),
         restart: false,
+        ...(sessionType ? { session_type: sessionType } : {}),
       });
 
       updateFromTodayResponse(todayResponse);

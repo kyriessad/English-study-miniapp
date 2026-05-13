@@ -85,10 +85,27 @@ function getPendingActions() {
 
 /**
  * 取当前可发送的 action（pending 且达到重试时间）。
+ * 读取队列前先恢复遗留的 syncing action（crash 残留）。
  */
 function getRunnableActions() {
+  const queue = _readQueue();
+  let modified = false;
+
+  // Recover zombie syncing actions left from a crash mid-flush
+  for (let i = 0; i < queue.length; i++) {
+    if (queue[i].status === 'syncing') {
+      queue[i].status = 'pending';
+      queue[i].updated_at = _nowISO();
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    _writeQueue(queue);
+  }
+
   const now = _nowISO();
-  return _readQueue().filter((a) => {
+  return queue.filter((a) => {
     if (a.status !== 'pending') return false;
     if (a.next_retry_at && a.next_retry_at > now) return false;
     return true;
@@ -279,10 +296,9 @@ async function flushActionQueue(options = {}) {
           }
         }
 
-        // business_terminal — drop 当前 action，继续下一个
+        // business_terminal — drop 当前 action，继续下一个（保留在队列，不物理删除）
         if (errorType === 'business_terminal') {
           markActionDropped(action.client_action_id, err);
-          removeActionFromQueue(action.client_action_id);
           if (typeof options.onDropped === 'function') {
             options.onDropped(action, err);
           }
@@ -300,7 +316,6 @@ async function flushActionQueue(options = {}) {
           }
 
           markActionDropped(action.client_action_id, err);
-          removeActionFromQueue(action.client_action_id);
           if (typeof options.onDropped === 'function') {
             options.onDropped(action, err);
           }
@@ -327,12 +342,30 @@ function getPendingActionCount() {
   return _readQueue().filter((a) => a.status === 'pending' || a.status === 'syncing').length;
 }
 
+/**
+ * 获取 dropped action 数量。
+ */
+function getDroppedActionCount() {
+  return _readQueue().filter((a) => a.status === 'dropped').length;
+}
+
+/**
+ * 清除所有 status='dropped' 的 action。
+ * 不影响 pending / syncing / failed retryable action。
+ */
+function clearDroppedActions() {
+  const queue = _readQueue().filter((a) => a.status !== 'dropped');
+  _writeQueue(queue);
+}
+
 module.exports = {
   STORAGE_KEY,
   classifyActionError,
+  clearDroppedActions,
   enqueueAction,
   flushActionQueue,
   getActionCount,
+  getDroppedActionCount,
   getPendingActionCount,
   getPendingActions,
   getRunnableActions,

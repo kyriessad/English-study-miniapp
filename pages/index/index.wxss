@@ -2886,3 +2886,48 @@
   line-height: 1;
   margin-right: 4rpx;
 }
+
+/* ===== Phase 5-8B: Action Queue Sync Status Bar ===== */
+
+.sync-status-bar {
+  margin-top: 20rpx;
+  padding: 16rpx 24rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid #e1e8df;
+  box-shadow: 0 4rpx 12rpx rgba(86, 126, 82, 0.04);
+}
+
+.sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.sync-dropped-row {
+  margin-top: 8rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid #eef3e9;
+}
+
+.sync-status-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.syncing-text {
+  color: #6f7f91;
+}
+
+.pending-text {
+  color: #b47a25;
+}
+
+.dropped-text {
+  color: #bd6b74;
+}
+
+.sync-dropped-row {
+  cursor: pointer;
+}

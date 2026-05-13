@@ -69,6 +69,19 @@
     </view>
   </view>
 
+  <!-- ===== Phase 5-8B: Action Queue Sync Status ===== -->
+  <view wx:if="{{syncingAction || pendingActionCount > 0 || droppedActionCount > 0}}" class="sync-status-bar">
+    <view wx:if="{{syncingAction}}" class="sync-status-row">
+      <text class="sync-status-text syncing-text">复习记录同步中...</text>
+    </view>
+    <view wx:elif="{{pendingActionCount > 0}}" class="sync-status-row">
+      <text class="sync-status-text pending-text">有 {{pendingActionCount}} 条复习记录待同步</text>
+    </view>
+    <view wx:if="{{droppedActionCount > 0}}" class="sync-status-row sync-dropped-row" bindtap="onTapDroppedHint">
+      <text class="sync-status-text dropped-text">有 {{droppedActionCount}} 条复习记录同步失败 · 点击清除</text>
+    </view>
+  </view>
+
   <!-- ===== Card Library ===== -->
   <view class="library-section">
     <view class="section-header">
