@@ -26,7 +26,7 @@
     </view>
 
     <view wx:if="{{detail.card && detail.card.id}}" class="detail-section">
-      <view class="section-title">卡片当前内容</view>
+      <view class="section-title">{{detail.card_section_title || '卡片当前内容'}}</view>
       <view class="info-row">
         <view class="info-label">英文内容</view>
         <view class="info-value">{{detail.card.content}}</view>
@@ -51,11 +51,11 @@
         <view class="info-label">考试模块</view>
         <view class="info-value">{{detail.card.exam_module}}</view>
       </view>
-      <view class="info-row">
+      <view wx:if="{{!detail.card.is_snapshot}}" class="info-row">
         <view class="info-label">当前卡片状态</view>
         <view class="info-value">{{detail.card.review_state}}</view>
       </view>
-      <view class="info-row">
+      <view wx:if="{{!detail.card.is_snapshot}}" class="info-row">
         <view class="info-label">下次复习时间</view>
         <view class="info-value">{{detail.card.next_review_at_formatted}}</view>
       </view>

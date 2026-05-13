@@ -33,6 +33,7 @@ function normalizeHistoryDetail(raw) {
 
   if (raw.card) {
     var cardId = raw.card ? (raw.card.id || raw.card.card_id || '') : '';
+    var cardSource = raw.card.card_source || 'current_card';
     detail.card = {
       id: cardId,
       content: raw.card.content || '',
@@ -43,8 +44,11 @@ function normalizeHistoryDetail(raw) {
       exam_module: raw.card.exam_module || '',
       review_state: raw.card.review_state || '',
       next_review_at: raw.card.next_review_at || null,
-      next_review_at_formatted: formatDateTime(raw.card.next_review_at)
+      next_review_at_formatted: formatDateTime(raw.card.next_review_at),
+      card_source: cardSource,
+      is_snapshot: cardSource === 'snapshot'
     };
+    detail.card_section_title = cardSource === 'snapshot' ? '复习时卡片内容' : '卡片当前内容';
   }
 
   var resultTypeMap = {
