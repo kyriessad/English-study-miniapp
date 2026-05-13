@@ -1,3 +1,21 @@
 page {
+  /* [技术债] Phase 5-6 遗留全局背景。
+     后续待首页、复习页、历史列表页、历史详情页、添加页、编辑页
+     全部显式接入 --bg-color-page token 后，方可移除此行。
+     在此之前，各页面通过 .page / page {} 局部覆盖背景。 */
   background: #ffffff;
+
+  /* ===== Mini Visual Token Dictionary (Phase 5-6B) ===== */
+  --bg-color-page: #fbfcf7;
+  --bg-color-card: #fbfdf8;
+  --color-text-primary: #263128;
+  --color-text-secondary: #657465;
+  --color-text-muted: #99a398;
+  --color-primary: #5eaa64;
+  --border-color-muted: #e7eee4;
+  --border-color-dashed: #dcebd8;
+  --radius-card: 28rpx;
+  --radius-pill: 999rpx;
+  --shadow-card: 0 10rpx 26rpx rgba(86, 126, 82, 0.07);
+  --space-card: 24rpx;
 }

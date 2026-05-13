@@ -398,8 +398,8 @@ page {
 /* ===== 历史复习内容页最终收口：对齐今日复习内容页风格 ===== */
 
 page {
-  background: linear-gradient(180deg, #fbfcf7 0%, #f4f8ee 52%, #f8faf4 100%);
-  color: #263128;
+  background: linear-gradient(180deg, var(--bg-color-page) 0%, #f4f8ee 52%, #f8faf4 100%);
+  color: var(--color-text-primary);
 }
 
 .history-page {
@@ -419,13 +419,13 @@ page {
 .history-range-select-card,
 .history-search-card,
 .history-card {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1rpx solid #e7eee4;
-  box-shadow: 0 10rpx 26rpx rgba(86, 126, 82, 0.07);
+  background: var(--bg-color-card);
+  border: 1rpx solid var(--border-color-muted);
+  box-shadow: var(--shadow-card);
 }
 
 .history-stats-card {
-  border-radius: 28rpx;
+  border-radius: var(--radius-card);
 }
 
 .history-stats-title {
@@ -438,20 +438,20 @@ page {
 }
 
 .history-stats-value {
-  color: #5eaa64;
+  color: var(--color-primary);
 }
 
 .history-stats-label {
-  color: #8a9689;
+  color: var(--color-text-muted);
 }
 
 .history-range-select-card,
 .history-search-card {
-  border-radius: 26rpx;
+  border-radius: var(--radius-card);
 }
 
 .history-range-select-label {
-  color: #748274;
+  color: var(--color-text-secondary);
 }
 
 .history-range-select-value {
@@ -459,7 +459,7 @@ page {
 }
 
 .history-range-select-arrow {
-  color: #5eaa64;
+  color: var(--color-primary);
 }
 
 .history-quick-filter {
@@ -494,11 +494,11 @@ page {
 }
 
 .history-search-icon {
-  color: #9aa89d;
+  color: var(--color-text-muted);
 }
 
 .history-search-input {
-  color: #263128;
+  color: var(--color-text-primary);
 }
 
 .history-search-placeholder {
@@ -506,7 +506,7 @@ page {
 }
 
 .history-card {
-  border-radius: 28rpx;
+  border-radius: var(--radius-card);
 }
 
 .history-card--again::before {
@@ -527,7 +527,7 @@ page {
 
 .history-meta-pill {
   background: #f3f7f2;
-  color: #758575;
+  color: var(--color-text-secondary);
   font-weight: 700;
 }
 
@@ -550,15 +550,15 @@ page {
 }
 
 .history-card__title {
-  color: #263128;
+  color: var(--color-text-primary);
 }
 
 .history-card__meaning {
-  color: #4d5a50;
+  color: var(--color-text-secondary);
 }
 
 .history-card__meta {
-  color: #99a398;
+  color: var(--color-text-muted);
 }
 
 .history-card__meta-separator {
