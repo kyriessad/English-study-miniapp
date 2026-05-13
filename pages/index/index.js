@@ -662,8 +662,8 @@ Page({
 
         this.computeLocalCardStats(localCards);
       } else {
+        this.setData({ cards: [], displayTotalCount: 0, displayCurrentCount: 0 });
         this.applyFilters();
-        this.setData({ displayTotalCount: 0, displayCurrentCount: 0 });
       }
 
       // Step 4: Load cached review overview
