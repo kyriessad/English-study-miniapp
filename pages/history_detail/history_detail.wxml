@@ -13,7 +13,7 @@
       <view class="section-title">复习信息</view>
       <view class="info-row">
         <view class="info-label">复习结果</view>
-        <view class="info-value">{{detail.result_label}}</view>
+        <view class="detail-result-tag detail-result-tag--{{detail.resultTagType}}">{{detail.result_label}}</view>
       </view>
       <view class="info-row">
         <view class="info-label">复习时间</view>
@@ -25,7 +25,7 @@
       </view>
     </view>
 
-    <view wx:if="{{detail.card}}" class="detail-section">
+    <view wx:if="{{detail.card && detail.card.id}}" class="detail-section">
       <view class="section-title">卡片当前内容</view>
       <view class="info-row">
         <view class="info-label">英文内容</view>
@@ -61,7 +61,7 @@
       </view>
     </view>
 
-    <view wx:else class="detail-section detail-section--orphan">
+    <view wx:else class="detail-orphan-card">
       <view class="orphan-text">该卡片已被删除或不可用，无法查看当前内容</view>
     </view>
 

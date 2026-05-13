@@ -32,7 +32,9 @@ function normalizeHistoryDetail(raw) {
   };
 
   if (raw.card) {
+    var cardId = raw.card ? (raw.card.id || raw.card.card_id || '') : '';
     detail.card = {
+      id: cardId,
       content: raw.card.content || '',
       understanding: raw.card.understanding || '',
       note: raw.card.note || '',
@@ -44,6 +46,14 @@ function normalizeHistoryDetail(raw) {
       next_review_at_formatted: formatDateTime(raw.card.next_review_at)
     };
   }
+
+  var resultTypeMap = {
+    forgot: 'again',
+    shaky: 'hard',
+    got_it: 'good',
+    fluent: 'good'
+  };
+  detail.resultTagType = resultTypeMap[detail.result] || 'default';
 
   return detail;
 }

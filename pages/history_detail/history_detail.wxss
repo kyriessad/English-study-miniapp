@@ -1,7 +1,7 @@
 page {
   min-height: 100%;
-  background: linear-gradient(180deg, #f5fbf7 0%, #f7f9fb 44%, #f6f7fb 100%);
-  color: #1f2937;
+  background: linear-gradient(180deg, var(--bg-color-page) 0%, #f4f8ee 52%, #f8faf4 100%);
+  color: var(--color-text-primary);
 }
 
 .history-detail-page {
@@ -18,39 +18,40 @@ page {
   justify-content: center;
   padding: 120rpx 32rpx;
   text-align: center;
-  color: #8a94a6;
+  color: var(--color-text-muted);
   font-size: 28rpx;
 }
 
 .state-title {
   font-size: 34rpx;
   font-weight: 700;
-  color: #4b5563;
+  color: var(--color-text-primary);
   margin-bottom: 16rpx;
 }
 
 .state-desc {
   font-size: 26rpx;
-  color: #8a94a6;
+  color: var(--color-text-muted);
   line-height: 1.6;
 }
 
 /* 详情区域 */
 .detail-section {
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 26rpx;
-  padding: 28rpx;
+  background: var(--bg-color-card);
+  border: 1rpx solid var(--border-color-muted);
+  border-radius: var(--radius-card);
+  padding: var(--space-card);
   margin-bottom: 22rpx;
-  box-shadow: 0 10rpx 26rpx rgba(31, 41, 55, 0.05);
+  box-shadow: var(--shadow-card);
 }
 
 .section-title {
   font-size: 30rpx;
   font-weight: 800;
-  color: #1f3742;
+  color: var(--color-text-primary);
   margin-bottom: 22rpx;
   padding-bottom: 16rpx;
-  border-bottom: 2rpx solid #eef1f5;
+  border-bottom: 1rpx solid var(--border-color-muted);
 }
 
 .info-row {
@@ -60,7 +61,7 @@ page {
 }
 
 .info-row + .info-row {
-  border-top: 1rpx solid #f3f4f6;
+  border-top: 1rpx solid var(--border-color-muted);
 }
 
 .info-label {
@@ -68,28 +69,66 @@ page {
   flex-shrink: 0;
   font-size: 26rpx;
   font-weight: 700;
-  color: #7a8794;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
 .info-value {
   flex: 1;
   font-size: 28rpx;
-  color: #1f2937;
+  color: var(--color-text-primary);
   line-height: 1.5;
   word-break: break-all;
 }
 
-/* 孤儿卡片 */
-.detail-section--orphan {
-  background: rgba(255, 248, 240, 0.96);
-  border: 2rpx solid #f0dcc8;
+/* 孤儿卡片：冷灰失活态 */
+.detail-orphan-card {
+  background: #f5f6f8;
+  border: 1rpx dashed #d6dbe0;
+  border-radius: var(--radius-card);
+  padding: var(--space-card);
+  margin-bottom: 22rpx;
+  box-shadow: none;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .orphan-text {
   font-size: 26rpx;
-  color: #9a8a6a;
-  text-align: center;
+  color: var(--color-text-muted);
   line-height: 1.6;
-  padding: 24rpx 0;
+}
+
+/* 复习结果标签药丸（legacy 硬编码色值，与历史列表页一致） */
+.detail-result-tag {
+  display: inline-block;
+  padding: 8rpx 17rpx;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.detail-result-tag--again {
+  color: #bd6b74;
+  background: #fff8f8;
+  border: 1rpx solid #f1d4d8;
+}
+
+.detail-result-tag--hard {
+  color: #a7772e;
+  background: #fffaf0;
+  border: 1rpx solid #efd9ab;
+}
+
+.detail-result-tag--good {
+  color: #3f8b61;
+  background: #f0faf4;
+  border: 1rpx solid #ccebd8;
+}
+
+.detail-result-tag--default {
+  color: var(--color-text-muted);
+  background: #f3f7f2;
+  border: 1rpx solid var(--border-color-muted);
 }
