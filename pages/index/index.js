@@ -1307,11 +1307,10 @@ Page({
     var self = this;
     this.setData({ creatingExampleCard: true });
 
-    addCard(form).then(function (savedCard) {
-      var pendingSync = savedCard && savedCard.backend_sync_status === 'pending';
+    addCard(form).then(function () {
       wx.showToast({
-        title: pendingSync ? '已先保存到本地，网络恢复后会自动同步' : '已添加到卡片库',
-        icon: pendingSync ? 'none' : 'success',
+        title: '已保存',
+        icon: 'success',
         duration: 2000
       });
       // Refresh home data

@@ -6,6 +6,10 @@ const {
 } = require('../../utils/apiClient');
 
 const {
+  getCards
+} = require('../../utils/cardStorageFacade');
+
+const {
   enqueueAction,
   flushActionQueue,
   getPendingActionCount,
@@ -240,11 +244,48 @@ Page({
       // Update session progress cache
       updateFromTodayResponse(response);
 
-      const items = Array.isArray(response && response.items) ? response.items : [];
-      const currentItem = items[0] || null;
-      const currentCard = normalizeReviewItem(currentItem);
-      const progress = normalizeProgress(response && response.progress);
-      const pendingCount = getPendingActionCount();
+      var items = Array.isArray(response && response.items) ? response.items : [];
+
+      // Phase 6C-hotfix-2: filter out items referencing deleted cards
+      if (items.length > 0) {
+        try {
+          var cardsResult = await getCards();
+          var localCards = Array.isArray(cardsResult) ? cardsResult : [];
+          if (Array.isArray(cardsResult && cardsResult.cards)) {
+            localCards = cardsResult.cards;
+          }
+          var existingCardIds = new Set();
+          for (var ci = 0; ci < localCards.length; ci++) {
+            if (localCards[ci] && localCards[ci].id) {
+              existingCardIds.add(String(localCards[ci].id));
+            }
+          }
+          var filteredItems = [];
+          for (var fi = 0; fi < items.length; fi++) {
+            var itemCardId = items[fi] && (items[fi].card_id || items[fi].id);
+            if (itemCardId && existingCardIds.has(String(itemCardId))) {
+              filteredItems.push(items[fi]);
+            } else {
+              console.warn('[review] filtered out item referencing deleted/missing card', itemCardId);
+            }
+          }
+          // If all items were filtered out and we haven't restarted yet, re-fetch
+          if (filteredItems.length === 0 && !effectiveRestart) {
+            console.warn('[review] all session items reference deleted cards, re-fetching with restart');
+            updateFromTodayResponse({});
+            this.setData({ isLoading: false });
+            return this.loadBackendReviewSession({ restart: true, sessionType: sessionType });
+          }
+          items = filteredItems;
+        } catch (filterErr) {
+          console.warn('[review] failed to filter session items against local cache, proceeding unfiltered', filterErr);
+        }
+      }
+
+      var currentItem = items[0] || null;
+      var currentCard = normalizeReviewItem(currentItem);
+      var progress = normalizeProgress(response && response.progress);
+      var pendingCount = getPendingActionCount();
 
       this.setData({
         sessionId: response && response.session_id ? response.session_id : '',

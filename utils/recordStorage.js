@@ -2362,6 +2362,30 @@ async function syncDeleteCardsNow(cardIds = []) {
 }
 
 
+/**
+ * Clear session-related local caches so stale active sessions
+ * referencing deleted cards are not reused.
+ */
+function invalidateSessionCachesAfterDelete() {
+  var keysToRemove = [
+    'reviewSessionProgressCache',
+    'reviewOverviewCache'
+  ];
+
+  // Today's dated review caches
+  var dateKey = getTodayDateKey(new Date());
+  keysToRemove.push(TODAY_REVIEW_CACHE_PREFIX + '_' + dateKey);
+  keysToRemove.push(TODAY_REVIEW_SUMMARY_PREFIX + '_' + dateKey);
+
+  for (var i = 0; i < keysToRemove.length; i++) {
+    try {
+      wx.removeStorageSync(keysToRemove[i]);
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
 async function deleteCard(cardId) {
   const normalizedId = String(cardId || '').trim();
 
@@ -2390,6 +2414,7 @@ async function deleteCard(cardId) {
   }
 
   removeCachedCards([normalizedId]);
+  invalidateSessionCachesAfterDelete();
 }
 
 async function deleteCards(cardIds) {
@@ -2436,6 +2461,7 @@ async function deleteCards(cardIds) {
   // Remove successful ones from local cache
   if (successIds.length > 0) {
     removeCachedCards(successIds);
+    invalidateSessionCachesAfterDelete();
   }
 
   // Report failures
