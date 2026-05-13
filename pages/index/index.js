@@ -72,6 +72,12 @@ function getCardTimestampMs(card) {
  */
 function getCardDisplayStatus(card) {
   if (!card) return { label: '未学习', className: 'state-new' };
+
+  // Priority 0: card saved locally but not yet synced to backend
+  if (card.backend_sync_status === 'pending') {
+    return { label: '待同步', className: 'status-pending-sync' };
+  }
+
   var analysisStatus = String(card.analysisStatus || card.analysis_status || '').trim();
 
   // Priority 1: card needs manual fix

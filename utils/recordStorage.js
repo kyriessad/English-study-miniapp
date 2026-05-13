@@ -859,6 +859,18 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
   });
 }
 
+// ===== [CURRENT] 后端同步错误格式化 =====
+function formatBackendSyncErrorText(error) {
+  if (!error) return 'sync_failed';
+  const errMsg = trimValue(error.errMsg || error.message || '');
+  if (errMsg) return errMsg.slice(0, 500);
+  const statusCode = error.statusCode ? `status ${error.statusCode}: ` : '';
+  const detail = trimValue(
+    (error.data && error.data.detail) || (error.data && error.data.message) || ''
+  );
+  return (statusCode + (detail || 'sync_failed')).slice(0, 500);
+}
+
 // ===== [CURRENT] 卡片 CRUD — upsertCachedCard / removeCachedCards / sortCards / getCardSortTime =====
 function upsertCachedCard(card) {
   const normalizedCard = normalizeCard(card);
@@ -1992,6 +2004,7 @@ async function refreshCardsCacheFromBackend() {
   backgroundBackendRefreshPromise = (async () => {
     const cachedCards = getStoredCardsRaw();
     const backendCards = await fetchAllBackendCards();
+
     const nextCards = backendCards
       .map((backendCard) => {
         const fallbackCard = getCardByIdFromCards(
@@ -2002,8 +2015,28 @@ async function refreshCardsCacheFromBackend() {
       })
       .filter((card) => !card.deleted);
 
-    saveLocalCards(nextCards);
-    return getLocalCards();
+    // Preserve pending local cards that have no backend counterpart
+    const backendIdSet = new Set(
+      backendCards.map((bc) => trimValue(bc && bc.id)).filter(Boolean)
+    );
+    const backendLocalTempIdSet = new Set(
+      backendCards.map((bc) => trimValue(bc && bc.local_temp_id)).filter(Boolean)
+    );
+    const nextCardIdSet = new Set(
+      nextCards.map((c) => trimValue(c && c.id)).filter(Boolean)
+    );
+
+    const pendingCards = cachedCards.filter((card) => {
+      if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
+      if (card.backend_card_id && backendIdSet.has(String(card.backend_card_id))) return false;
+      if (card.local_temp_id && backendLocalTempIdSet.has(String(card.local_temp_id))) return false;
+      if (card.id && nextCardIdSet.has(String(card.id))) return false;
+      return true;
+    });
+
+    const mergedCards = dedupeCards([].concat(nextCards, pendingCards));
+    saveLocalCards(mergedCards);
+    return mergedCards.filter((card) => !card.deleted);
   })().finally(() => {
     backgroundBackendRefreshPromise = null;
   });
@@ -2043,16 +2076,32 @@ async function getCardById(cardId) {
 
 async function addCard(form) {
   const payload = buildBackendCardCreatePayload(form);
-  const backendCard = await createBackendCard(payload);
-  const localCard = normalizeBackendCardToLocal(backendCard, {
+  const localFallbackFields = {
     ...buildCardFields(form),
     ...createInitialReviewFields(),
     ...createInitialSyncFields(),
     ...createInitialBackendSyncFields(),
     local_temp_id: payload.local_temp_id
-  });
+  };
 
-  return upsertCachedCard(localCard);
+  try {
+    const backendCard = await createBackendCard(payload);
+    const localCard = normalizeBackendCardToLocal(backendCard, localFallbackFields);
+    return upsertCachedCard(localCard);
+  } catch (backendError) {
+    const localCard = normalizeCard({
+      ...localFallbackFields,
+      id: createCardId(),
+      backend_card_id: '',
+      backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+      backend_synced_at: '',
+      backend_sync_error: formatBackendSyncErrorText(backendError),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    upsertCachedCard(localCard);
+    return localCard;
+  }
 }
 
 async function updateCard(cardId, form) {
@@ -2061,6 +2110,36 @@ async function updateCard(cardId, form) {
 
   if (!currentCard) {
     throw new Error('card_not_found');
+  }
+
+  // Pending local card with no backend id: force createBackendCard instead of updateBackendCard
+  if (
+    currentCard.backend_sync_status === BACKEND_SYNC_STATUS_PENDING &&
+    !currentCard.backend_card_id
+  ) {
+    const createPayload = buildBackendCardCreatePayload({
+      ...form,
+      local_temp_id: currentCard.local_temp_id
+    });
+
+    try {
+      const backendCard = await createBackendCard(createPayload);
+      const localCard = normalizeBackendCardToLocal(backendCard, {
+        ...currentCard,
+        ...buildCardFields(form)
+      });
+      return upsertCachedCard(localCard);
+    } catch (backendError) {
+      const localCard = normalizeCard({
+        ...currentCard,
+        ...buildCardFields(form),
+        backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+        backend_sync_error: formatBackendSyncErrorText(backendError),
+        updatedAt: Date.now()
+      });
+      upsertCachedCard(localCard);
+      return localCard;
+    }
   }
 
   const payload = buildBackendCardPatchPayload(form, currentCard);

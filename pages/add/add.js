@@ -1455,9 +1455,10 @@ Page({
   async saveCard(nextForm, saveMode) {
     const { isEdit, cardId } = this.data;
     const shouldContinue = saveMode === 'continue' && !isEdit;
-  
+
     let savedCard = null;
-  
+    let pendingSync = false;
+
     try {
       if (isEdit) {
         savedCard = await updateCard(cardId, nextForm);
@@ -1468,6 +1469,7 @@ Page({
           examModule: nextForm.examModule
         });
       }
+      pendingSync = savedCard && savedCard.backend_sync_status === 'pending';
     } catch (error) {
       wx.showToast({
         title: isEdit ? '更新失败' : '保存失败',
@@ -1475,50 +1477,52 @@ Page({
       });
       return false;
     }
-  
+
     if (shouldContinue) {
       wx.showToast({
-        title: '已保存到本地，继续新增',
-        icon: 'success'
+        title: pendingSync ? '已保存到本地，待同步' : '已保存到本地，继续新增',
+        icon: pendingSync ? 'none' : 'success'
       });
-  
+
       this.resetFormForContinuousAdd(nextForm);
       return savedCard;
     }
-  
+
     this.clearTransientFeedbackBeforeLeave();
-  
+
     wx.showToast({
-      title: isEdit ? '已更新到本地' : '已保存到本地',
-      icon: 'success'
+      title: pendingSync
+        ? (isEdit ? '已更新到本地，待同步' : '已保存到本地，待同步')
+        : (isEdit ? '已更新到本地' : '已保存到本地'),
+      icon: pendingSync ? 'none' : 'success'
     });
-  
+
     setTimeout(() => {
       if (isFromReviewPage(this.pageOptions)) {
         const pages = getCurrentPages();
         const previousPage = pages[pages.length - 2];
-  
+
         if (previousPage && typeof previousPage.applyEditedCardFromReview === 'function') {
           previousPage.applyEditedCardFromReview(this.data.cardId);
         }
-  
+
         wx.navigateBack({ delta: 1 });
         return;
       }
-  
+
       if (isFromTodayReviewedPage(this.pageOptions)) {
         wx.navigateBack({ delta: 1 });
         return;
       }
-  
+
       if (isFromHistoryPage(this.pageOptions)) {
         wx.navigateBack({ delta: 1 });
         return;
       }
-  
+
       wx.navigateBack({ delta: 1 });
     }, 100);
-  
+
     return savedCard;
   },
 

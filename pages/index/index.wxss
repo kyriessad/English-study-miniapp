@@ -2761,6 +2761,12 @@
   border-color: #dcebdc !important;
 }
 
+.card-status-pill.status-pending-sync {
+  color: #b47a25 !important;
+  background: #fff8ea !important;
+  border-color: #efd9ab !important;
+}
+
 /* ===== Phase 4B: 今日任务空状态/错误提示 ===== */
 
 .dashboard-empty-tip {
