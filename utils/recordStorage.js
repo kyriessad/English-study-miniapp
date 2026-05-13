@@ -736,6 +736,7 @@ function buildBackendCardCreatePayload(form = {}) {
     exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
+    translation: trimValue(fields.translation) || null,
     analysis_status: trimValue(fields.analysisStatus) || 'pending',
     analysis_level: getBackendAnalysisLevelFromLocal(fields),
     analysis_messages: buildBackendAnalysisMessagesFromLocal(fields),
@@ -756,7 +757,8 @@ function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
     exam_scene: trimValue(fields.examScene) || null,
     exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
-    note: trimValue(fields.notes) || null
+    note: trimValue(fields.notes) || null,
+    translation: trimValue(fields.translation) || null
   };
 }
 
@@ -857,6 +859,32 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
     understandingSource: trimValue(backendCard.understanding_source || ''),
     analyzedAt: toIsoString(backendCard.updated_at)
   });
+}
+
+// ===== [CURRENT] 安全字段比较 =====
+function safeNormalize(value) {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+function cardsNeedUpdate(backendCard, form, currentCard) {
+  var formEnglishText = pickFirstDefinedValue(form.englishText, currentCard && currentCard.englishText, '');
+  var formUnderstanding = pickFirstDefinedValue(form.myUnderstanding, currentCard && currentCard.myUnderstanding, '');
+  var formNote = pickFirstDefinedValue(form.note, form.notes, currentCard && currentCard.note, currentCard && currentCard.notes, '');
+  var formTranslation = pickFirstDefinedValue(form.translation, currentCard && currentCard.translation, '');
+  var formCategory = pickFirstDefinedValue(form.category, currentCard && currentCard.category, '');
+  var formExamScene = pickFirstDefinedValue(form.examScene, currentCard && currentCard.examScene, '');
+  var formExamModule = pickFirstDefinedValue(form.examModule, currentCard && currentCard.examModule, '');
+
+  if (safeNormalize(backendCard.content) !== safeNormalize(formEnglishText)) return true;
+  if (safeNormalize(backendCard.understanding) !== safeNormalize(formUnderstanding)) return true;
+  if (safeNormalize(backendCard.note) !== safeNormalize(formNote)) return true;
+  if (safeNormalize(backendCard.translation) !== safeNormalize(formTranslation)) return true;
+  if (safeNormalize(backendCard.card_type) !== safeNormalize(mapCategoryToBackendCardType(formCategory))) return true;
+  if (safeNormalize(backendCard.exam_scene) !== safeNormalize(formExamScene)) return true;
+  if (safeNormalize(backendCard.exam_module) !== safeNormalize(formExamModule)) return true;
+
+  return false;
 }
 
 // ===== [CURRENT] 后端同步错误格式化 =====
@@ -1566,6 +1594,9 @@ function buildCardFields(form, fallbackCard) {
     ),
     analyzedAt: toIsoString(
       getFieldValue(source, fallback, 'analyzedAt', '')
+    ),
+    translation: trimValue(
+      getFieldValue(source, fallback, 'translation', '')
     )
   };
 }
@@ -2015,12 +2046,11 @@ async function refreshCardsCacheFromBackend() {
       })
       .filter((card) => !card.deleted);
 
-    // Preserve pending local cards that have no backend counterpart
+    // Preserve pending local cards that have no backend counterpart.
+    // Pending cards are local drafts — they must not be silently overwritten
+    // by a backend card with the same local_temp_id (see Phase 5-7C).
     const backendIdSet = new Set(
       backendCards.map((bc) => trimValue(bc && bc.id)).filter(Boolean)
-    );
-    const backendLocalTempIdSet = new Set(
-      backendCards.map((bc) => trimValue(bc && bc.local_temp_id)).filter(Boolean)
     );
     const nextCardIdSet = new Set(
       nextCards.map((c) => trimValue(c && c.id)).filter(Boolean)
@@ -2029,12 +2059,26 @@ async function refreshCardsCacheFromBackend() {
     const pendingCards = cachedCards.filter((card) => {
       if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
       if (card.backend_card_id && backendIdSet.has(String(card.backend_card_id))) return false;
-      if (card.local_temp_id && backendLocalTempIdSet.has(String(card.local_temp_id))) return false;
       if (card.id && nextCardIdSet.has(String(card.id))) return false;
       return true;
     });
 
-    const mergedCards = dedupeCards([].concat(nextCards, pendingCards));
+    // If a pending local card shares local_temp_id with a backend card,
+    // the pending card is the latest local draft — keep it and discard
+    // the stale backend copy to prevent duplicate display and data loss.
+    const pendingLocalTempIdSet = new Set(
+      pendingCards.map((c) => trimValue(c && c.local_temp_id)).filter(Boolean)
+    );
+    const filteredNextCards = pendingLocalTempIdSet.size > 0
+      ? nextCards.filter((card) => {
+          if (card.local_temp_id && pendingLocalTempIdSet.has(String(card.local_temp_id))) {
+            return false;
+          }
+          return true;
+        })
+      : nextCards;
+
+    const mergedCards = dedupeCards([].concat(filteredNextCards, pendingCards));
     saveLocalCards(mergedCards);
     return mergedCards.filter((card) => !card.deleted);
   })().finally(() => {
@@ -2112,7 +2156,7 @@ async function updateCard(cardId, form) {
     throw new Error('card_not_found');
   }
 
-  // Pending local card with no backend id: force createBackendCard instead of updateBackendCard
+  // Pending local card with no backend id: two-phase sync (POST → compare → optionally PATCH)
   if (
     currentCard.backend_sync_status === BACKEND_SYNC_STATUS_PENDING &&
     !currentCard.backend_card_id
@@ -2121,18 +2165,49 @@ async function updateCard(cardId, form) {
       ...form,
       local_temp_id: currentCard.local_temp_id
     });
+    const latestFormFields = buildCardFields(form, currentCard);
 
     try {
       const backendCard = await createBackendCard(createPayload);
+
+      if (cardsNeedUpdate(backendCard, form, currentCard)) {
+        // Backend returned an existing card with stale content — PATCH with latest form
+        const patchPayload = buildBackendCardPatchPayload(form, currentCard);
+
+        try {
+          const patchedBackendCard = await updateBackendCard(backendCard.id, patchPayload);
+          const localCard = normalizeBackendCardToLocal(patchedBackendCard, {
+            ...currentCard,
+            ...latestFormFields
+          });
+          return upsertCachedCard(localCard);
+        } catch (patchError) {
+          // Atomicity: POST succeeded but PATCH failed — must NOT write backend_card_id
+          const localCard = normalizeCard({
+            ...currentCard,
+            ...latestFormFields,
+            backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+            backend_card_id: '',
+            backend_synced_at: '',
+            backend_sync_error: formatBackendSyncErrorText(patchError),
+            updatedAt: Date.now()
+          });
+          upsertCachedCard(localCard);
+          return localCard;
+        }
+      }
+
+      // Backend card matches form — safe to mark synced
       const localCard = normalizeBackendCardToLocal(backendCard, {
         ...currentCard,
-        ...buildCardFields(form)
+        ...latestFormFields
       });
       return upsertCachedCard(localCard);
     } catch (backendError) {
+      // POST entirely failed — keep pending, preserve latest form
       const localCard = normalizeCard({
         ...currentCard,
-        ...buildCardFields(form),
+        ...latestFormFields,
         backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
         backend_sync_error: formatBackendSyncErrorText(backendError),
         updatedAt: Date.now()
