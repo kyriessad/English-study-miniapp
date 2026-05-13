@@ -144,6 +144,10 @@ Page({
     batchItems: [],              // Full batch items from the initial /today response
     batchCurrentIndex: 0,
 
+    // Phase 6F-hotfix: display-layer progress (1-based, based on actual filtered items)
+    displayCurrentNo: 1,
+    displayTotal: 0,
+
     // Compatibility fields
     tasks: [],
     taskIds: [],
@@ -301,6 +305,8 @@ Page({
         batchCurrentIndex: 0,
         currentClientActionId: '',
         pendingActionCount: pendingCount,
+        displayCurrentNo: items.length > 0 ? 1 : 0,
+        displayTotal: items.length,
 
         tasks: items.map(normalizeReviewItem).filter(Boolean),
         taskIds: items.map((item) => item.card_id).filter(Boolean),
@@ -482,6 +488,8 @@ Page({
       currentClientActionId: '',
       batchCurrentIndex: nextIndex,
       pendingActionCount: getPendingActionCount(),
+      displayCurrentNo: nextIndex + 1,
+      displayTotal: batchItems.length,
     });
   },
 
@@ -511,6 +519,8 @@ Page({
         currentClientActionId: '',
         batchCurrentIndex: nextBatchIndex,
         pendingActionCount: getPendingActionCount(),
+        displayCurrentNo: nextBatchIndex + 1,
+        displayTotal: batchItems.length,
       });
     } else {
       // Batch depleted, enter pending_sync
@@ -551,6 +561,8 @@ Page({
         currentCard: nextCard,
         answerVisible: false,
         batchCurrentIndex: nextIndex,
+        displayCurrentNo: nextIndex + 1,
+        displayTotal: batchItems.length,
       });
     } else {
       this.loadBackendReviewSession({ restart: false });
@@ -649,6 +661,8 @@ Page({
           batchCurrentIndex: 0,
           pendingActionCount: pendingCount,
           currentClientActionId: '',
+          displayCurrentNo: items.length > 0 ? 1 : 0,
+          displayTotal: items.length,
 
           totalCount: progress.total,
           finishedCount: progress.reviewed,

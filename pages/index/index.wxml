@@ -8,18 +8,18 @@
   <!-- ===== Status Overview Card ===== -->
   <view class="status-overview-card">
     <view class="status-overview-item">
-      <text class="status-overview-num">{{toNew + toReview}}</text>
+      <text class="status-overview-num">{{dashboardToLearn}}</text>
       <text class="status-overview-label">待学习</text>
     </view>
     <view class="status-overview-divider"></view>
     <view class="status-overview-item">
-      <text class="status-overview-num">{{strengtheningInReview}}</text>
+      <text class="status-overview-num">{{dashboardToStrengthen}}</text>
       <text class="status-overview-label">待加强</text>
     </view>
   </view>
 
-  <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% ===== -->
-  <view class="main-actions">
+  <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% (only when cards exist) ===== -->
+  <view wx:if="{{totalCardCount > 0}}" class="main-actions">
     <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
     <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">进入复习页</button>
   </view>
@@ -31,7 +31,9 @@
 
   <!-- ===== 0-Card Quick Start ===== -->
   <view wx:if="{{totalCardCount === 0}}" class="quick-start-section">
-    <view class="quick-start-guide">不知道从哪里开始？试试添加一张示例卡片。</view>
+    <view class="quick-start-guide">先添加一张卡片，或者从下面的示例开始。</view>
+
+    <button class="first-card-btn" bindtap="goToAddPage">添加第一张卡片</button>
 
     <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="word" bindtap="handleCreateExampleCard">
       <view class="preset-card-top">

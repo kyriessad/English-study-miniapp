@@ -494,6 +494,8 @@ Page({
     toNew: 0,
     toReview: 0,
     strengtheningInReview: 0,
+    dashboardToLearn: 0,
+    dashboardToStrengthen: 0,
     hasActiveSession: false,
     activeSessionId: '',
     activeSessionType: '',
@@ -575,6 +577,19 @@ Page({
     var homeNeedsRefresh = wx.getStorageSync('homeNeedsRefresh');
     if (homeNeedsRefresh) {
       wx.removeStorageSync('homeNeedsRefresh');
+    }
+
+    // Check session restart flag set by Add page after saving new cards
+    var reviewSessionNeedsRestart = wx.getStorageSync('reviewSessionNeedsRestart');
+    if (reviewSessionNeedsRestart) {
+      try { wx.removeStorageSync('reviewSessionNeedsRestart'); } catch (e) { /* ignore */ }
+      try { wx.removeStorageSync('reviewOverviewCache'); } catch (e) { /* ignore */ }
+      this._needsSessionRestart = true;
+      this.setData({
+        activeSessionId: '',
+        hasActiveSession: false,
+        reviewOverview: null
+      });
     }
 
     await this.loadLocalCache();
@@ -662,7 +677,13 @@ Page({
 
         this.computeLocalCardStats(localCards);
       } else {
-        this.setData({ cards: [], displayTotalCount: 0, displayCurrentCount: 0 });
+        this.setData({
+          cards: [],
+          displayTotalCount: 0,
+          displayCurrentCount: 0,
+          dashboardToLearn: 0,
+          dashboardToStrengthen: 0
+        });
         this.applyFilters();
       }
 
@@ -827,7 +848,9 @@ Page({
     this.setData({
       cardStats: stats,
       totalCardCount: Number(stats.total || 0),
-      libraryTabs
+      libraryTabs,
+      dashboardToLearn: Number(stats.new || 0) + Number(stats.reviewing || 0),
+      dashboardToStrengthen: Number(stats.strengthening || 0)
     });
   },
 
@@ -839,22 +862,30 @@ Page({
   computeLocalCardStats(cards) {
     if (!Array.isArray(cards)) return;
     const stats = { total: 0, new: 0, reviewing: 0, strengthening: 0, mastered: 0 };
-    let unknownCount = 0;
     cards.forEach((c) => {
       stats.total += 1;
-      const state = c.reviewStateV2 || c.review_state || '';
+      var state = c.reviewStateV2 || c.review_state || '';
       if (VALID_REVIEW_STATES.has(state)) {
         stats[state] += 1;
       } else if (state) {
         console.warn('[index] unknown review_stateV2 for card', String(c && c.id || '').slice(0, 12), state);
         stats.new += 1;
       } else {
-        unknownCount += 1;
+        // Locally-created pending cards have empty reviewStateV2/review_state
+        // but carry legacy reviewState (e.g. '未复习'). Map to v2 states.
+        var legacyState = c.reviewState || '';
+        if (legacyState === '未复习') {
+          stats.new += 1;
+        } else if (legacyState === '没记住' || legacyState === '模糊') {
+          stats.strengthening += 1;
+        } else if (legacyState === '记住了' || legacyState === '太简单') {
+          stats.mastered += 1;
+        } else {
+          // No state at all — default to 'new' (matches decorateCards fallback)
+          stats.new += 1;
+        }
       }
     });
-    if (unknownCount > 0) {
-      console.warn('[index] found ' + unknownCount + ' cards without review_state, shown in 全部 tab only');
-    }
     this.applyCardStats(stats);
   },
 
@@ -1088,16 +1119,18 @@ Page({
     this.handleStartReview(targetSessionType);
   },
 
-  async handleStartReview(sessionType) {
+  async handleStartReview(sessionType, opts) {
     if (this.data.reviewEntryLoading) return;
 
     this.setData({ reviewEntryLoading: true });
     wx.showLoading({ title: '准备复习中...', mask: true });
 
     try {
-      // If a different-type active session exists, must pass restart=true to avoid 409
+      // If a different-type active session exists, must pass restart=true to avoid 409.
+      // Also force restart when explicitly requested (e.g. new cards were added).
+      var forceRestart = !!(opts && opts.forceRestart);
       var activeSession = this._getActiveSession();
-      var needsRestart = !!(activeSession &&
+      var needsRestart = forceRestart || !!(activeSession &&
         (activeSession.session_type || activeSession.sessionType || '') !== sessionType);
 
       var sessionData = {
@@ -1126,6 +1159,7 @@ Page({
         throw new Error('missing session_id');
       }
 
+      this._needsSessionRestart = false;
       wx.navigateTo({
         url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
       });
@@ -1261,6 +1295,12 @@ Page({
     if (this.data.isManageMode) return;
     if (this.data.reviewEntryLoading) return;
 
+    // If new cards were added since last session, force a fresh session
+    if (this._needsSessionRestart) {
+      this.handleStartReview('daily_suggested', { forceRestart: true });
+      return;
+    }
+
     // If active session exists, navigate directly — reuse existing logic
     var activeSession = this._getActiveSession();
     if (activeSession && this.data.activeSessionId) {
@@ -1320,6 +1360,10 @@ Page({
         icon: 'success',
         duration: 2000
       });
+      // Invalidate old active session so new cards enter the review pool
+      try { wx.removeStorageSync('reviewOverviewCache'); } catch (e) { /* ignore */ }
+      self.setData({ activeSessionId: '', hasActiveSession: false });
+      self._needsSessionRestart = true;
       // Refresh home data
       self.loadAllBackendData();
       self.loadLocalCache();
@@ -1499,6 +1543,8 @@ Page({
           toNew: 0,
           toReview: 0,
           strengtheningInReview: 0,
+          dashboardToLearn: 0,
+          dashboardToStrengthen: 0,
           hasActiveSession: false,
           activeSessionId: '',
           activeSessionType: '',
@@ -1511,6 +1557,8 @@ Page({
           showEmptyTaskTip: false
         });
         this.applyFilters();
+        // Compute local stats immediately for dashboard, backend will refine later
+        this.computeLocalCardStats(nextCards);
         // Force refresh home data (overview / stats / cards list) from backend
         this.loadAllBackendData();
       }

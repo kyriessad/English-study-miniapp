@@ -73,7 +73,7 @@
         </view>
 
         <view class="task-progress">
-          {{progress.reviewed}} / {{progress.total}}
+          {{displayCurrentNo}} / {{displayTotal}}
         </view>
       </view>
 

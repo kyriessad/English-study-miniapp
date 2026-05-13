@@ -1490,6 +1490,9 @@ Page({
 
     this.clearTransientFeedbackBeforeLeave();
 
+    // Signal homepage that session may need restart (new cards added)
+    try { wx.setStorageSync('reviewSessionNeedsRestart', true); } catch (e) { /* ignore */ }
+
     wx.showToast({
       title: pendingSync
         ? (isEdit ? '已更新到本地，待同步' : '已保存到本地，待同步')
