@@ -8,6 +8,8 @@ const {
   DEFAULT_EXAM_MODULE
 } = require('../../utils/cardStorageFacade');
 
+const { updateBackendCard } = require('../../utils/apiClient');
+
 const {
   CARD_CATEGORIES,
   EXAM_SCENE_OPTIONS,
@@ -519,16 +521,13 @@ Page({
       const result = await this.callAnalyzeEnglish(englishText, category, {
         useCache: true
       });
-      return {
-        ok: true,
-        data: result
-      };
+      if (result && result.ok !== false) {
+        return { ok: true, data: result };
+      }
+      return { ok: false, error: result };
     } catch (err) {
-      console.warn('[add] safeAnalyzeEnglish failed, fallback to failed status:', err);
-      return {
-        ok: false,
-        error: err
-      };
+      console.warn('[add] safeAnalyzeEnglish failed:', err);
+      return { ok: false, error: err };
     }
   },
 
@@ -1553,7 +1552,7 @@ Page({
         return;
       }
 
-      // 2. 检查当前卡片是否已有有效分析结果（编辑模式复用）
+      // 2. 检查编辑模式是否复用已有分析结果
       let currentCard = null;
 
       if (isEdit && cardId) {
@@ -1583,55 +1582,13 @@ Page({
         currentAnalyzeCacheKey === nextAnalyzeCacheKey
       );
 
-      // 3. 安全调用 analyzeEnglish — 无论成功或失败都继续保存
-      if (!isSameAnalyzedContent) {
-        const analyzeResult = await this.safeAnalyzeEnglish(
-          localResult.normalizedText,
-          form.category
-        );
+      // 3. 组装 nextForm（不含 await analyzeEnglish）
+      let nextForm;
+      let shouldBackgroundAnalyze = false;
 
-        if (analyzeResult.ok) {
-          const data = analyzeResult.data;
-          const validation = data.validation || {};
-          const understanding = data.understanding || {};
-
-          const nextForm = {
-            ...form,
-            englishText: localResult.normalizedText,
-            analysisStatus: 'done',
-            analysisWarnings: Array.isArray(validation.warnings) ? validation.warnings : [],
-            analysisErrors: Array.isArray(validation.errors) ? validation.errors : [],
-            analysisSource: data.fromCache ? 'cache' : 'analyzeEnglish',
-            understandingSource: normalizeUnderstandingSource(understanding.source, !!form.myUnderstanding),
-            analyzeCacheKey: nextAnalyzeCacheKey,
-            analyzedAt: new Date().toISOString()
-          };
-
-          const savedCard = await this.saveCard(nextForm, saveMode);
-
-          // 后台补充确认：编辑后仍跑一次背景校验，保证首页后续刷新拿到最新状态
-          if (savedCard && savedCard.id) {
-            this.runBackgroundEnglishCheck(savedCard);
-          }
-        } else {
-          // analyzeEnglish 超时/失败：标记 failed，保存不中断
-          const nextForm = {
-            ...form,
-            englishText: localResult.normalizedText,
-            analysisStatus: 'failed',
-            analysisWarnings: ['分析暂时失败，可稍后重试'],
-            analysisErrors: [],
-            analysisSource: 'analyzeEnglish',
-            understandingSource: normalizeUnderstandingSource('local', !!form.myUnderstanding),
-            analyzeCacheKey: nextAnalyzeCacheKey,
-            analyzedAt: new Date().toISOString()
-          };
-
-          await this.saveCard(nextForm, saveMode);
-        }
-      } else {
-        // 内容未变，复用原有分析结果
-        const nextForm = {
+      if (isSameAnalyzedContent) {
+        // 编辑模式且内容未变：保留原 analysisStatus 和原分析结果，不触发后台分析
+        nextForm = {
           ...form,
           englishText: localResult.normalizedText,
           analysisStatus: currentCard.analysisStatus,
@@ -1642,8 +1599,37 @@ Page({
           analyzeCacheKey: currentAnalyzeCacheKey,
           analyzedAt: currentCard.analyzedAt || ''
         };
+      } else {
+        // 新增卡片或内容变化：analysisStatus = pending，保存后触发后台分析
+        nextForm = {
+          ...form,
+          englishText: localResult.normalizedText,
+          analysisStatus: 'pending',
+          analysisWarnings: [],
+          analysisErrors: [],
+          analysisSource: '',
+          understandingSource: normalizeUnderstandingSource('local', !!form.myUnderstanding),
+          analyzeCacheKey: nextAnalyzeCacheKey,
+          analyzedAt: ''
+        };
+        shouldBackgroundAnalyze = true;
+      }
 
-        await this.saveCard(nextForm, saveMode);
+      // 4. 先保存卡片（不再 await analyzeEnglish）
+      const savedCard = await this.saveCard(nextForm, saveMode);
+
+      // 5. 保存成功后 fire-and-forget 触发后台分析
+      if (shouldBackgroundAnalyze && savedCard && savedCard.id) {
+        const analysisTextSnapshot = localResult.normalizedText;
+        const analysisCategory = form.category;
+
+        this.runBackgroundEnglishCheck(
+          savedCard.id,
+          analysisTextSnapshot,
+          analysisCategory
+        ).catch(function (err) {
+          console.warn('[add-save] background analyze fire-and-forget error:', err);
+        });
       }
     } catch (error) {
       console.error('submitCard failed:', error);
@@ -1660,112 +1646,123 @@ Page({
     }
   },
 
-  async runBackgroundEnglishCheck(card) {
-    if (!card || !card.id) {
+  async runBackgroundEnglishCheck(cardId, analysisTextSnapshot, analysisCategory) {
+    if (!cardId) {
+      console.warn('[add-save] skip background analyze: missing saved card id');
       return;
     }
-  
-    const sourceText = normalizeEnglishText(card.englishText);
-    const sourceCategory = card.category || '单词';
-  
+
+    const sourceText = normalizeEnglishText(analysisTextSnapshot);
+    const sourceCategory = analysisCategory || '单词';
+
     if (!sourceText) {
       return;
     }
-  
+
+    const safeAnalyze = this.safeAnalyzeEnglish.bind(this);
+    const makeKey = this.makeAnalyzeCacheKey.bind(this);
+
     try {
-      const result = await this.callAnalyzeEnglish(sourceText, sourceCategory, {
-        useCache: true
-      });
-      
-      const validation = result.validation || {};
-      const understanding = result.understanding || {};
-      
-      const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
-      const errors = Array.isArray(validation.errors) ? validation.errors : [];
-      
-      // 后端清洗后的英文内容。
-      // 兼容两种可能结构：
-      // 1. result.normalizedText
-      // 2. result.validation.normalizedText
-      const backendNormalizedText = normalizeEnglishText(
-        result.normalizedText ||
-        validation.normalizedText ||
-        sourceText
-      );
-      
-      const candidate = normalizeEnglishText(
-        understanding.candidate || result.candidate || ''
-      );
-  
-      // 关键：分析回来后重新读取最新卡片，避免用旧数据覆盖用户后续编辑
-      const latestCard = await getCardById(card.id);
-  
+      const result = await safeAnalyze(sourceText, sourceCategory);
+
+      // 读取最新卡片 — snapshot guard + 合并基底
+      const latestCard = await getCardById(cardId);
       if (!latestCard) {
+        console.warn('[add-save] background analyze skipped: card not found', cardId);
         return;
       }
-  
+
       const latestText = normalizeEnglishText(latestCard.englishText);
-      const latestCategory = latestCard.category || '单词';
-  
-      // 如果用户已经改了英文内容或类别，这次旧分析结果直接丢弃
-      if (latestText !== sourceText || latestCategory !== sourceCategory) {
+
+      // snapshot guard：用户已改英文内容，丢弃本次旧分析结果
+      if (latestText !== sourceText) {
+        console.warn('[add-save] analysis discarded due to content change', cardId);
         return;
       }
-  
-      const shouldFillUnderstanding =
-        candidate &&
-        !normalizeEnglishText(latestCard.myUnderstanding);
-  
-        const nextEnglishText =
-          result.ok && backendNormalizedText
-            ? backendNormalizedText
-            : latestCard.englishText;
 
-        const nextForm = {
-          ...latestCard,
+      let analysisLocalPatch;
 
-          // 关键：把 Python 后端 auto-fix 后的 normalizedText 写回卡片
-          englishText: nextEnglishText,
+      if (result.ok) {
+        const data = result.data;
+        const validation = data.validation || {};
+        const understanding = data.understanding || {};
 
-          myUnderstanding: shouldFillUnderstanding ? candidate : latestCard.myUnderstanding,
-          analysisStatus: result.ok ? 'done' : 'failed',
+        const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
+        const errors = Array.isArray(validation.errors) ? validation.errors : [];
+
+        analysisLocalPatch = {
+          analysisStatus: 'done',
           analysisWarnings: warnings,
           analysisErrors: errors,
-          analysisSource: result.fromCache ? 'cache' : 'analyzeEnglish',
-          understandingSource: normalizeUnderstandingSource(understanding.source, false),
-          analyzeCacheKey: this.makeAnalyzeCacheKey(nextEnglishText, sourceCategory),
+          analysisSource: data.fromCache ? 'cache' : 'analyzeEnglish',
+          understandingSource: normalizeUnderstandingSource(understanding.source, !!latestCard.myUnderstanding),
+          analyzeCacheKey: makeKey(sourceText, sourceCategory),
           analyzedAt: new Date().toISOString()
         };
-  
-      await updateCard(latestCard.id, nextForm);
-  
-      const pages = getCurrentPages();
-      const previousPage = pages[pages.length - 2];
-  
-      if (previousPage && typeof previousPage.loadCards === 'function') {
-        previousPage.loadCards();
+      } else {
+        analysisLocalPatch = {
+          analysisStatus: 'failed',
+          analysisWarnings: ['分析暂时失败，可稍后重试'],
+          analysisErrors: [],
+          analysisSource: 'analyzeEnglish',
+          analyzeCacheKey: makeKey(sourceText, sourceCategory),
+          analyzedAt: new Date().toISOString()
+        };
       }
-    } catch (error) {
-      console.error('runBackgroundEnglishCheck failed:', error);
-  
+
+      // 只 PATCH 分析字段到后端
+      const analysisBackendPatch = {
+        analysis_status: analysisLocalPatch.analysisStatus,
+        analysis_level: getBackendAnalysisLevel(analysisLocalPatch),
+        analysis_messages: buildBackendAnalysisMessages(analysisLocalPatch)
+      };
+
       try {
-        const latestCard = await getCardById(card.id);
-  
-        if (!latestCard) {
+        await updateBackendCard(cardId, analysisBackendPatch);
+      } catch (backendPatchError) {
+        console.warn('[add-save] backend analysis patch failed', backendPatchError);
+      }
+
+      // 通过 updateCard 同步本地 cardsCache
+      const mergedForm = { ...latestCard, ...analysisLocalPatch };
+      await updateCard(cardId, mergedForm);
+    } catch (error) {
+      console.error('[add-save] background analyze failed:', error);
+
+      try {
+        const latestCard = await getCardById(cardId);
+        if (!latestCard) return;
+
+        const latestText = normalizeEnglishText(latestCard.englishText);
+        if (latestText !== sourceText) {
+          console.warn('[add-save] analysis discarded due to content change', cardId);
           return;
         }
-  
-        await updateCard(latestCard.id, {
-          ...latestCard,
+
+        const failedLocalPatch = {
           analysisStatus: 'failed',
           analysisWarnings: ['请检查网络，可先保存。'],
           analysisErrors: [],
           analysisSource: 'analyzeEnglish',
-          understandingSource: normalizeUnderstandingSource(latestCard.understandingSource, false),
           analyzedAt: new Date().toISOString()
-        });
+        };
+
+        const failedBackendPatch = {
+          analysis_status: 'failed',
+          analysis_level: getBackendAnalysisLevel(failedLocalPatch),
+          analysis_messages: buildBackendAnalysisMessages(failedLocalPatch)
+        };
+
+        try {
+          await updateBackendCard(cardId, failedBackendPatch);
+        } catch (backendPatchError) {
+          console.warn('[add-save] backend failed patch error', backendPatchError);
+        }
+
+        const mergedForm = { ...latestCard, ...failedLocalPatch };
+        await updateCard(cardId, mergedForm);
       } catch (updateError) {
-        console.error('mark analysis failed failed:', updateError);
+        console.error('[add-save] mark analysis failed failed:', updateError);
       }
     }
   },
