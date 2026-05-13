@@ -142,9 +142,13 @@ function markActionSynced(clientActionId) {
 }
 
 /**
- * markActionFailed — 标记临时错误，设置下次重试时间
+ * markActionFailed — 标记临时错误，设置下次重试时间。
+ * @param {string} clientActionId
+ * @param {object} error
+ * @param {{ minBackoffMs: number }} [options]
  */
-function markActionFailed(clientActionId, error) {
+function markActionFailed(clientActionId, error, options) {
+  var minBackoffMs = (options && options.minBackoffMs) || 0;
   const queue = _readQueue();
   const target = queue.find((a) => a.client_action_id === clientActionId);
   if (target) {
@@ -152,9 +156,12 @@ function markActionFailed(clientActionId, error) {
     target.retry_count = (target.retry_count || 0) + 1;
     target.last_error = (error && error.errMsg) || error ? String(error) : '';
     target.last_error_type = classifyActionError(error);
-    // Exponential backoff: 2s, 4s, 8s...
-    const backoffSeconds = Math.pow(2, target.retry_count) * 1000;
-    target.next_retry_at = new Date(Date.now() + backoffSeconds).toISOString();
+    // Exponential backoff: 2s, 4s, 8s... with optional minimum floor
+    var backoffMs = Math.pow(2, target.retry_count) * 1000;
+    if (minBackoffMs > 0 && backoffMs < minBackoffMs) {
+      backoffMs = minBackoffMs;
+    }
+    target.next_retry_at = new Date(Date.now() + backoffMs).toISOString();
     target.updated_at = _nowISO();
     _writeQueue(queue);
   }
@@ -186,7 +193,7 @@ function removeActionFromQueue(clientActionId) {
 /**
  * 错误分级。
  * @param {object} error — { statusCode, data, errMsg }
- * @returns {'network' | 'temporary_server' | 'auth' | 'business_terminal' | 'server_bug'}
+ * @returns {'network' | 'temporary_server' | 'temporary_processing' | 'auth' | 'business_terminal' | 'server_bug'}
  */
 function classifyActionError(error) {
   if (!error) return 'network';
@@ -203,8 +210,17 @@ function classifyActionError(error) {
     return 'auth';
   }
 
-  // business terminal (includes ignored responses with 200)
-  if (statusCode === 400 || statusCode === 403 || statusCode === 409) {
+  // 409 with "being processed" detail — temporary zombie guard, not business terminal
+  if (statusCode === 409) {
+    var detail = (error.data && error.data.detail) || '';
+    if (typeof detail === 'string' && detail.indexOf('being processed') !== -1) {
+      return 'temporary_processing';
+    }
+    return 'business_terminal';
+  }
+
+  // business terminal (400 / 403 falls through)
+  if (statusCode === 400 || statusCode === 403) {
     return 'business_terminal';
   }
 
@@ -271,9 +287,14 @@ async function flushActionQueue(options = {}) {
       } catch (err) {
         const errorType = classifyActionError(err);
 
-        // network / temporary_server — 保留 action，停止 flush
-        if (errorType === 'network' || errorType === 'temporary_server') {
-          markActionFailed(action.client_action_id, err);
+        // network / temporary_server / temporary_processing — 保留 action，停止 flush
+        if (errorType === 'network' || errorType === 'temporary_server' || errorType === 'temporary_processing') {
+          var backoffOpts = {};
+          if (errorType === 'temporary_processing') {
+            // 409 processing: 60s minimum backoff to avoid retry storms during the 5-min zombie window
+            backoffOpts.minBackoffMs = 60000;
+          }
+          markActionFailed(action.client_action_id, err, backoffOpts);
           if (typeof options.onFlushStop === 'function') {
             options.onFlushStop(action, err, errorType);
           }
