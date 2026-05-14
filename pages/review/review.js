@@ -6,7 +6,8 @@ const {
 } = require('../../utils/apiClient');
 
 const {
-  getCards
+  getCards,
+  getCardById,
 } = require('../../utils/cardStorageFacade');
 
 const {
@@ -200,6 +201,14 @@ Page({
   },
 
   onShow() {
+    // Phase 6G: Refresh current card after returning from edit page
+    if (this._returningFromEdit) {
+      this._returningFromEdit = false;
+      console.log('[phase6g-review-refresh] return from edit');
+      this._refreshCurrentCardFromStorage();
+      return;
+    }
+
     if (this.data.currentCard || this.data.isLoading || this.data.allDone) {
       return;
     }
@@ -774,9 +783,70 @@ Page({
 
     if (!currentCard || !currentCard.cardId) return;
 
+    this._returningFromEdit = true;
+
     wx.navigateTo({
       url: `/pages/add/add?id=${currentCard.cardId}&from=review`,
     });
+  },
+
+  /**
+   * Phase 6G: Refresh the current card data from local storage without rebuilding the session.
+   * Called when returning from the Add page after editing.
+   */
+  async _refreshCurrentCardFromStorage() {
+    const { currentCard, batchItems, batchCurrentIndex } = this.data;
+    if (!currentCard || !currentCard.cardId) return;
+
+    try {
+      const updatedCard = await getCardById(currentCard.cardId);
+      if (!updatedCard) return;
+
+      console.log('[phase6g-review-refresh] loaded updated card', JSON.stringify({
+        id: updatedCard.id,
+        myUnderstanding: updatedCard.myUnderstanding,
+        understanding: updatedCard.understanding,
+        content: updatedCard.content,
+        englishText: updatedCard.englishText,
+      }));
+
+      const newMyUnderstanding = updatedCard.myUnderstanding || updatedCard.understanding || '';
+      const newNotes = updatedCard.notes || '';
+      const newEnglishText = updatedCard.content || updatedCard.englishText || currentCard.englishText;
+      const newContent = updatedCard.content || updatedCard.englishText || currentCard.content;
+      const newTranslation = updatedCard.translation || '';
+
+      const updates = {
+        'currentCard.myUnderstanding': newMyUnderstanding,
+        'currentCard.notes': newNotes,
+        'currentCard.englishText': newEnglishText,
+        'currentCard.content': newContent,
+        'currentCard.translation': newTranslation,
+      };
+      this.setData(updates);
+
+      console.log('[phase6g-review-refresh] updated current card');
+
+      // Also update the item in batchItems so session state is consistent
+      if (Array.isArray(batchItems) && typeof batchCurrentIndex === 'number') {
+        const idx = batchCurrentIndex;
+        if (idx >= 0 && idx < batchItems.length) {
+          const item = batchItems[idx];
+          if (item && (item.card_id === currentCard.cardId || item.cardId === currentCard.cardId)) {
+            const updatedBatchItems = batchItems.slice();
+            updatedBatchItems[idx] = {
+              ...item,
+              understanding: newMyUnderstanding || item.understanding || '',
+              note: newNotes || item.note || '',
+              content: newContent || item.content || '',
+            };
+            this.setData({ batchItems: updatedBatchItems });
+          }
+        }
+      }
+    } catch (_) {
+      // Silently ignore refresh failures — don't disrupt the review flow
+    }
   },
 
   goToAddPage() {

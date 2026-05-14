@@ -231,6 +231,9 @@
             <view wx:if="{{item.understandingPreview}}" class="card-desc">
               {{item.understandingPreview}}
             </view>
+            <view wx:else class="card-desc card-desc-placeholder">
+              还没有写下你的理解，可以现在补充
+            </view>
 
             <view wx:if="{{item.notesPreview}}" class="card-note-preview">
               {{item.notesPreview}}

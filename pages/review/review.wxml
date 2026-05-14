@@ -120,7 +120,7 @@
               </scroll-view>
 
               <view wx:else class="task-answer-placeholder" bindtap="editCurrentCard">
-                还没有补充理解，点这里补上
+                还没有写下你的理解，可以现在补充
               </view>
 
               <view wx:if="{{currentCard.notes}}" class="task-notes">

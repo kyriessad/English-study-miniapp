@@ -77,59 +77,34 @@ function getCardTimestampMs(card) {
 }
 
 /**
- * Determine the display status for a card in the library list.
- * Priority: needs_manual_fix > analysis failed > analysis pending (with staleness check) > is_review_ready=false > review state
+ * Phase 6G: Show review state only — no technical status labels.
  */
 function getCardDisplayStatus(card) {
   if (!card) return { label: '待学习', className: 'state-new' };
-
-  // Only show "需补充理解" when card needs manual fix AND is not review-ready
-  if (card.needs_manual_fix === true && card.is_review_ready === false) {
-    return { label: '需补充理解', className: 'status-fix-required' };
-  }
-
-  // Default: show review state only — hide analysis_status / backend_sync_status
   var stateV2 = card.reviewStateV2 || 'new';
   return { label: STATE_LABELS[stateV2] || '待学习', className: 'state-' + stateV2 };
 }
 
 /**
- * 4C-1a: Check if a new card has usable answer content for new-only study.
- * Compatible with both backend fields and local legacy structures.
+ * Phase 6G: Card is ready for review if it has English content and is not pending/local-only/deleted.
  */
 function isNewCardReadyForNewOnly(card) {
   if (!card) return false;
 
-  // Backend explicitly says ready
-  if (card.isReviewReady === true || card.is_review_ready === true) {
-    return true;
-  }
-
-  // Backend explicitly says not ready — respect that
-  if (card.isReviewReady === false || card.is_review_ready === false) {
+  // pending / local-only cards cannot enter review (hard boundary)
+  var syncStatus = String(card.backend_sync_status || card.backendSyncStatus || card.syncStatus || '').trim();
+  if (syncStatus === 'pending' || card.local_only === true || card.localOnly === true) {
     return false;
   }
 
-  // No explicit ready flag: fallback to checking answer fields (local cards)
-  var answerFields = [
-    card.understanding,
-    card.userUnderstanding,
-    card.user_understanding,
-    card.myUnderstanding,
-    card.meaning,
-    card.meaningCn,
-    card.meaning_cn,
-    card.translation,
-    card.contextTranslation,
-    card.context_translation,
-    card.aiUnderstanding,
-    card.ai_understanding,
-    card.answer,
-    card.chinese
-  ];
-  return answerFields.some(function (v) {
-    return typeof v === 'string' && v.trim().length > 0;
-  });
+  // deleted cards cannot enter review
+  if (card.deleted_at || card.deletedAt) {
+    return false;
+  }
+
+  // New cards without explicit is_review_ready flag: content-only check
+  var content = card.content || card.englishText || '';
+  return typeof content === 'string' && content.trim().length > 0;
 }
 
 /**
@@ -150,7 +125,6 @@ function computeNewOnlyButtonState(cards) {
   var newTotal = newCards.length;
   var newReadyCount = 0;
   var newPendingCount = 0;
-  var newManualFixCount = 0;
   var sampleNewCards = [];
 
   newCards.forEach(function (c) {
@@ -160,10 +134,6 @@ function computeNewOnlyButtonState(cards) {
     var anStatus = String(c.analysisStatus || c.analysis_status || '').trim();
     if (anStatus === 'pending' || anStatus === 'analyzing') {
       newPendingCount += 1;
-    }
-
-    if (c.needsManualFix === true || c.needs_manual_fix === true) {
-      newManualFixCount += 1;
     }
 
     if (sampleNewCards.length < 3) {
@@ -199,23 +169,12 @@ function computeNewOnlyButtonState(cards) {
     return { enabled: false, label: '暂不可学', subtitle: '新卡释义生成中，稍后可学' };
   }
 
-  if (newManualFixCount > 0) {
-    return { enabled: false, label: '暂不可学', subtitle: '有新卡需要补全释义后才能学习' };
-  }
-
   return { enabled: false, label: '暂不可学', subtitle: '暂无可学习新卡' };
 }
 
 function computeLibraryPreparationTip(filteredCards, currentLibraryTab) {
-  if (currentLibraryTab !== 'new') return false;
-  if (!Array.isArray(filteredCards) || filteredCards.length === 0) return false;
-  return filteredCards.some(function (card) {
-    if (card.is_review_ready === false) return true;
-    if (card.needs_manual_fix === true) return true;
-    var status = String(card.analysisStatus || card.analysis_status || '').trim();
-    if (status === 'pending' || status === 'failed') return true;
-    return false;
-  });
+  // Phase 6G: No technical status tips on home page.
+  return false;
 }
 
 function normalizeSearchText(value) {
@@ -328,16 +287,7 @@ function getAnalysisProblems(card) {
 }
 
 function getAnalysisStatusDisplay(card) {
-  const status = String(card && card.analysisStatus || '').trim();
-  if (status === 'pending') {
-    return { visible: true, label: '分析中', className: 'analysis-status-pending' };
-  }
-  if (status === 'failed') {
-    return { visible: true, label: '待重试', className: 'analysis-status-failed' };
-  }
-  if (status === 'done' && getAnalysisProblems(card).length > 0) {
-    return { visible: true, label: '需检查', className: 'analysis-status-warning' };
-  }
+  // Phase 6G: Never show technical analysis status on the home page.
   return { visible: false, label: '', className: '' };
 }
 
@@ -757,6 +707,13 @@ Page({
       );
     }
 
+    console.log('[phase6g-home-state] overview new_only_count', pickNumber(
+      normalized.extraToday && normalized.extraToday.newOnlyCount,
+      normalized.toNew,
+      0
+    ));
+    console.log('[phase6g-home-state] overview totalToday', totalToday, 'toNew', toNew, 'toReview', toReview);
+
     this.setData({
       reviewOverview: normalized.raw,
       reviewOverviewError: false,
@@ -841,6 +798,17 @@ Page({
 
   applyCardStats(stats) {
     if (!stats) return;
+
+    // Phase 6G-hotfix: if local cards have more entries than the backend total
+    // (e.g. pending cards not yet synced), compute stats locally for consistency.
+    var localCardsCount = Array.isArray(this.data.cards) ? this.data.cards.length : 0;
+    var backendTotal = Number(stats.total || 0);
+    if (localCardsCount > backendTotal) {
+      console.log('[phase6g-home-state] backend stats total=' + backendTotal + ' < local cards=' + localCardsCount + ', using local computation');
+      this.computeLocalCardStats(this.data.cards);
+      return;
+    }
+
     const libraryTabs = this.data.libraryTabs.map((tab) => ({
       ...tab,
       count: tab.key === 'all' ? Number(stats.total || 0) : Number(stats[tab.key] || 0)
@@ -984,6 +952,10 @@ Page({
     const displayTotalCount = cards.length || (this.data.cardStats && this.data.cardStats.total) || 0;
     const displayCurrentCount = filtered.length || 0;
 
+    // Phase 6G: Compute local stats from the actual card list to stay consistent
+    // even when backend stats lag (e.g. pending cards not yet synced).
+    this.computeLocalCardStats(cards);
+
     // 4C-3: newOnlyEntryState — 以后端 overview.extra_today 为权威，本地兜底
     var tabNewOnlyState = computeNewOnlyButtonState(cards);
     var ov = this.data.reviewOverview;
@@ -994,12 +966,39 @@ Page({
         if (rawCount !== undefined) {
           var count = Number(rawCount);
           if (!isNaN(count)) {
-            tabNewOnlyState = count > 0
-              ? { enabled: true, label: '学习几张新卡', subtitle: '还有 ' + count + ' 张新卡可以开始学习' }
-              : { enabled: false, label: '暂无新可学', subtitle: '暂无可学习的新卡' };
+            // Phase 6G-hotfix: only use backend count to ENABLE, not to DISABLE.
+            // If local computation already found ready cards, keep the enabled state.
+            if (count > 0) {
+              tabNewOnlyState = { enabled: true, label: '学习几张新卡', subtitle: '还有 ' + count + ' 张新卡可以开始学习' };
+            } else if (!tabNewOnlyState.enabled) {
+              // Backend says 0 AND local also found none — keep disabled
+              tabNewOnlyState = { enabled: false, label: '暂无新可学', subtitle: '暂无可学习的新卡' };
+            }
+            // else: backend says 0 but local found ready cards — keep local enabled state
           }
         }
       }
+    }
+
+    console.log('[phase6g-home-state] cardsCache count', cards.length);
+    console.log('[phase6g-home-state] filteredCards count', filtered.length);
+    if (cards.length > 0) {
+      console.log('[phase6g-home-state] card readiness fields', cards.map(function(c) {
+        return {
+          id: String(c.id || '').slice(0, 12),
+          local_temp_id: String(c.local_temp_id || '').slice(0, 12),
+          backend_sync_status: c.backend_sync_status || '',
+          syncStatus: c.syncStatus || '',
+          local_only: c.local_only,
+          localOnly: c.localOnly,
+          reviewStateV2: c.reviewStateV2 || '',
+          review_state: c.review_state || '',
+          reviewState: c.reviewState || '',
+          content: String(c.content || c.englishText || '').slice(0, 20),
+          deleted_at: c.deleted_at || '',
+          deletedAt: c.deletedAt || '',
+        };
+      }));
     }
 
     this.setData({
@@ -1145,6 +1144,13 @@ Page({
         '';
       const items = (result && result.items) || (result && result.data && result.data.items) || [];
 
+      console.log('[phase6g-home-state] create review session result', JSON.stringify({
+        session_id: sessionId,
+        items_count: Array.isArray(items) ? items.length : 0,
+        remaining_count: result && (result.remaining_count || result.remainingCount),
+        session_type: sessionType,
+      }));
+
       if (!sessionId && (!Array.isArray(items) || items.length === 0)) {
         // Backend returned no session and no items — no cards available
         this.loadAllBackendData();
@@ -1252,6 +1258,13 @@ Page({
         (result && result.data && (result.data.session_id || result.data.id)) || '';
 
       var items = (result && result.items) || (result && result.data && result.data.items) || [];
+
+      console.log('[phase6g-home-state] create review session result (new_only)', JSON.stringify({
+        session_id: sessionId,
+        items_count: Array.isArray(items) ? items.length : 0,
+        remaining_count: result && (result.remaining_count || result.remainingCount),
+        session_type: 'new_only',
+      }));
 
       // No session_id and no items — no cards available
       if (!sessionId && (!Array.isArray(items) || items.length === 0)) {

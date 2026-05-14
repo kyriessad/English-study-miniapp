@@ -1648,6 +1648,13 @@
   line-height: 1.6;
 }
 
+.card-desc-placeholder {
+  color: #9aaa9e;
+  font-style: italic;
+  background: #fafcfa;
+  border: 1rpx dashed #dce8df;
+}
+
 .card-meta,
 .home-card-item .card-meta {
   margin-top: 14rpx;
