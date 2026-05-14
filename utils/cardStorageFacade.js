@@ -14,6 +14,7 @@
 const {
   getCards,
   refreshCardsCacheFromBackend,
+  syncPendingCardsToBackend,
   addCard,
   updateCard,
   deleteCard,
@@ -28,6 +29,7 @@ const {
 module.exports = {
   getCards,
   refreshCardsCacheFromBackend,
+  syncPendingCardsToBackend,
   addCard,
   updateCard,
   deleteCard,

@@ -1,6 +1,7 @@
 const {
   getCards,
   refreshCardsCacheFromBackend,
+  syncPendingCardsToBackend,
   deleteCards,
   updateCardsMeta,
   addCard
@@ -578,6 +579,17 @@ Page({
         this.loadCardStats().catch((e) => console.warn('[index] pull refresh stats failed', e)),
         this.refreshBackendCards().catch((e) => console.warn('[index] pull refresh cards failed', e))
       ]);
+
+      // Phase 6H: sync pending cards on pull refresh
+      try {
+        var syncResult = await syncPendingCardsToBackend();
+        if (syncResult && syncResult.synced > 0) {
+          console.log('[phase6h-pending-sync] refresh home after pull-refresh sync, synced', syncResult.synced);
+          await this.refreshBackendCards();
+        }
+      } catch (syncErr) {
+        console.warn('[phase6h-pending-sync] pull-refresh sync attempt failed', syncErr);
+      }
     } finally {
       wx.hideNavigationBarLoading();
       wx.stopPullDownRefresh();
@@ -679,6 +691,17 @@ Page({
         this.loadCardStats(),
         this.refreshBackendCards()
       ]);
+
+      // Phase 6H: sync pending local cards to backend after data is loaded
+      try {
+        var syncResult = await syncPendingCardsToBackend();
+        if (syncResult && syncResult.synced > 0) {
+          console.log('[phase6h-pending-sync] refresh home after sync, synced', syncResult.synced);
+          await this.refreshBackendCards();
+        }
+      } catch (syncErr) {
+        console.warn('[phase6h-pending-sync] sync attempt failed', syncErr);
+      }
     } finally {
       this._loadingHomeData = false;
     }

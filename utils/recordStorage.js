@@ -37,6 +37,7 @@ let backgroundCloudRefreshPromise = null;
 let backgroundBackendRefreshPromise = null;
 let backgroundFlushPromise = null;
 let backgroundRetryTimer = null;
+let pendingSyncInProgress = false;
 
 const BACKGROUND_RETRY_DELAY = 8000;
 
@@ -2089,6 +2090,129 @@ async function refreshCardsCacheFromBackend() {
 }
 
 // ===== [CURRENT] 卡片 CRUD 主链路 =====
+
+async function syncPendingCardsToBackend() {
+  if (pendingSyncInProgress) {
+    console.log('[phase6h-pending-sync] sync already in progress, skipping');
+    return { synced: 0, failed: 0 };
+  }
+
+  pendingSyncInProgress = true;
+
+  try {
+    const cachedCards = getStoredCardsRaw();
+    const pendingCards = cachedCards.filter(function (card) {
+      if (!card) return false;
+      if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
+      var content = trimValue(card.englishText || card.content || '');
+      if (!content) return false;
+      return true;
+    });
+
+    console.log('[phase6h-pending-sync] found pending cards count', pendingCards.length);
+
+    if (pendingCards.length === 0) {
+      return { synced: 0, failed: 0 };
+    }
+
+    var synced = 0;
+    var failed = 0;
+
+    for (var i = 0; i < pendingCards.length; i++) {
+      var pendingCard = pendingCards[i];
+      var localTempId = trimValue(pendingCard.local_temp_id || '') || createLocalTempId();
+      var content = trimValue(pendingCard.englishText || pendingCard.content || '');
+
+      console.log('[phase6h-pending-sync] syncing card local_temp_id', localTempId, 'content', content.slice(0, 30));
+
+      try {
+        var createPayload = buildBackendCardCreatePayload({
+          category: pendingCard.category,
+          examScene: pendingCard.examScene,
+          examModule: pendingCard.examModule,
+          englishText: pendingCard.englishText,
+          myUnderstanding: pendingCard.myUnderstanding,
+          notes: pendingCard.notes,
+          translation: pendingCard.translation,
+          analysisStatus: pendingCard.analysisStatus,
+          analysisWarnings: pendingCard.analysisWarnings,
+          analysisErrors: pendingCard.analysisErrors,
+          understandingSource: pendingCard.understandingSource,
+          local_temp_id: localTempId
+        });
+
+        var backendCard = await createBackendCard(createPayload);
+
+        // If backend returned an existing card with stale content, PATCH with latest local data
+        if (cardsNeedUpdate(backendCard, pendingCard, pendingCard)) {
+          var patchPayload = buildBackendCardPatchPayload(pendingCard, pendingCard);
+
+          try {
+            var patchedBackendCard = await updateBackendCard(backendCard.id, patchPayload);
+            var localFallbackFields = {
+              ...buildCardFields(pendingCard, {}),
+              ...createInitialReviewFields(),
+              ...createInitialSyncFields()
+            };
+            var localCard = normalizeBackendCardToLocal(patchedBackendCard, {
+              ...pendingCard,
+              ...localFallbackFields,
+              local_temp_id: localTempId
+            });
+            upsertCachedCard(localCard);
+            synced++;
+            console.log('[phase6h-pending-sync] sync success (with patch) backend id', patchedBackendCard.id);
+          } catch (patchError) {
+            // POST succeeded but PATCH failed — keep pending, do NOT write backend_card_id
+            failed++;
+            console.log('[phase6h-pending-sync] sync failed (patch error)', formatBackendSyncErrorText(patchError));
+            var patchErrorCard = normalizeCard({
+              ...pendingCard,
+              backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+              backend_card_id: '',
+              backend_synced_at: '',
+              backend_sync_error: formatBackendSyncErrorText(patchError),
+              updatedAt: Date.now()
+            });
+            upsertCachedCard(patchErrorCard);
+          }
+        } else {
+          // Backend card matches local — safe to mark synced
+          var localFallbackFields = {
+            ...buildCardFields(pendingCard, {}),
+            ...createInitialReviewFields(),
+            ...createInitialSyncFields()
+          };
+          var localCard = normalizeBackendCardToLocal(backendCard, {
+            ...pendingCard,
+            ...localFallbackFields,
+            local_temp_id: localTempId
+          });
+          upsertCachedCard(localCard);
+          synced++;
+          console.log('[phase6h-pending-sync] sync success backend id', backendCard.id);
+        }
+      } catch (syncError) {
+        failed++;
+        console.log('[phase6h-pending-sync] sync failed', formatBackendSyncErrorText(syncError));
+
+        // Update the pending card with the error but keep it pending
+        var errorCard = normalizeCard({
+          ...pendingCard,
+          backend_sync_error: formatBackendSyncErrorText(syncError),
+          updatedAt: Date.now()
+        });
+        upsertCachedCard(errorCard);
+      }
+    }
+
+    console.log('[phase6h-pending-sync] sync complete synced', synced, 'failed', failed);
+    return { synced: synced, failed: failed };
+  } finally {
+    pendingSyncInProgress = false;
+  }
+}
+
 async function getCards() {
   const localCards = getLocalCards();
   saveLocalCards(getStoredCardsRaw());
@@ -2802,6 +2926,7 @@ module.exports = {
   syncLocalCacheWithCloud,
   saveCards: saveLocalCards,
   getCardById,
+  syncPendingCardsToBackend,
   addCard,
   updateCard,
   updateBackendCardSyncState,
