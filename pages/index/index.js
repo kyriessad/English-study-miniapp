@@ -365,7 +365,9 @@ function normalizeReviewOverview(raw) {
     suggested && suggested.strengthening, suggested && suggested.strengthening_count
   );
 
-  // totalToday — try direct fields first, fallback to sum of parts
+  // totalToday — try direct fields first, fallback to sum of parts.
+  // Phase 6L-hotfix-4: 这里是 unique card count（今天需要处理的唯一卡片数），
+  // 不是 review session dynamic steps。与复习页进度分母语义不同。
   var totalToday = pickNumber(
     raw.total_today, raw.totalToday, raw.total, raw.today_total,
     suggested && suggested.total, suggested && suggested.total_today,
@@ -379,13 +381,10 @@ function normalizeReviewOverview(raw) {
 
   var activeSession = raw.active_session || raw.activeSession || null;
 
-  // 4C-3: is_all_done 且无 active_session 时，suggested 是计划量而非剩余量
-  if (raw.is_all_done === true && !activeSession) {
-    totalToday = 0;
-    toNew = 0;
-    toReview = 0;
-    strengtheningInReview = 0;
-  }
+  // Phase 6L-hotfix-4: is_all_done 不归零任何计数字段。
+  // "今日任务" / toNew / toReview / strengtheningInReview 始终反映
+  // 当前有效卡片集合的实际数量，不受 session 完成状态影响。
+  // 复习入口按钮的启用/禁用改用 isAllDone 字段单独控制。
 
   // extra_today — supplementary counts for new/free/strengthening review
   var extraToday = (raw.extra_today && typeof raw.extra_today === 'object') ? raw.extra_today : null;
@@ -402,6 +401,7 @@ function normalizeReviewOverview(raw) {
     strengtheningInReview: strengtheningInReview,
     activeSession: activeSession,
     extraToday: extraTodayResult,
+    isAllDone: raw.is_all_done === true,
     raw: raw
   };
 }
@@ -716,14 +716,18 @@ Page({
     var strengtheningInReview = normalized.strengtheningInReview;
     var activeSession = normalized.activeSession;
 
-    var reviewActions = this.buildReviewActions(normalized);
+    var isAllDone = normalized.isAllDone || false;
+    var reviewActions = this.buildReviewActions(normalized, isAllDone);
     var allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
 
-    // Phase 6C: extract completed today count
+    // Phase 6C / 6L-hotfix-4: 首页统计按 unique card count，不按 review session dynamic steps。
+    // totalToday = 今天需要学习/复习的唯一卡片数（suggested 中的 planned_* 计数）。
+    // completedToday = 今天已完成过至少一次反馈的唯一卡片数（backend completed_suggested.total_count 已按 DISTINCT card_id 去重）。
     var completedToday = 0;
     var raw = normalized.raw || {};
     if (raw.completed_suggested && typeof raw.completed_suggested === 'object') {
       completedToday = pickNumber(
+        raw.completed_suggested.total_count,
         raw.completed_suggested.total,
         raw.completed_suggested.total_today,
         raw.completed_suggested.count
@@ -753,7 +757,7 @@ Page({
     });
   },
 
-  buildReviewActions(normalized) {
+  buildReviewActions(normalized, isAllDone) {
     if (!normalized) {
       return {
         daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
@@ -767,10 +771,13 @@ Page({
     var activeSession = normalized.activeSession || null;
     var raw = normalized.raw || {};
 
-    // Daily / main button
+    // Phase 6L-hotfix-4: isAllDone 优先控制每日复习按钮，避免 totalToday > 0
+    // 但所有卡片已完成时按钮仍显示"开始今日复习"。
     var daily;
     if (activeSession) {
       daily = { enabled: true, label: '继续复习', sessionType: 'daily_suggested' };
+    } else if (isAllDone) {
+      daily = { enabled: false, label: '今日已完成', sessionType: 'daily_suggested', disabledReason: '今天任务已全部完成' };
     } else if (totalToday > 0) {
       daily = { enabled: true, label: '开始今日复习', sessionType: 'daily_suggested' };
     } else {
