@@ -391,6 +391,13 @@ function getReviewHistoryDetail(logId) {
   });
 }
 
+function getTodayReviewed() {
+  return request({
+    url: '/api/reviews/today-reviewed',
+    method: 'GET'
+  });
+}
+
 module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
@@ -401,6 +408,7 @@ module.exports = {
   getSessionSummary,
   getReviewHistory,
   getReviewHistorySummary,
+  getTodayReviewed,
   listBackendCards,
   loginWithWechatCode,
   refreshBackendAuth,

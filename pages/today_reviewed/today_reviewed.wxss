@@ -1,0 +1,124 @@
+.today-page {
+  min-height: 100vh;
+  background: #f7f8fa;
+  padding-bottom: 40rpx;
+}
+
+.today-hero {
+  display: flex;
+  align-items: center;
+  padding: 32rpx 28rpx 20rpx;
+  background: #fff;
+}
+
+.today-hero__icon {
+  font-size: 36rpx;
+  color: #3b82f6;
+  margin-right: 16rpx;
+}
+
+.today-hero__title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1f2937;
+  flex: 1;
+}
+
+.today-hero__sub {
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+.today-offline-banner {
+  margin: 16rpx 28rpx 0;
+  padding: 16rpx 24rpx;
+  background: #fef3c7;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  color: #b45309;
+}
+
+.today-loading {
+  padding: 80rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: #9ca3af;
+}
+
+.today-empty {
+  padding: 120rpx 0;
+  text-align: center;
+}
+
+.today-empty__icon {
+  font-size: 72rpx;
+  color: #d1d5db;
+  margin-bottom: 24rpx;
+}
+
+.today-empty__text {
+  font-size: 28rpx;
+  color: #9ca3af;
+  margin-bottom: 24rpx;
+}
+
+.today-empty__retry {
+  display: inline-block;
+  padding: 12rpx 48rpx;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 12rpx;
+}
+
+.today-list {
+  padding: 20rpx 28rpx;
+}
+
+.today-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.04);
+}
+
+.today-card__content {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 8rpx;
+}
+
+.today-card__understanding {
+  font-size: 28rpx;
+  color: #6b7280;
+  margin-bottom: 16rpx;
+}
+
+.today-card__meta {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.today-card__tag {
+  font-size: 24rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+}
+
+.today-card__tag--count {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.today-card__tag--result {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.today-card__tag--type {
+  background: #f5f3ff;
+  color: #7c3aed;
+}

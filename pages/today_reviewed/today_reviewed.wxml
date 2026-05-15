@@ -1,0 +1,43 @@
+<view class="today-page">
+  <view class="today-hero">
+    <view class="today-hero__icon">●</view>
+    <view class="today-hero__title">今日复习内容</view>
+    <view class="today-hero__sub" wx:if="{{!loading}}">共 {{items.length}} 张卡片</view>
+  </view>
+
+  <view wx:if="{{offline}}" class="today-offline-banner">
+    <text>当前为离线缓存，可能不是最新内容</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="today-loading">加载中...</view>
+
+  <view wx:elif="{{empty && loadFailed}}" class="today-empty">
+    <view class="today-empty__icon">○</view>
+    <view class="today-empty__text">暂无内容</view>
+    <view class="today-empty__retry" bindtap="onRetryTap">重试</view>
+  </view>
+
+  <view wx:elif="{{empty}}" class="today-empty">
+    <view class="today-empty__icon">○</view>
+    <view class="today-empty__text">今天还没有复习过卡片</view>
+  </view>
+
+  <view wx:else class="today-list">
+    <view
+      wx:for="{{items}}"
+      wx:key="cardId"
+      class="today-card"
+      data-id="{{item.cardId}}"
+      bindtap="onCardTap"
+    >
+      <view class="today-card__content">{{item.content}}</view>
+      <view class="today-card__understanding" wx:if="{{item.understanding}}">{{item.understanding}}</view>
+
+      <view class="today-card__meta">
+        <view class="today-card__tag today-card__tag--count">复习 {{item.todayReviewCount}} 次</view>
+        <view class="today-card__tag today-card__tag--result">{{item.lastResultLabel}}</view>
+        <view class="today-card__tag today-card__tag--type">{{item.cardType}}</view>
+      </view>
+    </view>
+  </view>
+</view>

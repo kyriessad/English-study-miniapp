@@ -4,7 +4,8 @@
     "pages/add/add",
     "pages/review/review",
     "pages/history_reviewed/history_index",
-    "pages/history_detail/history_detail"
+    "pages/history_detail/history_detail",
+    "pages/today_reviewed/today_reviewed"
   ],
   "window": {
     "navigationBarTitleText": "英语知识卡片本",
