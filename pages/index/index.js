@@ -839,9 +839,7 @@ Page({
     this.setData({
       cardStats: stats,
       totalCardCount: Number(stats.total || 0),
-      libraryTabs,
-      dashboardToLearn: Number(stats.new || 0) + Number(stats.reviewing || 0),
-      dashboardToStrengthen: Number(stats.strengthening || 0)
+      libraryTabs
     });
   },
 
@@ -898,10 +896,16 @@ Page({
       if (seq !== this._cardsReqSeq) return;
       if (Array.isArray(freshCards)) {
         this.setData({ cards: freshCards });
-        this.applyFilters();
       }
+      // Phase 6L-hotfix-2: Always re-apply filters after backend refresh,
+      // even when freshCards is not an array or the seq matched. This ensures
+      // displayCurrentCount / displayTotalCount / filteredCards stay in sync.
+      this.applyFilters();
     } catch (error) {
       console.warn('[index] backend cards refresh failed, using cached', error);
+      // Phase 6L-hotfix-2 (Problem A): Re-apply filters with cached cards so
+      // the list never goes blank when the backend refresh fails.
+      this.applyFilters();
     }
   },
 
@@ -938,6 +942,10 @@ Page({
           return VALID_REVIEW_STATES.has(state) && state === currentLibraryTab;
         });
 
+    // Phase 6L-hotfix: save tab-filtered count before further filters
+    // This is the denominator ("共 X 张") for the current tab context.
+    const tabFilteredCount = filtered.length;
+
     // Step 2: Category / exam scene / exam module
     filtered = filtered.filter((card) => {
       const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
@@ -972,8 +980,14 @@ Page({
     // Step 5: Decorate
     const decoratedFilteredCards = decorateCards(filtered, selectedCardIds);
 
-    const displayTotalCount = cards.length || (this.data.cardStats && this.data.cardStats.total) || 0;
-    const displayCurrentCount = filtered.length || 0;
+    // Phase 6L-hotfix: tabFilteredCount is the denominator for the current tab,
+    // not cards.length. "共 tabFilteredCount 张 · 当前 filtered.length 张"
+    // Phase 6L-hotfix-2 (Problem C): displayCurrentCount must never exceed displayTotalCount.
+    // Race conditions between loadLocalCache, refreshBackendCards, and loadCardStats
+    // can cause setData calls to interleave, producing 6/4 when local has 6
+    // cards but backend only has 4. Clamp to prevent numerator > denominator.
+    const displayTotalCount = tabFilteredCount;
+    const displayCurrentCount = Math.min(filtered.length || 0, displayTotalCount);
 
     // Phase 6G: Compute local stats from the actual card list to stay consistent
     // even when backend stats lag (e.g. pending cards not yet synced).
@@ -1333,7 +1347,7 @@ Page({
 
     // If new cards were added since last session, force a fresh session
     if (this._needsSessionRestart) {
-      this.handleStartReview('daily_suggested', { forceRestart: true });
+      this.startReviewWithFallback('daily_suggested', { forceRestart: true });
       return;
     }
 
@@ -1348,8 +1362,195 @@ Page({
       return;
     }
 
-    // No active session — create a new daily_suggested session
-    this.handleStartReview('daily_suggested');
+    // No active session — start fallback chain
+    this.startReviewWithFallback('daily_suggested');
+  },
+
+  /**
+   * Phase 6L: Create a review session and return a structured result.
+   * Returns { success, sessionId, sessionType } on success,
+   * or { success: false, reason: 'empty' | 'network_error' } on failure.
+   */
+  async _tryCreateSession(sessionType, _a) {
+    var opts = _a || {};
+    var forceRestart = !!(opts && opts.forceRestart);
+    var activeSession = this._getActiveSession();
+    var activeType = activeSession ? (activeSession.session_type || activeSession.sessionType || '') : '';
+    var needsRestart = forceRestart || (!!activeSession && activeType && activeType !== sessionType);
+
+    try {
+      var sessionData = {
+        session_type: sessionType,
+        limit: 5,
+        ...(needsRestart ? { restart: true } : {})
+      };
+      var result = await createReviewSession(sessionData);
+      var sessionId = (result && (result.session_id || result.id)) ||
+        (result && result.data && (result.data.session_id || result.data.id)) || '';
+      var items = (result && result.items) || (result && result.data && result.data.items) || [];
+      var remainingCount = Number(result && (result.remaining_count || result.remainingCount || 0));
+
+      console.log('[phase6l-fallback] _tryCreateSession', JSON.stringify({
+        sessionType: sessionType,
+        sessionId: sessionId,
+        itemsCount: Array.isArray(items) ? items.length : 0,
+        remainingCount: remainingCount
+      }));
+
+      // Has real items — success
+      if (sessionId && Array.isArray(items) && items.length > 0) {
+        return { success: true, sessionId: sessionId, sessionType: sessionType };
+      }
+
+      // Has session but no items and no remaining — empty
+      if (sessionId && remainingCount === 0) {
+        return { success: false, reason: 'empty' };
+      }
+
+      // No session at all — empty
+      return { success: false, reason: 'empty' };
+    } catch (error) {
+      console.warn('[phase6l-fallback] create session failed for', sessionType, error);
+      return { success: false, reason: 'network_error' };
+    }
+  },
+
+  /**
+   * Phase 6L: Degradation chain for the main review button.
+   * Tries daily_suggested → new_only → free_review in order.
+   * On network error, stops immediately. On empty session, continues to next.
+   */
+  async startReviewWithFallback(initialSessionType, _a) {
+    if (this.data.reviewEntryLoading) return;
+
+    var opts = _a || {};
+    var forceRestart = !!(opts && opts.forceRestart);
+
+    this.setData({ reviewEntryLoading: true });
+    wx.showLoading({ title: '准备复习中...', mask: true });
+
+    var FALLBACK_CHAIN = ['daily_suggested', 'new_only', 'free_review'];
+    var startIndex = FALLBACK_CHAIN.indexOf(initialSessionType);
+    var chain = startIndex >= 0 ? FALLBACK_CHAIN.slice(startIndex) : FALLBACK_CHAIN;
+
+    var lastReason = 'empty';
+    var shouldRestart = forceRestart;
+
+    for (var i = 0; i < chain.length; i++) {
+      var sessionType = chain[i];
+      var result = await this._tryCreateSession(sessionType, {
+        forceRestart: shouldRestart
+      });
+
+      if (result.success) {
+        wx.hideLoading();
+        this.setData({ reviewEntryLoading: false });
+        this._needsSessionRestart = false;
+        wx.navigateTo({
+          url: '/pages/review/review?session_id=' + result.sessionId +
+              '&session_type=' + sessionType
+        });
+        return;
+      }
+
+      if (result.reason === 'network_error') {
+        lastReason = 'network_error';
+        break;
+      }
+
+      // Phase 6L-hotfix-2 (Problem B): If daily_suggested returned empty
+      // without restart (reusing a stale session with 0 pending items),
+      // retry immediately with restart before falling back to new_only.
+      if (sessionType === 'daily_suggested' && !shouldRestart) {
+        shouldRestart = true;
+        var retryResult = await this._tryCreateSession('daily_suggested', {
+          forceRestart: true
+        });
+        if (retryResult.success) {
+          wx.hideLoading();
+          this.setData({ reviewEntryLoading: false });
+          this._needsSessionRestart = false;
+          wx.navigateTo({
+            url: '/pages/review/review?session_id=' + retryResult.sessionId +
+                '&session_type=daily_suggested'
+          });
+          return;
+        }
+        if (retryResult.reason === 'network_error') {
+          lastReason = 'network_error';
+          break;
+        }
+        // Retry also returned empty — continue to next in chain
+      }
+
+      // Empty — prepare restart for the next attempt
+      shouldRestart = true;
+      lastReason = 'empty';
+    }
+
+    wx.hideLoading();
+    this.setData({ reviewEntryLoading: false });
+
+    if (lastReason === 'network_error') {
+      this._showNoCardsAvailable('network_error');
+    } else {
+      this._showNoCardsAvailable('all_empty');
+    }
+
+    // Refresh overview data since it may be stale
+    this.loadAllBackendData();
+  },
+
+  /**
+   * Phase 6L: Show user-facing message when no review session can be created.
+   * Checks local card state to give accurate guidance.
+   */
+  _showNoCardsAvailable(reason) {
+    if (reason === 'network_error') {
+      wx.showToast({
+        title: '当前网络不可用，请稍后再试',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // reason === 'all_empty' — check local card state
+    var cards = this.data.cards || [];
+    var totalCardCount = this.data.totalCardCount || (Array.isArray(cards) ? cards.length : 0) || 0;
+
+    if (totalCardCount === 0) {
+      wx.showToast({
+        title: '还没有卡片，先添加一张吧',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // Count synced (non-pending, non-local-only) cards
+    var syncedCount = 0;
+    if (Array.isArray(cards)) {
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        if (!card) continue;
+        var syncStatus = String(card.backend_sync_status || card.backendSyncStatus || card.syncStatus || '').trim();
+        var isLocalOnly = card.local_only === true || card.localOnly === true;
+        if (syncStatus !== 'pending' && !isLocalOnly) {
+          syncedCount++;
+        }
+      }
+    }
+
+    if (syncedCount === 0) {
+      wx.showToast({
+        title: '当前网络不可用，请稍后再试',
+        icon: 'none'
+      });
+    } else {
+      wx.showToast({
+        title: '暂无可复习内容，请下拉刷新后再试',
+        icon: 'none'
+      });
+    }
   },
 
   handleCreateExampleCard(e) {

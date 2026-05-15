@@ -238,6 +238,13 @@
 
       <button
         class="done-action-btn done-secondary-btn"
+        bindtap="viewHistoryReviewedContent"
+      >
+        查看历史复习内容
+      </button>
+
+      <button
+        class="done-action-btn done-secondary-btn"
         bindtap="goToHomePage"
       >
         返回首页

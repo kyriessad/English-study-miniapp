@@ -8,13 +8,13 @@
   <!-- ===== Status Overview Card ===== -->
   <view class="status-overview-card">
     <view class="status-overview-item">
-      <text class="status-overview-num">{{dashboardToLearn}}</text>
-      <text class="status-overview-label">待学习</text>
+      <text class="status-overview-num">{{totalToday}}</text>
+      <text class="status-overview-label">今日任务</text>
     </view>
     <view class="status-overview-divider"></view>
     <view class="status-overview-item">
-      <text class="status-overview-num">{{dashboardToStrengthen}}</text>
-      <text class="status-overview-label">待加强</text>
+      <text class="status-overview-num">{{completedToday}}</text>
+      <text class="status-overview-label">今日已完成</text>
     </view>
   </view>
 

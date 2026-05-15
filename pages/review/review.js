@@ -314,8 +314,10 @@ Page({
         batchCurrentIndex: 0,
         currentClientActionId: '',
         pendingActionCount: pendingCount,
-        displayCurrentNo: items.length > 0 ? 1 : 0,
-        displayTotal: items.length,
+        // Phase 6L-hotfix-3: Use backend progress for dynamic total (includes reappear items).
+        // items.length is only pending items; progress.total tracks the full session count.
+        displayCurrentNo: items.length > 0 ? progress.reviewed + 1 : 0,
+        displayTotal: progress.total || items.length,
 
         tasks: items.map(normalizeReviewItem).filter(Boolean),
         taskIds: items.map((item) => item.card_id).filter(Boolean),
@@ -497,8 +499,10 @@ Page({
       currentClientActionId: '',
       batchCurrentIndex: nextIndex,
       pendingActionCount: getPendingActionCount(),
-      displayCurrentNo: nextIndex + 1,
-      displayTotal: batchItems.length,
+      // Phase 6L-hotfix-3: Use backend progress for dynamic display.
+      // progress.total includes reappear items; batchItems.length is static.
+      displayCurrentNo: progress.reviewed + 1,
+      displayTotal: progress.total,
     });
   },
 
@@ -509,7 +513,7 @@ Page({
   _handleForegroundFailure(clientActionId, error) {
     console.warn('[review] foreground feedback failed, action queued', error);
 
-    const { batchItems, batchCurrentIndex } = this.data;
+    const { batchItems, batchCurrentIndex, progress } = this.data;
     const nextBatchIndex = batchCurrentIndex + 1;
 
     // Check if there are more items in the current batch
@@ -529,7 +533,10 @@ Page({
         batchCurrentIndex: nextBatchIndex,
         pendingActionCount: getPendingActionCount(),
         displayCurrentNo: nextBatchIndex + 1,
-        displayTotal: batchItems.length,
+        // Phase 6L-hotfix-3: Use backend progress.total for denominator.
+        // batchItems is never updated with reappear items; progress.total
+        // from the last successful feedback includes them.
+        displayTotal: (progress && progress.total) || batchItems.length,
       });
     } else {
       // Batch depleted, enter pending_sync
@@ -559,7 +566,7 @@ Page({
    * Move to next item in batch (for ignored responses).
    */
   _moveToNextItem() {
-    const { batchItems, batchCurrentIndex } = this.data;
+    const { batchItems, batchCurrentIndex, progress } = this.data;
     const nextIndex = batchCurrentIndex + 1;
 
     if (nextIndex < batchItems.length) {
@@ -571,7 +578,8 @@ Page({
         answerVisible: false,
         batchCurrentIndex: nextIndex,
         displayCurrentNo: nextIndex + 1,
-        displayTotal: batchItems.length,
+        // Phase 6L-hotfix-3: Use backend total for denominator (includes reappear items).
+        displayTotal: (progress && progress.total) || batchItems.length,
       });
     } else {
       this.loadBackendReviewSession({ restart: false });
@@ -670,8 +678,9 @@ Page({
           batchCurrentIndex: 0,
           pendingActionCount: pendingCount,
           currentClientActionId: '',
-          displayCurrentNo: items.length > 0 ? 1 : 0,
-          displayTotal: items.length,
+          // Phase 6L-hotfix-3: Use backend progress for dynamic total (includes reappear items).
+          displayCurrentNo: items.length > 0 ? progress.reviewed + 1 : 0,
+          displayTotal: progress.total || items.length,
 
           totalCount: progress.total,
           finishedCount: progress.reviewed,
