@@ -1,0 +1,204 @@
+const { getReviewOverview, createReviewSession } = require('../../utils/apiClient');
+
+const OVERVIEW_CACHE_KEY = 'reviewOverviewCache';
+
+Page({
+  data: {
+    loading: true,
+    offline: false,
+    loadFailed: false,
+
+    totalToday: 0,
+    completedToday: 0,
+    remaining: 0,
+    isAllDone: false,
+    activeSession: null,
+
+    state: 'loading',
+    stateLabel: '',
+    stateSub: '',
+
+    mainButtonLabel: '',
+    mainButtonDisabled: false,
+
+    todayReviewedEnabled: false,
+    todayReviewedLabel: '查看今日复习内容'
+  },
+
+  onLoad() {
+    this._fetch();
+  },
+
+  async _fetch() {
+    this.setData({ loading: true, offline: false, loadFailed: false });
+
+    try {
+      const overview = await getReviewOverview();
+      wx.setStorageSync(OVERVIEW_CACHE_KEY, overview);
+      this._applyOverview(overview, false);
+    } catch (_) {
+      const cached = wx.getStorageSync(OVERVIEW_CACHE_KEY);
+      if (cached && typeof cached === 'object') {
+        this._applyOverview(cached, true);
+      } else {
+        this.setData({
+          loading: false,
+          loadFailed: true,
+          state: 'offline_empty'
+        });
+      }
+    }
+  },
+
+  _applyOverview(overview, offline) {
+    const suggested = (overview && overview.suggested) ? overview.suggested : {};
+    const completed = (overview && overview.completed_suggested) ? overview.completed_suggested : {};
+
+    const totalToday = Number(suggested.total_count || 0);
+    const completedToday = Number(completed.total_count || 0);
+    const remaining = Math.max(totalToday - completedToday, 0);
+    const isAllDone = !!(overview && overview.is_all_done);
+    const activeSession = (overview && overview.active_session) || null;
+
+    let state, stateLabel, stateSub, mainButtonLabel, mainButtonDisabled;
+    let todayReviewedEnabled = completedToday > 0;
+    const todayReviewedLabel = completedToday > 0 ? '查看今日复习内容' : '暂无复习内容';
+
+    if (offline) {
+      state = 'offline_cached';
+      stateLabel = totalToday > 0 ? ('今日任务 ' + totalToday + ' 张卡片') : '今日任务';
+
+      if (completedToday >= totalToday && totalToday > 0) {
+        stateSub = '今日复习了 ' + completedToday + ' 张卡片';
+        mainButtonLabel = '查看今日复习内容';
+        mainButtonDisabled = false;
+      } else if (completedToday > 0) {
+        stateSub = '今日已完成 ' + completedToday + ' 张，还有 ' + remaining + ' 张待复习';
+        mainButtonLabel = '继续复习（剩余 ' + remaining + ' 张）';
+        mainButtonDisabled = true;
+      } else {
+        stateSub = '还未开始复习';
+        mainButtonLabel = '开始复习';
+        mainButtonDisabled = true;
+      }
+    } else if (isAllDone || (totalToday > 0 && completedToday >= totalToday)) {
+      state = 'all_done';
+      stateLabel = '今日任务已完成';
+      stateSub = '今日复习了 ' + completedToday + ' 张卡片';
+      mainButtonLabel = '查看今日复习内容';
+      mainButtonDisabled = false;
+    } else if (completedToday > 0 && completedToday < totalToday) {
+      state = 'in_progress';
+      stateLabel = '今日已完成 ' + completedToday + ' / ' + totalToday;
+      stateSub = '还有 ' + remaining + ' 张待复习';
+      mainButtonLabel = '继续复习（剩余 ' + remaining + ' 张）';
+      mainButtonDisabled = false;
+    } else {
+      state = 'not_started';
+      stateLabel = '今日任务 ' + totalToday + ' 张卡片';
+      stateSub = '还未开始复习';
+      mainButtonLabel = '开始复习';
+      mainButtonDisabled = false;
+    }
+
+    this.setData({
+      loading: false,
+      offline,
+      loadFailed: false,
+
+      totalToday,
+      completedToday,
+      remaining,
+      isAllDone,
+      activeSession,
+
+      state,
+      stateLabel,
+      stateSub,
+
+      mainButtonLabel,
+      mainButtonDisabled,
+
+      todayReviewedEnabled,
+      todayReviewedLabel
+    });
+  },
+
+  onMainButtonTap() {
+    const { offline, completedToday, totalToday } = this.data;
+
+    if (completedToday >= totalToday && totalToday > 0) {
+      this._navigateToTodayReviewed();
+      return;
+    }
+
+    if (offline) {
+      wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
+      return;
+    }
+
+    this._startReview();
+  },
+
+  async _startReview() {
+    const activeSession = this.data.activeSession;
+
+    if (activeSession) {
+      const sessionId = activeSession.id || activeSession.session_id || '';
+      const sessionType = activeSession.session_type || 'daily_suggested';
+      if (sessionId) {
+        wx.navigateTo({
+          url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
+        });
+        return;
+      }
+    }
+
+    wx.showLoading({ title: '准备复习中...', mask: true });
+
+    const chain = ['daily_suggested', 'new_only', 'free_review'];
+
+    for (let i = 0; i < chain.length; i++) {
+      const sessionType = chain[i];
+
+      try {
+        const result = await createReviewSession({ session_type: sessionType, limit: 5 });
+        const sessionId = (result && (result.session_id || result.id)) ||
+          (result && result.data && (result.data.session_id || result.data.id)) || '';
+        const items = (result && result.items) || (result && result.data && result.data.items) || [];
+
+        if (sessionId && Array.isArray(items) && items.length > 0) {
+          wx.hideLoading();
+          wx.navigateTo({
+            url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
+          });
+          return;
+        }
+      } catch (_) {
+        wx.hideLoading();
+        wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
+        return;
+      }
+    }
+
+    wx.hideLoading();
+    wx.showToast({ title: '暂无复习任务', icon: 'none' });
+  },
+
+  _navigateToTodayReviewed() {
+    wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' });
+  },
+
+  onTodayReviewedTap() {
+    if (!this.data.todayReviewedEnabled) return;
+    this._navigateToTodayReviewed();
+  },
+
+  onHistoryTap() {
+    wx.navigateTo({ url: '/pages/history_reviewed/history_index' });
+  },
+
+  onRetryTap() {
+    this._fetch();
+  }
+});

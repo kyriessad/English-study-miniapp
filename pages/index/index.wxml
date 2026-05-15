@@ -6,7 +6,7 @@
   </view>
 
   <!-- ===== Status Overview Card ===== -->
-  <view class="status-overview-card">
+  <view class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
     <view class="status-overview-item">
       <text class="status-overview-num">{{totalToday}}</text>
       <text class="status-overview-label">今日任务</text>
@@ -16,6 +16,7 @@
       <text class="status-overview-num">{{completedToday}}</text>
       <text class="status-overview-label">今日已完成</text>
     </view>
+    <text class="status-overview-arrow">›</text>
   </view>
 
   <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% (only when cards exist) ===== -->

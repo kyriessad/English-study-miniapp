@@ -2962,6 +2962,11 @@
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+  transition: background 0.15s;
+}
+
+.status-overview-card--hover {
+  background: rgba(245, 250, 243, 0.95);
 }
 
 .status-overview-item {
@@ -2989,6 +2994,13 @@
   width: 1rpx;
   height: 56rpx;
   background: #e2ede2;
+  flex-shrink: 0;
+}
+
+.status-overview-arrow {
+  font-size: 36rpx;
+  color: #b0bfad;
+  margin-left: 16rpx;
   flex-shrink: 0;
 }
 
