@@ -30,7 +30,12 @@ Page({
 
   onShow() {
     if (!this._initialLoadDone) return;
-    this._fetch();
+
+    const needsRefresh = wx.getStorageSync('todayReviewedNeedsRefresh');
+    if (needsRefresh) {
+      wx.removeStorageSync('todayReviewedNeedsRefresh');
+      this._fetch();
+    }
   },
 
   async _fetch() {

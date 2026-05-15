@@ -1514,6 +1514,7 @@ Page({
       }
 
       if (isFromTodayReviewedPage(this.pageOptions)) {
+        try { wx.setStorageSync('todayReviewedNeedsRefresh', true); } catch (e) { /* ignore */ }
         wx.navigateBack({ delta: 1 });
         return;
       }
