@@ -458,22 +458,30 @@ Page({
       const backendReviewSummary = normalizeSummary(response.summary);
 
       this.setData({
-        progress,
-        currentItem: null,
-        currentCard: null,
-        answerVisible: false,
-        allDone: true,
         submittingFeedback: false,
         isSubmitting: false,
-        pageState: 'completed',
-        totalCount: progress.total,
-        finishedCount: progress.reviewed,
-        remainingCount: 0,
-        currentTaskIndex: progress.reviewed,
-        backendReviewSummary,
-        summaryTip: buildSummaryTip(backendReviewSummary),
-        batchItems: [],
-        batchCurrentIndex: 0,
+      });
+
+      wx.redirectTo({
+        url: '/pages/today_review_status/today_review_status?from=review_complete',
+        fail: () => {
+          this.setData({
+            progress,
+            currentItem: null,
+            currentCard: null,
+            answerVisible: false,
+            allDone: true,
+            pageState: 'completed',
+            totalCount: progress.total,
+            finishedCount: progress.reviewed,
+            remainingCount: 0,
+            currentTaskIndex: progress.reviewed,
+            backendReviewSummary,
+            summaryTip: buildSummaryTip(backendReviewSummary),
+            batchItems: [],
+            batchCurrentIndex: 0,
+          });
+        }
       });
       return;
     }
