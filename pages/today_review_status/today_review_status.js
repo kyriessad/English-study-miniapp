@@ -68,17 +68,31 @@ Page({
     let todayReviewedEnabled = completedToday > 0;
     const todayReviewedLabel = completedToday > 0 ? '今日已复习内容' : '暂无复习内容';
 
-    if (offline) {
+    // Phase 6O-2A: Empty state — no tasks at all today
+    if (!offline && totalToday === 0) {
+      state = 'empty';
+      stateLabel = '今天还没有复习任务';
+      stateSub = '可以返回首页添加卡片，或开始学习已有卡片';
+      mainButtonLabel = '返回首页';
+      mainButtonDisabled = false;
+    } else if (offline && totalToday === 0) {
+      state = 'empty';
+      stateLabel = '今天还没有复习任务';
+      stateSub = '可以返回首页添加卡片，或开始学习已有卡片';
+      mainButtonLabel = '返回首页';
+      mainButtonDisabled = false;
+      todayReviewedEnabled = false;
+    } else if (offline) {
       state = 'offline_cached';
-      stateLabel = totalToday > 0 ? ('今日任务 ' + totalToday + ' 张卡片') : '今日任务';
+      stateLabel = '今日任务 ' + totalToday + ' 张卡片';
 
       if (completedToday >= totalToday && totalToday > 0) {
         stateSub = '今日复习了 ' + completedToday + ' 张卡片';
-        mainButtonLabel = '查看今日复习内容';
-        mainButtonDisabled = false;
+        mainButtonLabel = '继续复习';
+        mainButtonDisabled = true;
       } else if (completedToday > 0) {
         stateSub = '今日已完成 ' + completedToday + ' 张，还有 ' + remaining + ' 张待复习';
-        mainButtonLabel = '继续复习（剩余 ' + remaining + ' 张）';
+        mainButtonLabel = '继续复习';
         mainButtonDisabled = true;
       } else {
         stateSub = '还未开始复习';
@@ -89,14 +103,14 @@ Page({
       state = 'all_done';
       stateLabel = '今日任务完成';
       stateSub = '今日复习了 ' + completedToday + ' 张卡片';
-      mainButtonLabel = '查看今日复习内容';
+      mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
       this._fetchResultBreakdown();
     } else if (completedToday > 0 && completedToday < totalToday) {
       state = 'in_progress';
       stateLabel = completedToday + ' / ' + totalToday;
       stateSub = '今日进度';
-      mainButtonLabel = '继续复习（剩余 ' + remaining + ' 张）';
+      mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
     } else {
       state = 'not_started';
@@ -173,10 +187,17 @@ Page({
   },
 
   onMainButtonTap() {
-    const { offline, completedToday, totalToday } = this.data;
+    const { state, offline } = this.data;
 
-    if (completedToday >= totalToday && totalToday > 0) {
-      this._navigateToTodayReviewed();
+    // Phase 6O-2A: Empty state — go home to add cards or start learning
+    if (state === 'empty') {
+      wx.redirectTo({ url: '/pages/index/index' });
+      return;
+    }
+
+    // Phase 6O-2A: All done — go home for extra learning
+    if (state === 'all_done') {
+      wx.redirectTo({ url: '/pages/index/index' });
       return;
     }
 

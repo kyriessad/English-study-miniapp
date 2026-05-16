@@ -480,7 +480,7 @@ function computeDailyStatusCopy(totalToday, completedToday) {
   var c = Number(completedToday) || 0;
 
   if (t > 0 && c >= t) {
-    return { dailyStatusMessage: '今天的任务都完成了 🎉', reviewButtonLabel: '今日已完成' };
+    return { dailyStatusMessage: '今天的任务都完成了 🎉', reviewButtonLabel: '继续复习' };
   }
   if (c > 0 && c < t) {
     return { dailyStatusMessage: '正在学习中，继续加油 💪', reviewButtonLabel: '继续复习' };
@@ -571,7 +571,10 @@ Page({
 
     // Phase 6O-2: daily status copy
     dailyStatusMessage: '新的一天，开始学习吧',
-    reviewButtonLabel: '开始复习'
+    reviewButtonLabel: '开始复习',
+
+    // Phase 6O-2A: hide new-study entry card when task is in progress
+    hideNewStudyEntry: false
   },
 
   async onShow() {
@@ -799,7 +802,12 @@ Page({
 
     var statusCopy = computeDailyStatusCopy(totalToday, completedToday);
 
+    // Phase 6O-2A: Hide new-study entry card when today's task is in progress.
+    // Show it when there are no tasks yet, or when today's task is complete.
+    var hideNewStudyEntry = totalToday > 0 && completedToday < totalToday;
+
     this.setData({
+      hideNewStudyEntry: hideNewStudyEntry,
       reviewOverview: normalized.raw,
       reviewOverviewError: false,
       totalToday: totalToday,
@@ -1417,11 +1425,8 @@ Page({
     if (this.data.isManageMode) return;
     if (this.data.reviewEntryLoading) return;
 
-    // Phase 6O-2: When today is all done, navigate to status page instead of creating session
-    if (this.data.totalToday > 0 && this.data.completedToday >= this.data.totalToday) {
-      wx.navigateTo({ url: '/pages/today_review_status/today_review_status?from=home_done' });
-      return;
-    }
+    // Phase 6O-2A: Always use fallback chain for learning action.
+    // Even when today's task is done, the user can continue extra learning.
 
     // If new cards were added since last session, force a fresh session
     if (this._needsSessionRestart) {
