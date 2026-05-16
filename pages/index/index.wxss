@@ -2681,9 +2681,9 @@
 }
 
 .card-status-pill.state-reviewing {
-  color: #6B7280;
-  background: #F3F4F6;
-  border-color: #E5E7EB;
+  color: #2563EB;
+  background: #DBEAFE;
+  border-color: #BFDBFE;
 }
 
 .card-status-pill.state-strengthening {
