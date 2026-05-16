@@ -1,7 +1,7 @@
 <view class="status-page">
   <!-- offline banner -->
   <view wx:if="{{offline}}" class="status-offline-banner">
-    当前无网络连接，部分功能不可用
+    当前无网络连接，恢复后可继续复习
   </view>
 
   <!-- loading -->
@@ -169,7 +169,7 @@
       </view>
 
       <view class="status-secondary">
-        <view wx:if="{{todayReviewedEnabled && !(completedToday >= totalToday && totalToday > 0)}}" class="status-entry" bindtap="onTodayReviewedTap">
+        <view wx:if="{{todayReviewedEnabled}}" class="status-entry" bindtap="onTodayReviewedTap">
           <text class="status-entry__label">{{todayReviewedLabel}}</text>
           <text class="status-entry__arrow">›</text>
         </view>

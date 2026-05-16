@@ -2013,7 +2013,7 @@ Page({
         var pendingAfterFlush = getPendingActionCount();
         if (pendingBeforeFlush > 0 && pendingAfterFlush === 0) {
           wx.showToast({
-            title: '后台同步完成，下拉刷新可查看最新数据',
+            title: '已更新',
             icon: 'none',
             duration: 2500
           });

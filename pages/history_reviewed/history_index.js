@@ -335,7 +335,8 @@ Page({
     backendHistoryLoadingMore: false,
     historyRequestSeq: 0,
     usingBackendHistory: false,
-    summaryLoadFailed: false
+    summaryLoadFailed: false,
+    offlineEmpty: false
   },
 
   onShow() {
@@ -352,7 +353,8 @@ Page({
       backendHistoryHasMore: false,
       backendHistoryLoadingMore: false,
       usingBackendHistory: false,
-      summaryLoadFailed: false
+      summaryLoadFailed: false,
+      offlineEmpty: false
     });
 
     try {
@@ -391,7 +393,12 @@ Page({
     } catch (error) {
       if (requestSeq !== this.data.historyRequestSeq) return;
       console.warn('[history-summary] backend list failed, use local stats', error);
-      this._fallbackToLocalHistory();
+      if (this._hasLocalHistory(this.data.selectedRange)) {
+        this._fallbackToLocalHistory();
+        this.setData({ offlineEmpty: false });
+      } else {
+        this.setData({ offlineEmpty: true });
+      }
     }
   },
 

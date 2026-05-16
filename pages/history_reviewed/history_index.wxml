@@ -138,8 +138,14 @@
   </view>
 </view>
 
-  <!-- 空状态 -->
-  <view wx:if="{{filteredCards.length === 0}}" class="history-empty">
+  <!-- 离线空状态 -->
+  <view wx:if="{{offlineEmpty}}" class="history-empty">
+    <view class="history-empty-title">当前无网络连接，暂时无法查看</view>
+    <view class="history-empty-desc">请检查网络连接后重试</view>
+  </view>
+
+  <!-- 在线空状态 -->
+  <view wx:elif="{{filteredCards.length === 0}}" class="history-empty">
     <view class="history-empty-title">当前条件下还没有历史记录</view>
     <view class="history-empty-desc">换个时间范围或状态筛选看看。</view>
   </view>
