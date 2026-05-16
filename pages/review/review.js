@@ -455,8 +455,6 @@ Page({
     }
 
     if (response && response.done) {
-      const backendReviewSummary = normalizeSummary(response.summary);
-
       this.setData({
         submittingFeedback: false,
         isSubmitting: false,
@@ -476,8 +474,6 @@ Page({
             finishedCount: progress.reviewed,
             remainingCount: 0,
             currentTaskIndex: progress.reviewed,
-            backendReviewSummary,
-            summaryTip: buildSummaryTip(backendReviewSummary),
             batchItems: [],
             batchCurrentIndex: 0,
           });
@@ -735,7 +731,6 @@ Page({
   },
 
   _showCompletedFromSession(summaryResponse) {
-    const summary = normalizeSummary(summaryResponse.summary);
     const progress = normalizeProgress(summaryResponse.progress);
 
     this.setData({
@@ -744,8 +739,6 @@ Page({
       progress,
       currentItem: null,
       currentCard: null,
-      backendReviewSummary: summary,
-      summaryTip: buildSummaryTip(summary),
       isFlushing: false,
       pendingActionCount: 0,
 
@@ -785,14 +778,15 @@ Page({
     this.loadBackendReviewSession({ restart: true });
   },
 
-  continueReview() {
-    this.setData({
-      allDone: false,
-      backendReviewSummary: normalizeSummary({}),
-      summaryTip: '',
-      pageState: 'loading',
+  navigateToTodayReviewStatus() {
+    wx.redirectTo({
+      url: '/pages/today_review_status/today_review_status?from=review_done_fallback',
+      fail: () => {
+        wx.navigateTo({
+          url: '/pages/today_review_status/today_review_status?from=review_done_fallback'
+        });
+      }
     });
-    this.loadBackendReviewSession({ restart: false });
   },
 
   editCurrentCard() {
