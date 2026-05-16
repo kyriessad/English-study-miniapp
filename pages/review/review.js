@@ -213,14 +213,11 @@ Page({
       return;
     }
 
-    // Check if there are pending actions from a previous session
+    // Phase 6O-2B: Pending actions from previous sessions are handled
+    // by home page's background flush. Don't block review with sync UI.
     const pendingCount = getPendingActionCount();
     if (pendingCount > 0) {
-      this.setData({
-        pendingActionCount: pendingCount,
-        pageState: 'review_pending_sync',
-      });
-      return;
+      this.setData({ pendingActionCount: pendingCount });
     }
 
     // 4C-1b: Reload using stored session type from onLoad
@@ -511,50 +508,25 @@ Page({
   },
 
   /**
-   * Foreground failure: continue playing current batch if items remain,
-   * otherwise enter review_pending_sync.
+   * Phase 6O-2B: Foreground failure — block card advancement, stay on current card.
+   * Offline review is not supported at this product stage.
    */
   _handleForegroundFailure(clientActionId, error) {
-    console.warn('[review] foreground feedback failed, action queued', error);
+    console.warn('[review] foreground feedback failed, staying on current card', error);
 
-    const { batchItems, batchCurrentIndex, progress } = this.data;
-    const nextBatchIndex = batchCurrentIndex + 1;
+    // Reset submitting state — do NOT advance to next item
+    this.setData({
+      submittingFeedback: false,
+      isSubmitting: false,
+      pageState: 'active',
+      currentClientActionId: '',
+    });
 
-    // Check if there are more items in the current batch
-    if (nextBatchIndex < batchItems.length) {
-      // Continue playing current batch
-      const nextItem = batchItems[nextBatchIndex];
-      const nextCard = normalizeReviewItem(nextItem);
-
-      this.setData({
-        currentItem: nextItem,
-        currentCard: nextCard,
-        answerVisible: false,
-        submittingFeedback: false,
-        isSubmitting: false,
-        pageState: 'offline_playing',
-        currentClientActionId: '',
-        batchCurrentIndex: nextBatchIndex,
-        pendingActionCount: getPendingActionCount(),
-        displayCurrentNo: nextBatchIndex + 1,
-        // Phase 6L-hotfix-3: Use backend progress.total for denominator.
-        // batchItems is never updated with reappear items; progress.total
-        // from the last successful feedback includes them.
-        displayTotal: (progress && progress.total) || batchItems.length,
-      });
-    } else {
-      // Batch depleted, enter pending_sync
-      this.setData({
-        currentItem: null,
-        currentCard: null,
-        answerVisible: false,
-        submittingFeedback: false,
-        isSubmitting: false,
-        pageState: 'review_pending_sync',
-        currentClientActionId: '',
-        pendingActionCount: getPendingActionCount(),
-      });
-    }
+    wx.showToast({
+      title: '网络连接异常，请检查网络后再试',
+      icon: 'none',
+      duration: 2500,
+    });
   },
 
   /**
