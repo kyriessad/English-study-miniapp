@@ -4,3 +4,4 @@ miniprogram_npm/
 *.log
 .vscode/
 .idea/
+utils/localBackendConfig.js

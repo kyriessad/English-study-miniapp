@@ -1,7 +1,17 @@
 // Local development placeholder.
 // 127.0.0.1 only works when testing in WeChat DevTools on this machine.
 // Real devices and production builds must use a cloud-hosted HTTPS domain.
-const BACKEND_BASE_URL = 'http://127.0.0.1:8001';
+// Override via utils/localBackendConfig.js for device debugging (not committed).
+let BACKEND_BASE_URL = 'http://127.0.0.1:8001';
+
+try {
+  const localConfig = require('./localBackendConfig');
+  if (localConfig && localConfig.BACKEND_BASE_URL) {
+    BACKEND_BASE_URL = localConfig.BACKEND_BASE_URL;
+  }
+} catch (_) {
+  // localBackendConfig.js is optional and should not be committed.
+}
 
 const BACKEND_AUTH_STORAGE_KEYS = {
   userId: 'backendUserId',
