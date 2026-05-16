@@ -68,7 +68,6 @@
   <view wx:if="{{totalCardCount > 0}}" class="library-section">
     <view class="section-header">
       <text class="section-title">卡片库</text>
-      <text class="section-subtitle">按学习状态管理全部卡片</text>
     </view>
 
     <!-- Library Tabs / Filter Pills -->
