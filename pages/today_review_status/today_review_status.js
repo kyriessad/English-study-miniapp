@@ -1,6 +1,7 @@
-const { getReviewOverview, createReviewSession } = require('../../utils/apiClient');
+const { getReviewOverview, createReviewSession, getTodayReviewed } = require('../../utils/apiClient');
 
 const OVERVIEW_CACHE_KEY = 'reviewOverviewCache';
+const TODAY_REVIEWED_CACHE_KEY = 'todayReviewedCache';
 
 Page({
   data: {
@@ -22,7 +23,10 @@ Page({
     mainButtonDisabled: false,
 
     todayReviewedEnabled: false,
-    todayReviewedLabel: '查看今日复习内容'
+    todayReviewedLabel: '今日已复习内容',
+
+    masteredCount: 0,
+    consolidateCount: 0
   },
 
   onLoad() {
@@ -62,7 +66,7 @@ Page({
 
     let state, stateLabel, stateSub, mainButtonLabel, mainButtonDisabled;
     let todayReviewedEnabled = completedToday > 0;
-    const todayReviewedLabel = completedToday > 0 ? '查看今日复习内容' : '暂无复习内容';
+    const todayReviewedLabel = completedToday > 0 ? '今日已复习内容' : '暂无复习内容';
 
     if (offline) {
       state = 'offline_cached';
@@ -83,14 +87,15 @@ Page({
       }
     } else if (isAllDone || (totalToday > 0 && completedToday >= totalToday)) {
       state = 'all_done';
-      stateLabel = '今日任务已完成';
+      stateLabel = '今日任务完成';
       stateSub = '今日复习了 ' + completedToday + ' 张卡片';
       mainButtonLabel = '查看今日复习内容';
       mainButtonDisabled = false;
+      this._fetchResultBreakdown();
     } else if (completedToday > 0 && completedToday < totalToday) {
       state = 'in_progress';
-      stateLabel = '今日已完成 ' + completedToday + ' / ' + totalToday;
-      stateSub = '还有 ' + remaining + ' 张待复习';
+      stateLabel = completedToday + ' / ' + totalToday;
+      stateSub = '今日进度';
       mainButtonLabel = '继续复习（剩余 ' + remaining + ' 张）';
       mainButtonDisabled = false;
     } else {
@@ -122,6 +127,49 @@ Page({
       todayReviewedEnabled,
       todayReviewedLabel
     });
+  },
+
+  async _fetchResultBreakdown() {
+    try {
+      const res = await getTodayReviewed();
+      const items = (res && res.items) ? res.items : [];
+      this._applyResultBreakdown(items);
+    } catch (_) {
+      const cached = wx.getStorageSync(TODAY_REVIEWED_CACHE_KEY) || [];
+      if (Array.isArray(cached) && cached.length > 0) {
+        this._applyResultBreakdownFromCache(cached);
+      } else {
+        this.setData({ masteredCount: 0, consolidateCount: 0 });
+      }
+    }
+  },
+
+  _applyResultBreakdown(items) {
+    let mastered = 0;
+    let consolidate = 0;
+    for (let i = 0; i < items.length; i++) {
+      const result = items[i].last_result || '';
+      if (result === 'got_it' || result === 'fluent') {
+        mastered++;
+      } else if (result === 'forgot' || result === 'shaky') {
+        consolidate++;
+      }
+    }
+    this.setData({ masteredCount: mastered, consolidateCount: consolidate });
+  },
+
+  _applyResultBreakdownFromCache(cached) {
+    let mastered = 0;
+    let consolidate = 0;
+    for (let i = 0; i < cached.length; i++) {
+      const result = cached[i].lastResult || '';
+      if (result === 'got_it' || result === 'fluent') {
+        mastered++;
+      } else if (result === 'forgot' || result === 'shaky') {
+        consolidate++;
+      }
+    }
+    this.setData({ masteredCount: mastered, consolidateCount: consolidate });
   },
 
   onMainButtonTap() {
@@ -196,6 +244,10 @@ Page({
 
   onHistoryTap() {
     wx.navigateTo({ url: '/pages/history_reviewed/history_index' });
+  },
+
+  onHomeTap() {
+    wx.redirectTo({ url: '/pages/index/index' });
   },
 
   onRetryTap() {

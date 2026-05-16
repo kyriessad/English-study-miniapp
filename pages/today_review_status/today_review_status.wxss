@@ -49,16 +49,32 @@
   padding: 32rpx 28rpx;
 }
 
+.status-page-title {
+  font-size: 28rpx;
+  color: #9ca3af;
+  margin-bottom: 24rpx;
+}
+
+/* hero */
 .status-hero {
   display: flex;
   align-items: center;
   margin-bottom: 8rpx;
 }
 
+.status-hero--done {
+  margin-bottom: 0;
+}
+
 .status-hero__icon {
   font-size: 40rpx;
   color: #3b82f6;
   margin-right: 16rpx;
+}
+
+.status-hero__emoji {
+  font-size: 48rpx;
+  margin-right: 12rpx;
 }
 
 .status-hero__title {
@@ -74,8 +90,21 @@
   margin-bottom: 24rpx;
 }
 
+/* section */
+.status-section {
+  margin: 32rpx 0 24rpx;
+}
+
+.status-section__heading {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 20rpx;
+}
+
+/* progress */
 .status-progress-wrap {
-  margin: 0 0 32rpx 56rpx;
+  margin-bottom: 8rpx;
 }
 
 .status-progress-bar {
@@ -92,6 +121,84 @@
   transition: width 0.3s ease;
 }
 
+.status-progress-nums {
+  margin-top: 12rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* stats row */
+.status-stats {
+  display: flex;
+  justify-content: space-between;
+  margin: 24rpx 0 32rpx;
+}
+
+.status-stat {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.status-stat + .status-stat {
+  margin-left: 16rpx;
+}
+
+.status-stat__value {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.status-stat__label {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+/* result grid */
+.status-result-grid {
+  display: flex;
+  justify-content: space-between;
+}
+
+.status-result {
+  flex: 1;
+  text-align: center;
+  padding: 28rpx 0;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.status-result + .status-result {
+  margin-left: 16rpx;
+}
+
+.status-result__value {
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.status-result__value--mastered {
+  color: #16a34a;
+}
+
+.status-result__value--consolidate {
+  color: #d97706;
+}
+
+.status-result__label {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+/* main button */
 .status-main-btn-wrap {
   margin: 32rpx 0 40rpx;
   padding: 0 28rpx;
@@ -116,6 +223,7 @@
   box-shadow: none;
 }
 
+/* secondary entries */
 .status-secondary {
   padding: 0 28rpx;
 }

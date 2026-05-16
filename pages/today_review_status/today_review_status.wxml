@@ -16,44 +16,146 @@
 
   <!-- content -->
   <view wx:else class="status-body">
-    <!-- header -->
-    <view class="status-hero">
-      <view class="status-hero__icon">{{completedToday >= totalToday && totalToday > 0 ? '✦' : '●'}}</view>
-      <view class="status-hero__title">{{stateLabel}}</view>
-    </view>
+    <view class="status-page-title">今日复习情况</view>
 
-    <view class="status-hero__sub">{{stateSub}}</view>
-
-    <!-- progress bar (only in_progress) -->
-    <view wx:if="{{completedToday > 0 && remaining > 0}}" class="status-progress-wrap">
-      <view class="status-progress-bar">
-        <view class="status-progress-fill" style="width: {{totalToday > 0 ? completedToday / totalToday * 100 : 0}}%;"></view>
+    <!-- ========== not_started ========== -->
+    <block wx:if="{{state === 'not_started'}}">
+      <view class="status-hero">
+        <view class="status-hero__icon">●</view>
+        <view class="status-hero__title">{{stateLabel}}</view>
       </view>
-    </view>
+      <view class="status-hero__sub">{{stateSub}}</view>
 
-    <!-- main button -->
-    <view class="status-main-btn-wrap">
-      <button
-        class="status-main-btn {{mainButtonDisabled ? 'status-main-btn--disabled' : ''}}"
-        disabled="{{mainButtonDisabled}}"
-        bindtap="onMainButtonTap"
-      >{{mainButtonLabel}}</button>
-    </view>
-
-    <!-- secondary entries -->
-    <view class="status-secondary">
-      <view
-        class="status-entry {{todayReviewedEnabled ? '' : 'status-entry--disabled'}}"
-        bindtap="onTodayReviewedTap"
-      >
-        <text class="status-entry__label">{{todayReviewedLabel}}</text>
-        <text class="status-entry__arrow">›</text>
+      <view class="status-main-btn-wrap">
+        <button class="status-main-btn" disabled="{{false}}" bindtap="onMainButtonTap">{{mainButtonLabel}}</button>
       </view>
 
-      <view class="status-entry" bindtap="onHistoryTap">
-        <text class="status-entry__label">查看历史复习内容</text>
-        <text class="status-entry__arrow">›</text>
+      <view class="status-secondary">
+        <view class="status-entry status-entry--disabled">
+          <text class="status-entry__label">{{todayReviewedLabel}}</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+        <view class="status-entry" bindtap="onHistoryTap">
+          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
       </view>
-    </view>
+    </block>
+
+    <!-- ========== in_progress ========== -->
+    <block wx:elif="{{state === 'in_progress'}}">
+      <view class="status-section">
+        <view class="status-section__heading">今日进度</view>
+        <view class="status-progress-wrap">
+          <view class="status-progress-bar">
+            <view class="status-progress-fill" style="width: {{totalToday > 0 ? completedToday / totalToday * 100 : 0}}%;"></view>
+          </view>
+          <view class="status-progress-nums">{{completedToday}} / {{totalToday}}</view>
+        </view>
+      </view>
+
+      <view class="status-stats">
+        <view class="status-stat">
+          <view class="status-stat__value">{{totalToday}} 张</view>
+          <view class="status-stat__label">今日任务</view>
+        </view>
+        <view class="status-stat">
+          <view class="status-stat__value">{{completedToday}} 张</view>
+          <view class="status-stat__label">已完成</view>
+        </view>
+        <view class="status-stat">
+          <view class="status-stat__value">{{remaining}} 张</view>
+          <view class="status-stat__label">剩余</view>
+        </view>
+      </view>
+
+      <view class="status-main-btn-wrap">
+        <button class="status-main-btn" disabled="{{false}}" bindtap="onMainButtonTap">{{mainButtonLabel}}</button>
+      </view>
+
+      <view class="status-secondary">
+        <view class="status-entry" bindtap="onTodayReviewedTap">
+          <text class="status-entry__label">今日已复习内容</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+        <view class="status-entry" bindtap="onHistoryTap">
+          <text class="status-entry__label">历史复习内容</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- ========== all_done ========== -->
+    <block wx:elif="{{state === 'all_done'}}">
+      <view class="status-hero status-hero--done">
+        <view class="status-hero__emoji">🎉</view>
+        <view class="status-hero__title">今日任务完成！</view>
+      </view>
+
+      <view class="status-section">
+        <view class="status-section__heading">今日复习结果</view>
+        <view class="status-result-grid">
+          <view class="status-result">
+            <view class="status-result__value status-result__value--mastered">{{masteredCount}} 张</view>
+            <view class="status-result__label">掌握较好</view>
+          </view>
+          <view class="status-result">
+            <view class="status-result__value status-result__value--consolidate">{{consolidateCount}} 张</view>
+            <view class="status-result__label">还需巩固</view>
+          </view>
+        </view>
+      </view>
+
+      <view class="status-main-btn-wrap">
+        <button class="status-main-btn" disabled="{{false}}" bindtap="onMainButtonTap">{{mainButtonLabel}}</button>
+      </view>
+
+      <view class="status-secondary">
+        <view class="status-entry" bindtap="onHistoryTap">
+          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+        <view class="status-entry" bindtap="onHomeTap">
+          <text class="status-entry__label">返回首页</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- ========== offline_cached ========== -->
+    <block wx:elif="{{state === 'offline_cached'}}">
+      <view class="status-hero">
+        <view class="status-hero__icon">{{completedToday >= totalToday && totalToday > 0 ? '✦' : '●'}}</view>
+        <view class="status-hero__title">{{stateLabel}}</view>
+      </view>
+      <view class="status-hero__sub">{{stateSub}}</view>
+
+      <view wx:if="{{completedToday > 0 && remaining > 0}}" class="status-progress-wrap">
+        <view class="status-progress-bar">
+          <view class="status-progress-fill" style="width: {{totalToday > 0 ? completedToday / totalToday * 100 : 0}}%;"></view>
+        </view>
+      </view>
+
+      <view class="status-main-btn-wrap">
+        <button class="status-main-btn {{mainButtonDisabled ? 'status-main-btn--disabled' : ''}}" disabled="{{mainButtonDisabled}}" bindtap="onMainButtonTap">{{mainButtonLabel}}</button>
+      </view>
+
+      <view class="status-secondary">
+        <view wx:if="{{todayReviewedEnabled && !(completedToday >= totalToday && totalToday > 0)}}" class="status-entry" bindtap="onTodayReviewedTap">
+          <text class="status-entry__label">{{todayReviewedLabel}}</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+
+        <view class="status-entry" bindtap="onHistoryTap">
+          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+
+        <view class="status-entry" bindtap="onHomeTap">
+          <text class="status-entry__label">返回首页</text>
+          <text class="status-entry__arrow">›</text>
+        </view>
+      </view>
+    </block>
   </view>
 </view>
