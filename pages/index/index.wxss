@@ -2998,10 +2998,14 @@
 }
 
 .status-overview-arrow {
-  font-size: 36rpx;
-  color: #b0bfad;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #5eaa64;
   margin-left: 16rpx;
   flex-shrink: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
 }
 
 /* Main actions — 添加卡片 25% + 进入复习页 75% */

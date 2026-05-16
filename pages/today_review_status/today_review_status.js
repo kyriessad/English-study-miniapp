@@ -195,9 +195,9 @@ Page({
       return;
     }
 
-    // Phase 6O-2A: All done — go home for extra learning
+    // Phase 6O-2A-hotfix: All done — start extra learning via fallback chain
     if (state === 'all_done') {
-      wx.redirectTo({ url: '/pages/index/index' });
+      this._startReview();
       return;
     }
 
@@ -251,7 +251,7 @@ Page({
     }
 
     wx.hideLoading();
-    wx.showToast({ title: '暂无复习任务', icon: 'none' });
+    wx.showToast({ title: '暂无更多可复习内容', icon: 'none' });
   },
 
   _navigateToTodayReviewed() {
