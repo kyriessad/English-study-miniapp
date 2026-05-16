@@ -410,6 +410,35 @@ function matchesExactFilter(value, selectedValue, fallbackValue) {
   return selectedValue === '全部' || normalizedValue === selectedValue;
 }
 
+/**
+ * Phase 6O-3: Format relative last-review time using local date boundaries.
+ * Returns empty string when lastReviewedAt is missing or invalid.
+ */
+function formatRelativeReviewTime(lastReviewedAt) {
+  if (!lastReviewedAt) return '';
+
+  var reviewedDate;
+  try {
+    reviewedDate = new Date(lastReviewedAt);
+  } catch (_) {
+    return '';
+  }
+  if (isNaN(reviewedDate.getTime())) return '';
+
+  var now = new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var reviewedDay = new Date(reviewedDate.getFullYear(), reviewedDate.getMonth(), reviewedDate.getDate());
+
+  var diffDays = Math.floor((today.getTime() - reviewedDay.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return '今天';
+  if (diffDays === 1) return '昨天';
+  if (diffDays <= 6) return diffDays + '天前';
+  if (diffDays <= 13) return '1周前';
+  if (diffDays <= 55) return Math.floor(diffDays / 7) + '周前';
+  return '较久前';
+}
+
 function decorateCards(cards, selectedCardIds) {
   const selectedSet = new Set(selectedCardIds || []);
   return (cards || []).map((card) => {
@@ -426,7 +455,13 @@ function decorateCards(cards, selectedCardIds) {
       stateClass: `state-${stateV2}`,
       displayStatusLabel: displayStatus.label,
       displayStatusClass: displayStatus.className,
-      reviewCountText: `已复习 ${Number(card.reviewCount || 0)} 次`,
+      reviewCountText: (function() {
+        var count = Number(card.reviewCount || 0);
+        if (count <= 0) return '未复习';
+        var relative = formatRelativeReviewTime(card.lastReviewedAt);
+        if (relative) return '已复习 ' + count + ' 次 · 上次: ' + relative;
+        return '已复习 ' + count + ' 次';
+      })(),
       analysisStatusVisible: analysisStatusDisplay.visible,
       analysisStatusLabel: analysisStatusDisplay.label,
       analysisStatusClass: analysisStatusDisplay.className,
