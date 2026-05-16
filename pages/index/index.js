@@ -435,6 +435,23 @@ function decorateCards(cards, selectedCardIds) {
   });
 }
 
+/**
+ * Phase 6O-2: Compute emotional daily status copy and review button label.
+ * Pure function — no side effects.
+ */
+function computeDailyStatusCopy(totalToday, completedToday) {
+  var t = Number(totalToday) || 0;
+  var c = Number(completedToday) || 0;
+
+  if (t > 0 && c >= t) {
+    return { dailyStatusMessage: '今天的任务都完成了 🎉', reviewButtonLabel: '今日已完成' };
+  }
+  if (c > 0 && c < t) {
+    return { dailyStatusMessage: '正在学习中，继续加油 💪', reviewButtonLabel: '继续复习' };
+  }
+  return { dailyStatusMessage: '新的一天，开始学习吧', reviewButtonLabel: '开始复习' };
+}
+
 Page({
   data: {
     // Task dashboard
@@ -514,7 +531,11 @@ Page({
 
     // Phase 6C: home page polish
     completedToday: 0,
-    creatingExampleCard: false
+    creatingExampleCard: false,
+
+    // Phase 6O-2: daily status copy
+    dailyStatusMessage: '新的一天，开始学习吧',
+    reviewButtonLabel: '开始复习'
   },
 
   async onShow() {
@@ -740,6 +761,8 @@ Page({
     ));
     console.log('[phase6g-home-state] overview totalToday', totalToday, 'toNew', toNew, 'toReview', toReview);
 
+    var statusCopy = computeDailyStatusCopy(totalToday, completedToday);
+
     this.setData({
       reviewOverview: normalized.raw,
       reviewOverviewError: false,
@@ -752,7 +775,9 @@ Page({
       activeSessionType: activeSession ? (activeSession.session_type || '') : '',
       reviewActions: reviewActions,
       showEmptyTaskTip: allZero,
-      completedToday: completedToday
+      completedToday: completedToday,
+      dailyStatusMessage: statusCopy.dailyStatusMessage,
+      reviewButtonLabel: statusCopy.reviewButtonLabel
     });
   },
 
@@ -1355,6 +1380,12 @@ Page({
   goToReview() {
     if (this.data.isManageMode) return;
     if (this.data.reviewEntryLoading) return;
+
+    // Phase 6O-2: When today is all done, navigate to status page instead of creating session
+    if (this.data.totalToday > 0 && this.data.completedToday >= this.data.totalToday) {
+      wx.navigateTo({ url: '/pages/today_review_status/today_review_status?from=home_done' });
+      return;
+    }
 
     // If new cards were added since last session, force a fresh session
     if (this._needsSessionRestart) {

@@ -2,7 +2,7 @@
   <!-- ===== Header ===== -->
   <view class="header">
     <view class="title">英语知识卡片本</view>
-    <view class="subtitle-home">今天已学习 {{completedToday}} 张，还有 {{totalToday}} 张待学习</view>
+    <view class="subtitle-home">{{dailyStatusMessage}}</view>
   </view>
 
   <!-- ===== Status Overview Card ===== -->
@@ -22,7 +22,7 @@
   <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% (only when cards exist) ===== -->
   <view wx:if="{{totalCardCount > 0}}" class="main-actions">
     <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
-    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">进入复习页</button>
+    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
   </view>
 
   <!-- ===== Weak Sync Hint ===== -->
