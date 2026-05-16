@@ -27,7 +27,7 @@
 
   <!-- ===== Weak Sync Hint ===== -->
   <view wx:if="{{pendingActionCount > 0}}" class="weak-sync-bar">
-    <text class="weak-sync-text">有 {{pendingActionCount}} 条复习记录待同步，网络恢复后会自动保存</text>
+    <text class="weak-sync-text">网络恢复后会更新学习记录</text>
   </view>
 
   <!-- ===== 0-Card Quick Start ===== -->

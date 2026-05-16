@@ -1480,7 +1480,7 @@ Page({
 
     if (shouldContinue) {
       wx.showToast({
-        title: pendingSync ? '已保存到本地，待同步' : '已保存到本地，继续新增',
+        title: pendingSync ? '已先保存，联网后自动更新' : '已保存到本地，继续新增',
         icon: pendingSync ? 'none' : 'success'
       });
 
@@ -1495,7 +1495,7 @@ Page({
 
     wx.showToast({
       title: pendingSync
-        ? (isEdit ? '已更新到本地，待同步' : '已保存到本地，待同步')
+        ? '已先保存，联网后自动更新'
         : (isEdit ? '已更新到本地' : '已保存到本地'),
       icon: pendingSync ? 'none' : 'success'
     });
