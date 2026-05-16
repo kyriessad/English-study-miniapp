@@ -2613,7 +2613,9 @@
 /* ===== Phase 4B: 卡片库区域 ===== */
 
 .library-section {
-  margin-top: 32rpx;
+  margin-top: 44rpx;
+  padding-top: 32rpx;
+  border-top: 1rpx solid #e7eee4;
 }
 
 .section-header {
@@ -2998,14 +3000,19 @@
 }
 
 .status-overview-arrow {
-  font-size: 40rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  background: #f0f7f3;
+  color: #3f7449;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
   font-weight: 700;
-  color: #5eaa64;
   margin-left: 16rpx;
   flex-shrink: 0;
   line-height: 1;
-  display: flex;
-  align-items: center;
 }
 
 /* Main actions — 添加卡片 25% + 进入复习页 75% */
