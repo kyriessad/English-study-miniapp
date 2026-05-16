@@ -1502,13 +1502,6 @@ Page({
 
     setTimeout(() => {
       if (isFromReviewPage(this.pageOptions)) {
-        const pages = getCurrentPages();
-        const previousPage = pages[pages.length - 2];
-
-        if (previousPage && typeof previousPage.applyEditedCardFromReview === 'function') {
-          previousPage.applyEditedCardFromReview(this.data.cardId);
-        }
-
         wx.navigateBack({ delta: 1 });
         return;
       }
