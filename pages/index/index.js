@@ -480,10 +480,10 @@ function computeDailyStatusCopy(totalToday, completedToday) {
   var c = Number(completedToday) || 0;
 
   if (t > 0 && c >= t) {
-    return { dailyStatusMessage: '今天的任务都完成了 🎉', reviewButtonLabel: '继续复习' };
+    return { dailyStatusMessage: '今天的任务都完成了', reviewButtonLabel: '继续复习' };
   }
   if (c > 0 && c < t) {
-    return { dailyStatusMessage: '正在学习中，继续加油 💪', reviewButtonLabel: '继续复习' };
+    return { dailyStatusMessage: '正在学习中，继续加油', reviewButtonLabel: '继续复习' };
   }
   return { dailyStatusMessage: '新的一天，开始学习吧', reviewButtonLabel: '开始复习' };
 }

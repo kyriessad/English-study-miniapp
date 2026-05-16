@@ -182,11 +182,6 @@
       </view>
     </view>
 
-    <!-- Cards Count -->
-    <view wx:if="{{!isManageMode}}" class="list-toolbar">
-      <view class="list-counts">共 {{displayTotalCount || totalCardCount}} 张 · 当前 {{displayCurrentCount || currentResultCount}} 张</view>
-    </view>
-
     <!-- Manage Mode Toolbar -->
     <view wx:if="{{isManageMode}}" class="manage-toolbar manage-toolbar-fixed">
       <view class="manage-toolbar-title">已选 {{selectedCardIds.length}} 张卡片</view>
