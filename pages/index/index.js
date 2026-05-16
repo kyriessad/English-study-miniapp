@@ -40,7 +40,6 @@ const retryingAnalysisCardIds = new Set();
 const LIBRARY_TABS = [
   { key: 'all', label: '全部' },
   { key: 'new', label: '待学习' },
-  { key: 'reviewing', label: '学习中' },
   { key: 'strengthening', label: '待加强' },
   { key: 'mastered', label: '已掌握' }
 ];

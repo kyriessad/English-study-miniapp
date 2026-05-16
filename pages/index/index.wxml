@@ -220,7 +220,7 @@
               <view class="card-tags">
                 <view class="card-tag card-tag-home">{{item.category || '单词'}}</view>
               </view>
-              <view class="card-status-pill {{item.displayStatusClass || item.stateClass}}">
+              <view wx:if="{{currentLibraryTab === 'all'}}" class="card-status-pill {{item.displayStatusClass || item.stateClass}}">
                 {{item.displayStatusLabel || item.stateLabel}}
               </view>
             </view>

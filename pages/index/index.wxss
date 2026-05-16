@@ -2675,27 +2675,27 @@
 /* ===== Phase 4B: 卡片状态标签 (reviewStateV2) ===== */
 
 .card-status-pill.state-new {
-  color: #5f768d;
-  background: #f3f7fb;
-  border-color: #dce7f1;
+  color: #6B7280;
+  background: #F3F4F6;
+  border-color: #E5E7EB;
 }
 
 .card-status-pill.state-reviewing {
-  color: #5f7f6b;
-  background: #f1f8f4;
-  border-color: #d8eadf;
+  color: #6B7280;
+  background: #F3F4F6;
+  border-color: #E5E7EB;
 }
 
 .card-status-pill.state-strengthening {
-  color: #a7772e;
-  background: #fff8ea;
-  border-color: #efd9ab;
+  color: #D97706;
+  background: #FEF3C7;
+  border-color: #FDE68A;
 }
 
 .card-status-pill.state-mastered {
-  color: #3f8b61;
-  background: #f0faf4;
-  border-color: #ccebd8;
+  color: #059669;
+  background: #D1FAE5;
+  border-color: #A7F3D0;
 }
 
 /* ===== Phase 4B: 首页旧快速筛选隐藏 ===== */
