@@ -846,7 +846,8 @@ Page({
         dailyStatusMessage = '今日目标已完成';
         reviewButtonLabel = '继续复习';
       } else if (isGoalBlocked) {
-        dailyStatusMessage = '当前可学内容已完成，可以添加卡片继续';
+        var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
+        dailyStatusMessage = localCardCount > 0 ? '当前可学内容已完成，可以添加卡片继续' : '新的一天，开始学习吧';
         reviewButtonLabel = '继续复习';
       } else if (displayCompleted > 0 && displayCompleted < displayTotal) {
         dailyStatusMessage = '正在学习中，继续加油';

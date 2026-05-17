@@ -15,8 +15,14 @@
     <text class="status-overview-arrow">›</text>
   </view>
 
-  <!-- ===== Main Buttons: 添加卡片 25% + 进入复习页 75% (only when cards exist) ===== -->
-  <view wx:if="{{totalCardCount > 0}}" class="main-actions">
+  <!-- ===== Main Buttons ===== -->
+  <!-- goal_blocked && not goal_met: 继续复习 25% (secondary) + 添加卡片继续 75% (primary) -->
+  <view wx:if="{{totalCardCount > 0 && isGoalBlocked && !isGoalMet}}" class="main-actions">
+    <button class="main-btn add-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">继续复习</button>
+    <button class="main-btn review-main-btn" bindtap="goToAddPage">添加卡片继续</button>
+  </view>
+  <!-- normal / goal-met / goal-overachieved: 添加卡片 25% + 进入复习页 75% -->
+  <view wx:if="{{totalCardCount > 0 && !(isGoalBlocked && !isGoalMet)}}" class="main-actions">
     <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
     <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
   </view>
