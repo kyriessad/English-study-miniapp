@@ -185,5 +185,11 @@
         </view>
       </view>
     </block>
+
+    <!-- daily goal hint — all states -->
+    <view class="status-goal" bindtap="goToSettings">
+      <text class="status-goal__label">每日目标 {{dailyGoal}} 张</text>
+      <text class="status-goal__arrow">调整 ›</text>
+    </view>
   </view>
 </view>

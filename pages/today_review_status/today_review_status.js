@@ -3,6 +3,21 @@ const { getReviewOverview, createReviewSession, getTodayReviewed } = require('..
 const OVERVIEW_CACHE_KEY = 'reviewOverviewCache';
 const TODAY_REVIEWED_CACHE_KEY = 'todayReviewedCache';
 
+const DAILY_GOAL_KEY = 'dailyGoal';
+const DAILY_GOAL_DEFAULT = 5;
+const DAILY_GOAL_OPTIONS = [3, 5, 10];
+
+function readDailyGoal() {
+  try {
+    const raw = wx.getStorageSync(DAILY_GOAL_KEY);
+    const n = Number(raw);
+    if (DAILY_GOAL_OPTIONS.indexOf(n) !== -1) return n;
+    return DAILY_GOAL_DEFAULT;
+  } catch (_) {
+    return DAILY_GOAL_DEFAULT;
+  }
+}
+
 Page({
   data: {
     loading: true,
@@ -25,12 +40,22 @@ Page({
     todayReviewedEnabled: false,
     todayReviewedLabel: '今日已复习内容',
 
+    dailyGoal: DAILY_GOAL_DEFAULT,
+
     masteredCount: 0,
     consolidateCount: 0
   },
 
   onLoad() {
     this._fetch();
+  },
+
+  onShow() {
+    this.setData({ dailyGoal: readDailyGoal() });
+  },
+
+  goToSettings() {
+    wx.navigateTo({ url: '/pages/settings/index' });
   },
 
   async _fetch() {
@@ -139,7 +164,9 @@ Page({
       mainButtonDisabled,
 
       todayReviewedEnabled,
-      todayReviewedLabel
+      todayReviewedLabel,
+
+      dailyGoal: readDailyGoal()
     });
   },
 

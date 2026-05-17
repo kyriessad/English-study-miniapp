@@ -232,6 +232,26 @@
   box-shadow: none;
 }
 
+/* daily goal hint */
+.status-goal {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6rpx;
+  margin-top: 40rpx;
+  padding: 16rpx 0;
+}
+
+.status-goal__label {
+  font-size: 26rpx;
+  color: #8a9a8e;
+}
+
+.status-goal__arrow {
+  font-size: 26rpx;
+  color: #9aa89d;
+}
+
 /* secondary entries */
 .status-secondary {
   padding: 0 28rpx;
