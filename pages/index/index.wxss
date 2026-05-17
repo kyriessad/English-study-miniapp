@@ -1921,7 +1921,8 @@
   top: 0;
   font-size: 26rpx;
   color: #8a9a8e;
-  padding: 6rpx 4rpx;
+  padding: 10rpx 12rpx;
+  z-index: 2;
 }
 
 .header-settings--hover {
