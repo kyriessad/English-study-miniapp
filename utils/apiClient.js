@@ -311,9 +311,9 @@ function deleteBackendCard(cardId) {
   });
 }
 
-function getReviewOverview() {
+function getReviewOverview(params) {
   return request({
-    url: '/api/reviews/overview',
+    url: '/api/reviews/overview' + buildQueryString(params || {}),
     method: 'GET'
   });
 }

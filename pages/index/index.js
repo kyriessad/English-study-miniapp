@@ -27,6 +27,21 @@ const {
   clearDroppedActions
 } = require('../../utils/actionQueue');
 
+const DAILY_GOAL_KEY = 'dailyGoal';
+const DAILY_GOAL_DEFAULT = 5;
+const DAILY_GOAL_OPTIONS = [3, 5, 10];
+
+function readDailyGoal() {
+  try {
+    const raw = wx.getStorageSync(DAILY_GOAL_KEY);
+    const n = Number(raw);
+    if (DAILY_GOAL_OPTIONS.indexOf(n) !== -1) return n;
+    return DAILY_GOAL_DEFAULT;
+  } catch (_) {
+    return DAILY_GOAL_DEFAULT;
+  }
+}
+
 const DEFAULT_CATEGORY = '单词';
 const DEFAULT_EXAM_SCENE = '未分类';
 const DEFAULT_EXAM_MODULE = '未分类';
@@ -574,7 +589,16 @@ Page({
     reviewButtonLabel: '开始复习',
 
     // Phase 6O-2A: hide new-study entry card when task is in progress
-    hideNewStudyEntry: false
+    hideNewStudyEntry: false,
+
+    // Phase 6P-later-3: goal_progress display fields
+    displayCompleted: 0,
+    displayTotal: 0,
+    goalProgress: null,
+    actualCompletedToday: 0,
+    isGoalMet: false,
+    isGoalOverachieved: false,
+    isGoalBlocked: false
   },
 
   async onShow() {
@@ -779,9 +803,6 @@ Page({
     var reviewActions = this.buildReviewActions(normalized, isAllDone);
     var allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
 
-    // Phase 6C / 6L-hotfix-4: 首页统计按 unique card count，不按 review session dynamic steps。
-    // totalToday = 今天需要学习/复习的唯一卡片数（suggested 中的 planned_* 计数）。
-    // completedToday = 今天已完成过至少一次反馈的唯一卡片数（backend completed_suggested.total_count 已按 DISTINCT card_id 去重）。
     var completedToday = 0;
     var raw = normalized.raw || {};
     if (raw.completed_suggested && typeof raw.completed_suggested === 'object') {
@@ -793,17 +814,70 @@ Page({
       );
     }
 
+    // Phase 6P-later-3: goal_progress display
+    var goalProgress = null;
+    var displayCompleted = completedToday;
+    var displayTotal = totalToday;
+    var actualCompletedToday = completedToday;
+    var isGoalMet = false;
+    var isGoalOverachieved = false;
+    var isGoalBlocked = false;
+    var dailyStatusMessage = '';
+    var reviewButtonLabel = '';
+
+    if (raw.goal_progress && typeof raw.goal_progress === 'object') {
+      goalProgress = raw.goal_progress;
+      var gp = goalProgress;
+      displayCompleted = pickNumber(gp.display_numerator, 0);
+      displayTotal = pickNumber(gp.display_denominator, 0);
+      actualCompletedToday = pickNumber(gp.completed_unique_today, completedToday);
+      isGoalMet = gp.is_goal_met === true;
+      isGoalOverachieved = gp.is_overachieved === true;
+      isGoalBlocked = gp.is_goal_blocked === true;
+
+      // Goal-aware status message
+      if (displayTotal === 0) {
+        dailyStatusMessage = '新的一天，开始学习吧';
+        reviewButtonLabel = '开始复习';
+      } else if (isGoalMet && isGoalOverachieved) {
+        dailyStatusMessage = '今天已完成 ' + actualCompletedToday + ' 张，超额完成';
+        reviewButtonLabel = '继续复习';
+      } else if (isGoalMet) {
+        dailyStatusMessage = '今日目标已完成';
+        reviewButtonLabel = '继续复习';
+      } else if (isGoalBlocked) {
+        dailyStatusMessage = '当前可学内容已完成，可以添加卡片继续';
+        reviewButtonLabel = '继续复习';
+      } else if (displayCompleted > 0 && displayCompleted < displayTotal) {
+        dailyStatusMessage = '正在学习中，继续加油';
+        reviewButtonLabel = '继续复习';
+      } else {
+        dailyStatusMessage = '新的一天，开始学习吧';
+        reviewButtonLabel = '开始复习';
+      }
+    } else {
+      // Fallback to old suggested / completed_suggested
+      var statusCopy = computeDailyStatusCopy(totalToday, completedToday);
+      dailyStatusMessage = statusCopy.dailyStatusMessage;
+      reviewButtonLabel = statusCopy.reviewButtonLabel;
+    }
+
     console.log('[phase6g-home-state] overview new_only_count', pickNumber(
       normalized.extraToday && normalized.extraToday.newOnlyCount,
       normalized.toNew,
       0
     ));
     console.log('[phase6g-home-state] overview totalToday', totalToday, 'toNew', toNew, 'toReview', toReview);
-
-    var statusCopy = computeDailyStatusCopy(totalToday, completedToday);
+    console.log('[phase6p-later-3] goal_progress', goalProgress ? JSON.stringify({
+      display_numerator: displayCompleted,
+      display_denominator: displayTotal,
+      completed_unique_today: actualCompletedToday,
+      is_goal_met: isGoalMet,
+      is_overachieved: isGoalOverachieved,
+      is_goal_blocked: isGoalBlocked
+    }) : 'missing, using fallback');
 
     // Phase 6O-2A: Hide new-study entry card when today's task is in progress.
-    // Show it when there are no tasks yet, or when today's task is complete.
     var hideNewStudyEntry = totalToday > 0 && completedToday < totalToday;
 
     this.setData({
@@ -820,8 +894,15 @@ Page({
       reviewActions: reviewActions,
       showEmptyTaskTip: allZero,
       completedToday: completedToday,
-      dailyStatusMessage: statusCopy.dailyStatusMessage,
-      reviewButtonLabel: statusCopy.reviewButtonLabel
+      dailyStatusMessage: dailyStatusMessage,
+      reviewButtonLabel: reviewButtonLabel,
+      displayCompleted: displayCompleted,
+      displayTotal: displayTotal,
+      goalProgress: goalProgress,
+      actualCompletedToday: actualCompletedToday,
+      isGoalMet: isGoalMet,
+      isGoalOverachieved: isGoalOverachieved,
+      isGoalBlocked: isGoalBlocked
     });
   },
 
@@ -876,7 +957,8 @@ Page({
   async loadReviewOverview() {
     var seq = ++this._overviewReqSeq;
     try {
-      var overview = await getReviewOverview();
+      var dailyGoal = readDailyGoal();
+      var overview = await getReviewOverview({ daily_goal: dailyGoal });
       if (seq !== this._overviewReqSeq) return;
       this.applyReviewOverview(overview);
       wx.setStorageSync('reviewOverviewCache', overview);
@@ -1249,6 +1331,9 @@ Page({
         limit: 5,
         ...(needsRestart ? { restart: true } : {})
       };
+      if (sessionType === 'daily_suggested') {
+        sessionData.daily_goal = readDailyGoal();
+      }
       const result = await createReviewSession(sessionData);
       const sessionId =
         (result && (result.session_id || result.id)) ||
@@ -1471,6 +1556,9 @@ Page({
         limit: 5,
         ...(needsRestart ? { restart: true } : {})
       };
+      if (sessionType === 'daily_suggested') {
+        sessionData.daily_goal = readDailyGoal();
+      }
       var result = await createReviewSession(sessionData);
       var sessionId = (result && (result.session_id || result.id)) ||
         (result && result.data && (result.data.session_id || result.data.id)) || '';
