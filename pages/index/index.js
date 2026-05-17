@@ -1416,6 +1416,10 @@ Page({
     wx.navigateTo({ url: '/pages/today_review_status/today_review_status' });
   },
 
+  goToSettings() {
+    wx.navigateTo({ url: '/pages/settings/index' });
+  },
+
   goToAddPage() {
     if (this.data.isManageMode) return;
     wx.navigateTo({ url: '/pages/add/add' });

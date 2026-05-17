@@ -6,7 +6,8 @@
     "pages/history_reviewed/history_index",
     "pages/history_detail/history_detail",
     "pages/today_reviewed/today_reviewed",
-    "pages/today_review_status/today_review_status"
+    "pages/today_review_status/today_review_status",
+    "pages/settings/index"
   ],
   "window": {
     "navigationBarTitleText": "英语知识卡片本",

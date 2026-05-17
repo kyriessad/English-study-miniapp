@@ -1915,6 +1915,19 @@
   position: relative;
 }
 
+.header-settings {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 26rpx;
+  color: #8a9a8e;
+  padding: 6rpx 4rpx;
+}
+
+.header-settings--hover {
+  color: #5eaa64;
+}
+
 /* ===== 每日鼓励文案 ===== */
 .daily-message {
   font-size: 26rpx;

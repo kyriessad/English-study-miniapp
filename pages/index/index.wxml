@@ -3,6 +3,7 @@
   <view class="header">
     <view class="title">英语知识卡片本</view>
     <view class="subtitle-home">{{dailyStatusMessage}}</view>
+    <view class="header-settings" bindtap="goToSettings" hover-class="header-settings--hover">设置</view>
   </view>
 
   <!-- ===== Status Overview Card: 今日完成 M / N ===== -->
