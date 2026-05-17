@@ -5,16 +5,11 @@
     <view class="subtitle-home">{{dailyStatusMessage}}</view>
   </view>
 
-  <!-- ===== Status Overview Card ===== -->
-  <view class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
-    <view class="status-overview-item">
-      <text class="status-overview-num">{{totalToday}}</text>
-      <text class="status-overview-label">今日任务</text>
-    </view>
-    <view class="status-overview-divider"></view>
-    <view class="status-overview-item">
-      <text class="status-overview-num">{{completedToday}}</text>
-      <text class="status-overview-label">今日已完成</text>
+  <!-- ===== Status Overview Card: 今日完成 M / N ===== -->
+  <view wx:if="{{totalCardCount > 0}}" class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
+    <view class="status-overview-progress">
+      <text class="status-overview-label">今日完成</text>
+      <text class="status-overview-num">{{completedToday}} / {{totalToday}}</text>
     </view>
     <text class="status-overview-arrow">›</text>
   </view>

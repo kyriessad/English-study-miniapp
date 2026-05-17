@@ -2,27 +2,26 @@
 
 ## 当前阶段
 
-Phase 6M 前准备已完成。
+Phase 6P-1：首页顶部统计语义改为"今日完成 M / N"。
 
-最近完成：Phase 6L-hotfix-4：首页今日任务 / 今日已完成统计语义修正。
+最近完成：Phase 6R-4：视觉 polish 收口审查 + 阶段总结文档（e9698cb）。
 
 ## 最新提交
 
-Backend:
-
-- 31d029 fix overview daily count semantics
-
-Frontend:
-
 - 27ac935 fix home completed count display
+- fad11ec polish home visual hierarchy
+- 292a9b3 unify today pages visual style
+- e9698cb document phase 6r visual polish summary
 
-## 当前首页统计语义
+## 当前首页统计语义（Phase 6P-1 后）
 
-- 今日任务 = 当前今日建议任务的有效唯一卡片数
-- 今日已完成 = 当前今日任务中已完成反馈的有效唯一卡片数
+- 首页顶部展示"今日完成 M / N"
+- M = 今日任务中已完成反馈的有效唯一卡片数（completedToday）
+- N = 今日建议任务的有效唯一卡片数（totalToday）
 - 不统计已删除卡片
 - 不受回炉 steps 影响
 - 不被 is_all_done 覆盖为 0
+- 0 张卡时不显示进度卡片
 
 ## 已完成关键能力
 
@@ -33,6 +32,9 @@ Frontend:
 - free_review 兜底可用
 - 回炉卡动态进度可用
 - 首页今日任务 / 今日已完成统计语义已修正
+- 首页视觉层级 polish（Phase 6R-2）
+- 今日复习情况页 / 今日复习内容页视觉统一（Phase 6R-3）
+- 首页顶部统计从双列改为单一进度表达（Phase 6P-1）
 
 ## 下一步
 
