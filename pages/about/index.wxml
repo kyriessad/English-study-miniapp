@@ -1,0 +1,9 @@
+<view class="about-page">
+  <view class="about-card">
+    <view class="about-app-name">英语知识卡片本</view>
+    <view class="about-tagline">随手记下你遇到的英文，轻松回顾。</view>
+    <view class="about-divider"></view>
+    <view class="about-desc">这是一个低压力的英语知识卡片小程序，适合记录你在视频、新闻、聊天或工作中遇到的英文内容。</view>
+    <view class="about-version">v1.0.0</view>
+  </view>
+</view>

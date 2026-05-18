@@ -40,6 +40,10 @@ Page({
     });
   },
 
+  goToAbout() {
+    wx.navigateTo({ url: '/pages/about/index' });
+  },
+
   onDailyGoalChange(e) {
     const idx = Number(e.detail.value);
     if (idx < 0 || idx >= DAILY_GOAL_OPTIONS.length) return;

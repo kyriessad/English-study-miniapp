@@ -24,9 +24,12 @@
   <view class="settings-section">
     <view class="settings-section-title">其他</view>
 
-    <view class="settings-item settings-item--static">
+    <view class="settings-item" bindtap="goToAbout" hover-class="settings-item--hover">
       <view class="settings-item-label">关于</view>
-      <view class="settings-item-value settings-item-value--muted">英语知识卡片本</view>
+      <view class="settings-item-value">
+        <text>英语知识卡片本</text>
+        <text class="settings-item-arrow">›</text>
+      </view>
     </view>
   </view>
 </view>

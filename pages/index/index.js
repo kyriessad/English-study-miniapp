@@ -473,6 +473,9 @@ function decorateCards(cards, selectedCardIds) {
       displayStatusClass: displayStatus.className,
       reviewCountText: (function() {
         var count = Number(card.reviewCount || 0);
+        var syncStatus = String(card.backend_sync_status || card.backendSyncStatus || card.syncStatus || '').trim();
+        var isLocalPending = syncStatus === 'pending' || card.local_only === true || card.localOnly === true;
+        if (isLocalPending && count <= 0) return '已先保存';
         if (count <= 0) return '未复习';
         var relative = formatRelativeReviewTime(card.lastReviewedAt);
         if (relative) return '已复习 ' + count + ' 次 · 上次: ' + relative;
@@ -594,6 +597,7 @@ Page({
     // Phase 6P-later-3: goal_progress display fields
     displayCompleted: 0,
     displayTotal: 0,
+    progressPercent: 0,
     goalProgress: null,
     actualCompletedToday: 0,
     isGoalMet: false,
@@ -899,6 +903,7 @@ Page({
       reviewButtonLabel: reviewButtonLabel,
       displayCompleted: displayCompleted,
       displayTotal: displayTotal,
+      progressPercent: displayTotal > 0 ? Math.min(Math.round(displayCompleted / displayTotal * 100), 100) : 0,
       goalProgress: goalProgress,
       actualCompletedToday: actualCompletedToday,
       isGoalMet: isGoalMet,
@@ -1736,28 +1741,28 @@ Page({
     var cardType = e.currentTarget.dataset.type;
     var presets = {
       word: {
-        englishText: 'Serendipity',
-        myUnderstanding: '不期而遇的美好；意外发现美好事物的能力',
+        englishText: 'clutch',
+        myUnderstanding: '关键时刻顶得住',
         category: '单词',
         examScene: '未分类',
         examModule: '未分类',
-        notes: '来自首页示例'
+        notes: 'NBA 解说里常见，用来形容关键时刻表现很稳。'
       },
       phrase: {
-        englishText: 'Light in the cracks',
-        myUnderstanding: '裂缝里的光；困境中仍然存在的希望',
+        englishText: 'break a leg',
+        myUnderstanding: '祝你好运，尤其常用于演出或上台前',
         category: '短语',
         examScene: '未分类',
         examModule: '未分类',
-        notes: '来自首页示例'
+        notes: '美剧或舞台表演场景里常见，不是真的"摔断腿"。'
       },
       sentence: {
-        englishText: 'Grow through what you go through.',
-        myUnderstanding: '经历什么，就从什么中成长',
+        englishText: "I'll keep you posted.",
+        myUnderstanding: '有进展我会告诉你',
         category: '句子',
         examScene: '未分类',
         examModule: '未分类',
-        notes: '来自首页示例'
+        notes: '工作邮件或聊天里常见，表示后续会同步消息。'
       }
     };
 

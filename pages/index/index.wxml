@@ -8,11 +8,16 @@
 
   <!-- ===== Status Overview Card: 今日完成 M / N ===== -->
   <view wx:if="{{totalCardCount > 0}}" class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
-    <view class="status-overview-progress">
-      <text class="status-overview-label">今日完成</text>
-      <text class="status-overview-num">{{displayCompleted}} / {{displayTotal}}</text>
+    <view class="status-overview-row">
+      <view class="status-overview-progress">
+        <text class="status-overview-label">今日完成</text>
+        <text class="status-overview-num">{{displayCompleted}} / {{displayTotal}}</text>
+      </view>
+      <text class="status-overview-arrow">›</text>
     </view>
-    <text class="status-overview-arrow">›</text>
+    <view class="status-overview-bar">
+      <view class="status-overview-bar-fill" style="width: {{progressPercent}}%;"></view>
+    </view>
   </view>
 
   <!-- ===== Main Buttons ===== -->
@@ -34,7 +39,7 @@
 
   <!-- ===== 0-Card Quick Start ===== -->
   <view wx:if="{{totalCardCount === 0}}" class="quick-start-section">
-    <view class="quick-start-guide">先添加一张卡片，或者从下面的示例开始。</view>
+    <view class="quick-start-guide">看到喜欢的英文随手记下来。点下面的示例试试 ↓</view>
 
     <button class="first-card-btn" bindtap="goToAddPage">添加第一张卡片</button>
 
@@ -43,8 +48,8 @@
         <view class="preset-card-type">单词</view>
         <view class="preset-card-plus">＋</view>
       </view>
-      <view class="preset-card-content">Serendipity</view>
-      <view class="preset-card-meaning">不期而遇的美好</view>
+      <view class="preset-card-content">clutch</view>
+      <view class="preset-card-meaning">关键时刻顶得住</view>
     </view>
 
     <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="phrase" bindtap="handleCreateExampleCard">
@@ -52,8 +57,8 @@
         <view class="preset-card-type">短语</view>
         <view class="preset-card-plus">＋</view>
       </view>
-      <view class="preset-card-content">Light in the cracks</view>
-      <view class="preset-card-meaning">裂缝里的光</view>
+      <view class="preset-card-content">break a leg</view>
+      <view class="preset-card-meaning">祝你好运，尤其常用于演出或上台前</view>
     </view>
 
     <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="sentence" bindtap="handleCreateExampleCard">
@@ -61,8 +66,8 @@
         <view class="preset-card-type">句子</view>
         <view class="preset-card-plus">＋</view>
       </view>
-      <view class="preset-card-content">Grow through what you go through.</view>
-      <view class="preset-card-meaning">经历什么，就从什么中成长</view>
+      <view class="preset-card-content">I'll keep you posted.</view>
+      <view class="preset-card-meaning">有进展我会告诉你</view>
     </view>
   </view>
 
