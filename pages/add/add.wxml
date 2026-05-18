@@ -89,6 +89,18 @@
     </view>
 
     <view class="form-item">
+      <view class="label">在哪里遇到（可选）</view>
+      <input
+        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        disabled="{{isReadonlyDetailMode}}"
+        placeholder="例如 NBA 解说、美剧 Friends、工作邮件"
+        value="{{form.whereEncountered}}"
+        maxlength="100"
+        bindinput="onWhereEncounteredInput"
+      />
+    </view>
+
+    <view class="form-item">
   <view class="label">我的理解</view>
       <textarea
       class="textarea textarea-understanding {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
@@ -111,7 +123,7 @@
         class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
         auto-height
         disabled="{{isReadonlyDetailMode}}"
-        placeholder="来源 / 语境 / 易错点 / 例句 / 联想记忆等"
+        placeholder="易错点 / 例句 / 联想记忆等"
         value="{{form.notes}}"
         maxlength="-1"
         bindinput="onNotesInput"

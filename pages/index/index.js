@@ -1746,6 +1746,7 @@ Page({
         category: '单词',
         examScene: '未分类',
         examModule: '未分类',
+        whereEncountered: 'NBA 解说',
         notes: 'NBA 解说里常见，用来形容关键时刻表现很稳。'
       },
       phrase: {
@@ -1754,6 +1755,7 @@ Page({
         category: '短语',
         examScene: '未分类',
         examModule: '未分类',
+        whereEncountered: '美剧 / 舞台表演',
         notes: '美剧或舞台表演场景里常见，不是真的"摔断腿"。'
       },
       sentence: {
@@ -1762,6 +1764,7 @@ Page({
         category: '句子',
         examScene: '未分类',
         examModule: '未分类',
+        whereEncountered: '工作邮件',
         notes: '工作邮件或聊天里常见，表示后续会同步消息。'
       }
     };

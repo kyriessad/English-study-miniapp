@@ -737,6 +737,7 @@ function buildBackendCardCreatePayload(form = {}) {
     exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
+    where_encountered: trimValue(fields.whereEncountered) || null,
     translation: trimValue(fields.translation) || null,
     analysis_status: trimValue(fields.analysisStatus) || 'pending',
     analysis_level: getBackendAnalysisLevelFromLocal(fields),
@@ -759,6 +760,7 @@ function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
     exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
+    where_encountered: trimValue(fields.whereEncountered) || null,
     translation: trimValue(fields.translation) || null
   };
 }
@@ -790,6 +792,7 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
     englishText: trimValue(backendCard.content),
     myUnderstanding: trimValue(backendCard.understanding || ''),
     notes: trimValue(backendCard.note || ''),
+    whereEncountered: trimValue(backendCard.where_encountered || ''),
     reviewState: reviewCount > 0
       ? (lastReviewResult || fallbackCard.reviewState || BACKEND_INITIAL_REVIEW_STATE)
       : BACKEND_INITIAL_REVIEW_STATE,
@@ -876,6 +879,7 @@ function cardsNeedUpdate(backendCard, form, currentCard) {
   var formCategory = pickFirstDefinedValue(form.category, currentCard && currentCard.category, '');
   var formExamScene = pickFirstDefinedValue(form.examScene, currentCard && currentCard.examScene, '');
   var formExamModule = pickFirstDefinedValue(form.examModule, currentCard && currentCard.examModule, '');
+  var formWhereEncountered = pickFirstDefinedValue(form.whereEncountered, currentCard && currentCard.whereEncountered, '');
 
   if (safeNormalize(backendCard.content) !== safeNormalize(formEnglishText)) return true;
   if (safeNormalize(backendCard.understanding) !== safeNormalize(formUnderstanding)) return true;
@@ -884,6 +888,7 @@ function cardsNeedUpdate(backendCard, form, currentCard) {
   if (safeNormalize(backendCard.card_type) !== safeNormalize(mapCategoryToBackendCardType(formCategory))) return true;
   if (safeNormalize(backendCard.exam_scene) !== safeNormalize(formExamScene)) return true;
   if (safeNormalize(backendCard.exam_module) !== safeNormalize(formExamModule)) return true;
+  if (safeNormalize(backendCard.where_encountered) !== safeNormalize(formWhereEncountered)) return true;
 
   return false;
 }
@@ -1276,6 +1281,7 @@ function normalizeCard(card) {
     englishText: trimValue(source.englishText),
     myUnderstanding: trimValue(source.myUnderstanding),
     notes: trimValue(source.notes),
+    whereEncountered: trimValue(source.whereEncountered || ''),
     local_temp_id: trimValue(source.local_temp_id || source.localTempId || ''),
     reviewState: normalizedReviewState,
     reviewCount: normalizedReviewCount,
@@ -1553,6 +1559,7 @@ function buildCardFields(form, fallbackCard) {
     englishText: trimValue(getFieldValue(source, fallback, 'englishText', '')),
     myUnderstanding: trimValue(getFieldValue(source, fallback, 'myUnderstanding', '')),
     notes: trimValue(getFieldValue(source, fallback, 'notes', '')),
+    whereEncountered: trimValue(getFieldValue(source, fallback, 'whereEncountered', '')),
     reviewState: normalizeReviewState(getFieldValue(source, fallback, 'reviewState', '未复习')),
     reviewCount: Math.max(Number(
       Object.prototype.hasOwnProperty.call(source, 'reviewCount')
@@ -2133,6 +2140,7 @@ async function syncPendingCardsToBackend() {
           englishText: pendingCard.englishText,
           myUnderstanding: pendingCard.myUnderstanding,
           notes: pendingCard.notes,
+          whereEncountered: pendingCard.whereEncountered,
           translation: pendingCard.translation,
           analysisStatus: pendingCard.analysisStatus,
           analysisWarnings: pendingCard.analysisWarnings,

@@ -122,6 +122,7 @@ function buildBackendCardPayload(card = {}) {
     exam_module: normalizePlainText(card.examModule) || null,
     understanding: normalizePlainText(card.myUnderstanding) || null,
     note: normalizePlainText(card.notes) || null,
+    where_encountered: normalizePlainText(card.whereEncountered) || null,
     analysis_status: normalizeBackendAnalysisStatus(card.analysisStatus),
     analysis_level: getBackendAnalysisLevel(card),
     analysis_messages: buildBackendAnalysisMessages(card),
@@ -276,6 +277,7 @@ function createEmptyForm() {
     examScene: DEFAULT_EXAM_SCENE,
     examModule: DEFAULT_EXAM_MODULE,
     englishText: '',
+    whereEncountered: '',
     myUnderstanding: '',
     notes: ''
   };
@@ -689,6 +691,7 @@ Page({
         examScene,
         examModule,
         englishText: card.englishText || '',
+        whereEncountered: card.whereEncountered || '',
         myUnderstanding: card.myUnderstanding || '',
         notes
       }
@@ -1412,6 +1415,13 @@ Page({
     });
   },
 
+  onWhereEncounteredInput(event) {
+    if (this.data.isReadonlyDetailMode) return;
+    this.setData({
+      'form.whereEncountered': event.detail.value
+    });
+  },
+
 
   resetFormForContinuousAdd(savedForm) {
     const nextForm = {
@@ -1420,6 +1430,7 @@ Page({
       examScene: savedForm.examScene,
       examModule: savedForm.examModule,
       englishText: '',
+      whereEncountered: '',
       myUnderstanding: '',
       notes: ''
     };
