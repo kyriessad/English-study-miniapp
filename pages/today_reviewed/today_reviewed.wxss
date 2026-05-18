@@ -107,19 +107,27 @@
   margin-bottom: 8rpx;
 }
 
-.today-card__source {
-  font-size: 24rpx;
-  color: #9ba8a0;
-  margin-bottom: 16rpx;
+.today-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.today-card__source-pill {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 280rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eef8ef;
+  color: #5f9f79;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.today-card__meta {
-  display: flex;
-  gap: 12rpx;
-  flex-wrap: wrap;
 }
 
 .today-card__tag {

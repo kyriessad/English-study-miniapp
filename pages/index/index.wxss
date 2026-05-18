@@ -2480,23 +2480,6 @@
 }
 
 /* 补充备注：最多 1 行 */
-.card-note-preview {
-  margin-top: 10rpx;
-  padding: 10rpx 14rpx;
-  border-radius: 14rpx;
-  background: #fbfaf6;
-  border: 1rpx solid #f0eadb;
-  color: #8a7a55;
-  font-size: 23rpx;
-  line-height: 1.5;
-
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-word;
-}
-
 .analysis-status-pill {
   flex-shrink: 0;
   margin-left: auto;
