@@ -61,11 +61,9 @@ Page({
 
   onShow() {
     const newGoal = readDailyGoal();
-    if (newGoal !== this.data.dailyGoal) {
-      this.setData({ dailyGoal: newGoal });
-      if (!this.data.loading) {
-        this._fetch();
-      }
+    this.setData({ dailyGoal: newGoal });
+    if (!this.data.loading) {
+      this._fetch();
     }
   },
 
