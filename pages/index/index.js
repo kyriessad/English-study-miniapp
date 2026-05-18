@@ -3,14 +3,8 @@ const {
   refreshCardsCacheFromBackend,
   syncPendingCardsToBackend,
   deleteCards,
-  updateCardsMeta,
   addCard
 } = require('../../utils/cardStorageFacade');
-
-const {
-  EXAM_SCENE_OPTIONS,
-  EXAM_MODULE_OPTIONS
-} = require('../../utils/cardOptions');
 
 const {
   getReviewOverview,
@@ -43,13 +37,7 @@ function readDailyGoal() {
 }
 
 const DEFAULT_CATEGORY = '单词';
-const DEFAULT_EXAM_SCENE = '未分类';
-const DEFAULT_EXAM_MODULE = '未分类';
 const CATEGORY_FILTER_OPTIONS = ['全部', '单词', '短语', '句子'];
-const EXAM_SCENE_FILTER_OPTIONS = ['全部'].concat(EXAM_SCENE_OPTIONS);
-const EXAM_MODULE_FILTER_OPTIONS = ['全部'].concat(EXAM_MODULE_OPTIONS);
-const BATCH_EXAM_SCENE_OPTIONS = EXAM_SCENE_OPTIONS.slice();
-const BATCH_EXAM_MODULE_OPTIONS = EXAM_MODULE_OPTIONS.slice();
 const retryingAnalysisCardIds = new Set();
 
 const LIBRARY_TABS = [
@@ -541,17 +529,9 @@ Page({
     searchRestoreScrollTop: 0,
 
     categoryFilterOptions: CATEGORY_FILTER_OPTIONS,
-    examSceneFilterOptions: EXAM_SCENE_FILTER_OPTIONS,
-    examModuleFilterOptions: EXAM_MODULE_FILTER_OPTIONS,
     categoryFilterIndex: 0,
-    examSceneFilterIndex: 0,
-    examModuleFilterIndex: 0,
     selectedCategoryFilter: '全部',
-    selectedExamSceneFilter: '全部',
-    selectedExamModuleFilter: '全部',
     categoryCount: 0,
-    examSceneCount: 0,
-    examModuleCount: 0,
 
     // Management
     isManageMode: false,
@@ -709,9 +689,9 @@ Page({
         this.setData({ cards: localCards });
 
         // If on 'all' tab with no search/filter, show all cards directly
-        const { currentLibraryTab, searchKeyword, selectedCategoryFilter, selectedExamSceneFilter, selectedExamModuleFilter, selectedCardIds } = this.data;
+        const { currentLibraryTab, searchKeyword, selectedCategoryFilter, selectedCardIds } = this.data;
         const noSearch = !normalizeSearchText(searchKeyword);
-        const noFilters = selectedCategoryFilter === '全部' && selectedExamSceneFilter === '全部' && selectedExamModuleFilter === '全部';
+        const noFilters = selectedCategoryFilter === '全部';
         if (currentLibraryTab === 'all' && noSearch && noFilters) {
           const decorated = decorateCards(localCards, selectedCardIds);
           this.setData({
@@ -1092,9 +1072,7 @@ Page({
       searchKeyword,
       currentLibraryTab,
       selectedCardIds,
-      selectedCategoryFilter,
-      selectedExamSceneFilter,
-      selectedExamModuleFilter
+      selectedCategoryFilter
     } = this.data;
 
     // Step 1: Filter by library tab (reviewStateV2)
@@ -1110,29 +1088,16 @@ Page({
     // This is the denominator ("共 X 张") for the current tab context.
     const tabFilteredCount = filtered.length;
 
-    // Step 2: Category / exam scene / exam module
+    // Step 2: Category filter
     filtered = filtered.filter((card) => {
       const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
-      const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
-      const matchModule = matchesExactFilter(card.examModule, selectedExamModuleFilter, DEFAULT_EXAM_MODULE);
-      return matchCategory && matchScene && matchModule;
+      return matchCategory;
     });
 
-    // Step 3: Compute category/exam counts for filter UI
+    // Step 3: Compute category count for filter UI
     const categoryCount = cards.filter((card) =>
       matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY)
     ).length;
-    const examSceneCount = cards.filter((card) => {
-      const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
-      const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
-      return matchCategory && matchScene;
-    }).length;
-    const examModuleCount = cards.filter((card) => {
-      const matchCategory = matchesExactFilter(card.category, selectedCategoryFilter, DEFAULT_CATEGORY);
-      const matchScene = matchesExactFilter(card.examScene, selectedExamSceneFilter, DEFAULT_EXAM_SCENE);
-      const matchModule = matchesExactFilter(card.examModule, selectedExamModuleFilter, DEFAULT_EXAM_MODULE);
-      return matchCategory && matchScene && matchModule;
-    }).length;
 
     // Step 4: Search keyword
     const normalizedKeyword = normalizeSearchText(searchKeyword);
@@ -1204,8 +1169,6 @@ Page({
 
     this.setData({
       categoryCount,
-      examSceneCount,
-      examModuleCount,
       totalCardCount: cards.length,
       currentResultCount: filtered.length,
       filteredCards: decoratedFilteredCards,
@@ -1269,19 +1232,6 @@ Page({
     this.applyFilters();
   },
 
-  onExamSceneFilterChange(event) {
-    const examSceneFilterIndex = Number(event.detail.value || 0);
-    const selectedExamSceneFilter = EXAM_SCENE_FILTER_OPTIONS[examSceneFilterIndex] || '全部';
-    this.setData({ examSceneFilterIndex, selectedExamSceneFilter });
-    this.applyFilters();
-  },
-
-  onExamModuleFilterChange(event) {
-    const examModuleFilterIndex = Number(event.detail.value || 0);
-    const selectedExamModuleFilter = EXAM_MODULE_FILTER_OPTIONS[examModuleFilterIndex] || '全部';
-    this.setData({ examModuleFilterIndex, selectedExamModuleFilter });
-    this.applyFilters();
-  },
 
   // ========== Review Entry ==========
 
@@ -1886,23 +1836,6 @@ Page({
     });
   },
 
-  handleBatchAssignExamScene() {
-    const selectedCardIds = this.data.selectedCardIds || [];
-    if (selectedCardIds.length === 0) {
-      wx.showToast({ title: '请先选择卡片', icon: 'none' });
-      return;
-    }
-    this.openBatchPanel('examScene', '批量设置考试场景', BATCH_EXAM_SCENE_OPTIONS);
-  },
-
-  handleBatchAssignExamModule() {
-    const selectedCardIds = this.data.selectedCardIds || [];
-    if (selectedCardIds.length === 0) {
-      wx.showToast({ title: '请先选择卡片', icon: 'none' });
-      return;
-    }
-    this.openBatchPanel('examModule', '批量设置考试模块', BATCH_EXAM_MODULE_OPTIONS);
-  },
 
   handleBatchDelete() {
     const selectedCardIds = this.data.selectedCardIds || [];
@@ -1995,20 +1928,13 @@ Page({
       return;
     }
     try {
-      if (batchPanelType === 'examScene') {
-        await updateCardsMeta(selectedCardIds, { examScene: value });
-      }
-      if (batchPanelType === 'examModule') {
-        await updateCardsMeta(selectedCardIds, { examModule: value });
-      }
+      // All batch panel types handled here; examScene/examModule removed in Phase 7C-3.
     } catch (error) {
       this.closeBatchPanel();
       wx.showToast({ title: '批量更新失败', icon: 'none' });
       return;
     }
     this.closeBatchPanel();
-    wx.showToast({ title: `已归类到${value}`, icon: 'success' });
-    this.refreshBackendCards();
   },
 
   noop() {},

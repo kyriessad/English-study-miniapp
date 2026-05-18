@@ -156,36 +156,6 @@
             <view class="filter-count">({{categoryCount}})</view>
           </view>
         </view>
-        <view class="filter-item">
-          <view class="filter-label">考试场景</view>
-          <view class="filter-picker-row">
-            <picker
-              class="filter-picker"
-              mode="selector"
-              range="{{examSceneFilterOptions}}"
-              value="{{examSceneFilterIndex}}"
-              bindchange="onExamSceneFilterChange"
-            >
-              <view class="picker-field">{{selectedExamSceneFilter}}</view>
-            </picker>
-            <view class="filter-count">({{examSceneCount}})</view>
-          </view>
-        </view>
-        <view class="filter-item">
-          <view class="filter-label">考试模块</view>
-          <view class="filter-picker-row">
-            <picker
-              class="filter-picker"
-              mode="selector"
-              range="{{examModuleFilterOptions}}"
-              value="{{examModuleFilterIndex}}"
-              bindchange="onExamModuleFilterChange"
-            >
-              <view class="picker-field">{{selectedExamModuleFilter}}</view>
-            </picker>
-            <view class="filter-count">({{examModuleCount}})</view>
-          </view>
-        </view>
       </view>
     </view>
 
@@ -194,8 +164,6 @@
       <view class="manage-toolbar-title">已选 {{selectedCardIds.length}} 张卡片</view>
       <view class="manage-toolbar-actions">
         <button class="manage-btn" bindtap="selectAllCards">全选/取消</button>
-        <button class="manage-btn" bindtap="handleBatchAssignExamScene">批量设场景</button>
-        <button class="manage-btn" bindtap="handleBatchAssignExamModule">批量设模块</button>
         <button class="manage-btn danger-btn" bindtap="handleBatchDelete">批量删除</button>
         <button class="manage-btn" bindtap="exitManageMode">退出管理</button>
       </view>
