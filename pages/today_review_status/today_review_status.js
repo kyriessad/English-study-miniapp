@@ -43,7 +43,16 @@ Page({
     dailyGoal: DAILY_GOAL_DEFAULT,
 
     masteredCount: 0,
-    consolidateCount: 0
+    consolidateCount: 0,
+
+    displayCompleted: 0,
+    displayTotal: 0,
+    actualCompletedToday: 0,
+    isGoalMet: false,
+    isGoalOverachieved: false,
+    isGoalBlocked: false,
+    hasAnyReviewableCards: true,
+    goalProgress: null
   },
 
   onLoad() {
@@ -51,7 +60,13 @@ Page({
   },
 
   onShow() {
-    this.setData({ dailyGoal: readDailyGoal() });
+    const newGoal = readDailyGoal();
+    if (newGoal !== this.data.dailyGoal) {
+      this.setData({ dailyGoal: newGoal });
+      if (!this.data.loading) {
+        this._fetch();
+      }
+    }
   },
 
   goToSettings() {
@@ -62,7 +77,7 @@ Page({
     this.setData({ loading: true, offline: false, loadFailed: false });
 
     try {
-      const overview = await getReviewOverview();
+      const overview = await getReviewOverview({ daily_goal: readDailyGoal() });
       wx.setStorageSync(OVERVIEW_CACHE_KEY, overview);
       this._applyOverview(overview, false);
     } catch (_) {
@@ -83,24 +98,55 @@ Page({
     const suggested = (overview && overview.suggested) ? overview.suggested : {};
     const completed = (overview && overview.completed_suggested) ? overview.completed_suggested : {};
 
-    const totalToday = Number(suggested.total_count || 0);
-    const completedToday = Number(completed.total_count || 0);
-    const remaining = Math.max(totalToday - completedToday, 0);
-    const isAllDone = !!(overview && overview.is_all_done);
+    // Phase 6P-later-4: prefer goal_progress when available
+    var goalProgress = (overview && overview.goal_progress && typeof overview.goal_progress === 'object')
+      ? overview.goal_progress : null;
+
+    var displayCompleted, displayTotal, actualCompletedToday;
+    var isGoalMet, isGoalOverachieved, isGoalBlocked, hasAnyReviewableCards;
+    var totalToday, completedToday, remaining, isAllDone;
+
+    if (goalProgress) {
+      displayCompleted = Number(goalProgress.display_numerator || 0);
+      displayTotal = Number(goalProgress.display_denominator || 0);
+      actualCompletedToday = Number(goalProgress.completed_unique_today != null
+        ? goalProgress.completed_unique_today : displayCompleted);
+      isGoalMet = goalProgress.is_goal_met === true;
+      isGoalOverachieved = goalProgress.is_overachieved === true;
+      isGoalBlocked = goalProgress.is_goal_blocked === true;
+      hasAnyReviewableCards = goalProgress.has_any_reviewable_cards !== false;
+      totalToday = Number(suggested.total_count || 0);
+      completedToday = displayCompleted;
+      remaining = Math.max(displayTotal - displayCompleted, 0);
+      isAllDone = isGoalMet;
+    } else {
+      // Fallback: use legacy suggested / completed_suggested fields
+      totalToday = Number(suggested.total_count || 0);
+      completedToday = Number(completed.total_count || 0);
+      remaining = Math.max(totalToday - completedToday, 0);
+      isAllDone = !!(overview && overview.is_all_done);
+      displayCompleted = completedToday;
+      displayTotal = totalToday;
+      actualCompletedToday = completedToday;
+      isGoalMet = isAllDone || (totalToday > 0 && completedToday >= totalToday);
+      isGoalOverachieved = false;
+      isGoalBlocked = false;
+      hasAnyReviewableCards = totalToday > 0;
+    }
+
     const activeSession = (overview && overview.active_session) || null;
 
     let state, stateLabel, stateSub, mainButtonLabel, mainButtonDisabled;
-    let todayReviewedEnabled = completedToday > 0;
-    const todayReviewedLabel = completedToday > 0 ? '今日已复习内容' : '暂无复习内容';
+    let todayReviewedEnabled = actualCompletedToday > 0;
+    const todayReviewedLabel = todayReviewedEnabled ? '今日已复习内容' : '暂无复习内容';
 
-    // Phase 6O-2A: Empty state — no tasks at all today
-    if (!offline && totalToday === 0) {
+    if (!offline && displayTotal === 0) {
       state = 'empty';
       stateLabel = '今天还没有复习任务';
       stateSub = '可以返回首页添加卡片，或开始学习已有卡片';
       mainButtonLabel = '返回首页';
       mainButtonDisabled = false;
-    } else if (offline && totalToday === 0) {
+    } else if (offline && displayTotal === 0) {
       state = 'empty';
       stateLabel = '今天还没有复习任务';
       stateSub = '可以返回首页添加卡片，或开始学习已有卡片';
@@ -109,38 +155,48 @@ Page({
       todayReviewedEnabled = false;
     } else if (offline) {
       state = 'offline_cached';
-      stateLabel = '今日任务 ' + totalToday + ' 张卡片';
-
-      if (completedToday >= totalToday && totalToday > 0) {
-        stateSub = '今日复习了 ' + completedToday + ' 张卡片';
+      stateLabel = '今日目标：' + displayTotal + ' 张';
+      if (displayCompleted >= displayTotal && displayTotal > 0) {
+        stateSub = '今日已完成 ' + actualCompletedToday + ' 张';
         mainButtonLabel = '继续复习';
-        mainButtonDisabled = true;
-      } else if (completedToday > 0) {
-        stateSub = '今日已完成 ' + completedToday + ' 张，还有 ' + remaining + ' 张待复习';
+      } else if (displayCompleted > 0) {
+        stateSub = '今日已完成 ' + displayCompleted + ' 张，还有 ' + remaining + ' 张待复习';
         mainButtonLabel = '继续复习';
-        mainButtonDisabled = true;
       } else {
         stateSub = '还未开始复习';
         mainButtonLabel = '开始复习';
-        mainButtonDisabled = true;
       }
-    } else if (isAllDone || (totalToday > 0 && completedToday >= totalToday)) {
-      state = 'all_done';
-      stateLabel = '今日任务完成';
-      stateSub = '今日复习了 ' + completedToday + ' 张卡片';
+      mainButtonDisabled = true;
+    } else if (isGoalOverachieved) {
+      state = 'overachieved';
+      stateLabel = '今日完成 ' + displayTotal + ' / ' + displayTotal;
+      stateSub = '今天已完成 ' + actualCompletedToday + ' 张，超额完成';
       mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
       this._fetchResultBreakdown();
-    } else if (completedToday > 0 && completedToday < totalToday) {
+    } else if (isGoalMet) {
+      state = 'all_done';
+      stateLabel = '今日完成 ' + displayTotal + ' / ' + displayTotal;
+      stateSub = '今日目标已完成';
+      mainButtonLabel = '继续复习';
+      mainButtonDisabled = false;
+      this._fetchResultBreakdown();
+    } else if (isGoalBlocked) {
+      state = 'goal_blocked';
+      stateLabel = '今日完成 ' + displayCompleted + ' / ' + displayTotal;
+      stateSub = '当前可学内容已完成，可以添加卡片继续';
+      mainButtonLabel = '添加卡片';
+      mainButtonDisabled = false;
+    } else if (displayCompleted > 0 && displayCompleted < displayTotal) {
       state = 'in_progress';
-      stateLabel = completedToday + ' / ' + totalToday;
-      stateSub = '今日进度';
+      stateLabel = '今日完成 ' + displayCompleted + ' / ' + displayTotal;
+      stateSub = '正在学习中，继续加油';
       mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
     } else {
       state = 'not_started';
-      stateLabel = '今日任务 ' + totalToday + ' 张卡片';
-      stateSub = '还未开始复习';
+      stateLabel = '今日完成 0 / ' + displayTotal;
+      stateSub = '还没开始，今天先复习一点';
       mainButtonLabel = '开始复习';
       mainButtonDisabled = false;
     }
@@ -155,6 +211,15 @@ Page({
       remaining,
       isAllDone,
       activeSession,
+
+      displayCompleted,
+      displayTotal,
+      actualCompletedToday,
+      isGoalMet,
+      isGoalOverachieved,
+      isGoalBlocked,
+      hasAnyReviewableCards,
+      goalProgress,
 
       state,
       stateLabel,
@@ -216,14 +281,17 @@ Page({
   onMainButtonTap() {
     const { state, offline } = this.data;
 
-    // Phase 6O-2A: Empty state — go home to add cards or start learning
     if (state === 'empty') {
       wx.redirectTo({ url: '/pages/index/index' });
       return;
     }
 
-    // Phase 6O-2A-hotfix: All done — start extra learning via fallback chain
-    if (state === 'all_done') {
+    if (state === 'goal_blocked') {
+      wx.navigateTo({ url: '/pages/add/add' });
+      return;
+    }
+
+    if (state === 'all_done' || state === 'overachieved') {
       this._startReview();
       return;
     }
@@ -233,6 +301,14 @@ Page({
       return;
     }
 
+    this._startReview();
+  },
+
+  onSecondaryReviewTap() {
+    if (this.data.offline) {
+      wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
+      return;
+    }
     this._startReview();
   },
 
@@ -258,7 +334,11 @@ Page({
       const sessionType = chain[i];
 
       try {
-        const result = await createReviewSession({ session_type: sessionType, limit: 5 });
+        const sessionData = { session_type: sessionType, limit: 5 };
+        if (sessionType === 'daily_suggested') {
+          sessionData.daily_goal = readDailyGoal();
+        }
+        const result = await createReviewSession(sessionData);
         const sessionId = (result && (result.session_id || result.id)) ||
           (result && result.data && (result.data.session_id || result.data.id)) || '';
         const items = (result && result.items) || (result && result.data && result.data.items) || [];
