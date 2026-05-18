@@ -2,18 +2,28 @@
 
 ## 当前阶段
 
-Phase 7B 已完成并封板：whereEncountered（在哪里遇到）MVP 全链路已上线。
+Phase 7C 已完成：首页搜索纳入 whereEncountered，前端考试分类入口已全部清理，exam_scene / exam_module 仅作为老卡搜索兜底保留。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- 79d14f4 remove exam filters from home page
+- ee85106 remove exam pickers from add page
+- c980ddd include where encountered in home search
 - 8d47ead show where encountered in review answer
 - 614631b connect add page where encountered field
-- 77016fd polish home examples sync status and about page
 
 后端（English-analyzer-backend）：
 - 55829f1 include where encountered in review items
 - e43eaab add where encountered field to cards
+
+## Phase 7C 系列进度（已全部完成）
+
+- **7C-1**（首页搜索）：getSearchableText 纳入 whereEncountered，搜索 placeholder 更新，examScene / examModule 保留为搜索兜底。
+- **7C-2**（Add 页）：删除考试场景 / 考试模块 picker 和只读 pill，CREATE / PATCH payload 不再写入 exam_scene / exam_module。
+- **7C-3**（首页）：删除高级筛选"考试场景""考试模块" filter-item，删除管理模式"批量设场景""批量设模块"按钮，清理 JS 状态和 handler。
+
+详细总结见 docs/phase7c-home-and-exam-cleanup-summary.md。
 
 ## Phase 7B 系列进度（已全部完成，已封板）
 
@@ -41,13 +51,14 @@ Phase 7B 已完成并封板：whereEncountered（在哪里遇到）MVP 全链路
 
 ## 下一步建议
 
-先做 **Phase 7C-readonly**，只读审查以下候选方向，明确优先级后再实现：
+先做 **Phase 7D-readonly**，只读审查以下候选方向，明确优先级后再实现：
 
-- 首页搜索纳入 whereEncountered
-- 首页卡片列表弱展示"来自 XXX"
-- 删除前端考试场景 / 考试模块入口（exam_scene / exam_module picker）
-- Add 页常见来源快捷标签
-- history / today_reviewed 展示 whereEncountered
+- 今日复习内容页是否展示 whereEncountered
+- 历史详情页是否展示 whereEncountered
+- 首页卡片列表弱展示"来自 XXX"（whereEncountered 预览）
+- 产品下一阶段整体评估
+
+不再建议继续删除 exam_scene / exam_module 后端字段或旧数据。
 
 ## 注意
 
