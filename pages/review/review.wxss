@@ -305,6 +305,17 @@
   word-break: break-word;
 }
 
+/* 在哪里遇到：有值才出现，弱展示 */
+.task-source {
+  margin-top: 22rpx;
+}
+
+.task-source-text {
+  font-size: 24rpx;
+  color: #9ba8a0;
+  line-height: 1.5;
+}
+
 /* 卡片外操作区 */
 .task-actions {
   display: flex;

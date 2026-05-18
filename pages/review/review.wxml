@@ -108,6 +108,11 @@
                   </view>
                 </scroll-view>
               </view>
+
+              <view wx:if="{{currentCard.whereEncountered}}" class="task-source">
+                <view class="task-notes-divider"></view>
+                <text class="task-source-text">来自：{{currentCard.whereEncountered}}</text>
+              </view>
             </view>
           </scroll-view>
         </block>

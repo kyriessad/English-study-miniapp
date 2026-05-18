@@ -60,6 +60,7 @@ function normalizeReviewItem(item) {
     category: getCardTypeLabel(item.card_type),
     myUnderstanding: item.understanding || '',
     notes: item.note || '',
+    whereEncountered: item.where_encountered || '',
     sessionItemId: item.session_item_id,
     cardId: item.card_id,
   };
@@ -795,6 +796,7 @@ Page({
 
       const newMyUnderstanding = updatedCard.myUnderstanding || updatedCard.understanding || '';
       const newNotes = updatedCard.notes || '';
+      const newWhereEncountered = updatedCard.whereEncountered || '';
       const newEnglishText = updatedCard.content || updatedCard.englishText || currentCard.englishText;
       const newContent = updatedCard.content || updatedCard.englishText || currentCard.content;
       const newTranslation = updatedCard.translation || '';
@@ -802,6 +804,7 @@ Page({
       const updates = {
         'currentCard.myUnderstanding': newMyUnderstanding,
         'currentCard.notes': newNotes,
+        'currentCard.whereEncountered': newWhereEncountered,
         'currentCard.englishText': newEnglishText,
         'currentCard.content': newContent,
         'currentCard.translation': newTranslation,
