@@ -49,6 +49,7 @@ Page({
         cardId: String(item.card_id),
         content: item.content || '',
         understanding: item.understanding || '',
+        whereEncountered: item.where_encountered || '',
         cardType: CARD_TYPE_MAP[item.card_type] || '单词',
         todayReviewCount: item.today_review_count || 1,
         lastResultLabel: RESULT_LABELS[item.last_result] || item.last_result_label || '',

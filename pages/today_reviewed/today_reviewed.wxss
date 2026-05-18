@@ -96,6 +96,12 @@
 .today-card__understanding {
   font-size: 28rpx;
   color: #657465;
+  margin-bottom: 8rpx;
+}
+
+.today-card__source {
+  font-size: 24rpx;
+  color: #9ba8a0;
   margin-bottom: 16rpx;
 }
 
