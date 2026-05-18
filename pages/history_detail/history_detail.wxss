@@ -81,6 +81,15 @@ page {
   word-break: break-all;
 }
 
+.info-row--source {
+  padding: 6rpx 0;
+}
+
+.info-value--source {
+  font-size: 24rpx;
+  color: #9ba8a0;
+}
+
 /* 孤儿卡片：冷灰失活态 */
 .detail-orphan-card {
   background: #f5f6f8;

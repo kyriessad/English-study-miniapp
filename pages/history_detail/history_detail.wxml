@@ -35,6 +35,10 @@
         <view class="info-label">我的理解</view>
         <view class="info-value">{{detail.card.understanding}}</view>
       </view>
+      <view wx:if="{{detail.card.where_encountered}}" class="info-row info-row--source">
+        <view class="info-label">来自</view>
+        <view class="info-value info-value--source">{{detail.card.where_encountered}}</view>
+      </view>
       <view class="info-row">
         <view class="info-label">补充备注</view>
         <view class="info-value">{{detail.card.note}}</view>

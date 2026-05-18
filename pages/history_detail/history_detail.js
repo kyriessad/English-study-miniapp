@@ -42,6 +42,7 @@ function normalizeHistoryDetail(raw) {
       card_type: raw.card.card_type || '',
       exam_scene: raw.card.exam_scene || '',
       exam_module: raw.card.exam_module || '',
+      where_encountered: raw.card.where_encountered || '',
       review_state: raw.card.review_state || '',
       next_review_at: raw.card.next_review_at || null,
       next_review_at_formatted: formatDateTime(raw.card.next_review_at),
