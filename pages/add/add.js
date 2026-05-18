@@ -11,9 +11,7 @@ const {
 const { updateBackendCard } = require('../../utils/apiClient');
 
 const {
-  CARD_CATEGORIES,
-  EXAM_SCENE_OPTIONS,
-  EXAM_MODULE_OPTIONS
+  CARD_CATEGORIES
 } = require('../../utils/cardOptions');
 const {
   getInputContext,
@@ -384,11 +382,7 @@ Page({
     isReadonlyDetailMode: false,
     cardId: '',
     categoryOptions: CARD_CATEGORIES,
-    examSceneOptions: EXAM_SCENE_OPTIONS,
-    examModuleOptions: EXAM_MODULE_OPTIONS,
     categoryIndex: 0,
-    examSceneIndex: EXAM_SCENE_OPTIONS.length - 1,
-    examModuleIndex: EXAM_MODULE_OPTIONS.length - 1,
     inheritedContextText: '',
     defaultUnderstandingPlaceholder: '写下你自己的理解、翻译或拆解，不求标准，但要对自己有帮助',
     englishValidationMessage: '正在检查当前内容...',
@@ -622,8 +616,6 @@ Page({
       isReadonlyDetailMode: isReadonlyDetailMode(this.pageOptions || {}),
       cardId: '',
       categoryIndex: 0,
-      examSceneIndex: EXAM_SCENE_OPTIONS.length - 1,
-      examModuleIndex: EXAM_MODULE_OPTIONS.length - 1,
       inheritedContextText: '',
       englishValidationMessage: '正在检查当前内容...',
       englishValidationType: 'hint',
@@ -657,8 +649,6 @@ Page({
     return {
       cardId: '',
       categoryIndex: 0,
-      examSceneIndex: Math.max(EXAM_SCENE_OPTIONS.indexOf(inputContext.examScene), 0),
-      examModuleIndex: Math.max(EXAM_MODULE_OPTIONS.indexOf(inputContext.examModule), 0),
       inheritedContextText: '',
       hasUserChangedCategory: false,
       form: {
@@ -682,8 +672,6 @@ Page({
     return {
       cardId: cardId || card.id || '',
       categoryIndex: Math.max(CARD_CATEGORIES.indexOf(category), 0),
-      examSceneIndex: Math.max(EXAM_SCENE_OPTIONS.indexOf(examScene), 0),
-      examModuleIndex: Math.max(EXAM_MODULE_OPTIONS.indexOf(examModule), 0),
       inheritedContextText: '',
       showNotesField: Boolean(notes),
       form: {
@@ -1272,28 +1260,6 @@ Page({
   },
 
 
-  onExamSceneChange(event) {
-    if (this.data.isReadonlyDetailMode) return;
-    const examSceneIndex = Number(event.detail.value) || 0;
-    const examScene = EXAM_SCENE_OPTIONS[examSceneIndex] || DEFAULT_EXAM_SCENE;
-
-    this.setData({
-      examSceneIndex,
-      'form.examScene': examScene
-    });
-  },
-
-  onExamModuleChange(event) {
-    if (this.data.isReadonlyDetailMode) return;
-    const examModuleIndex = Number(event.detail.value) || 0;
-    const examModule = EXAM_MODULE_OPTIONS[examModuleIndex] || DEFAULT_EXAM_MODULE;
-
-    this.setData({
-      examModuleIndex,
-      'form.examModule': examModule
-    });
-  },
-
   onEnglishInput(event) {
     if (this.data.isReadonlyDetailMode) return;
     const nextValue = event.detail.value;
@@ -1437,8 +1403,6 @@ Page({
 
     this.setData({
       categoryIndex: Math.max(CARD_CATEGORIES.indexOf(nextForm.category), 0),
-      examSceneIndex: Math.max(EXAM_SCENE_OPTIONS.indexOf(nextForm.examScene), 0),
-      examModuleIndex: Math.max(EXAM_MODULE_OPTIONS.indexOf(nextForm.examModule), 0),
       inheritedContextText: '',
       hasUserChangedCategory: false,
       englishValidationMessage: '正在检查当前内容...',

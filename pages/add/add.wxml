@@ -6,14 +6,6 @@
         <view class="meta-pill meta-pill-category meta-pill-readonly">
           <text class="meta-pill-text">{{form.category}}</text>
         </view>
-
-        <view class="meta-pill meta-pill-scene meta-pill-readonly">
-          <text class="meta-pill-text">{{form.examScene}}</text>
-        </view>
-
-        <view class="meta-pill meta-pill-module meta-pill-readonly">
-          <text class="meta-pill-text">{{form.examModule}}</text>
-        </view>
       </block>
 
       <block wx:else>
@@ -25,30 +17,6 @@
         >
           <view class="meta-pill meta-pill-category">
             <text class="meta-pill-text">{{form.category}}</text>
-            <text class="meta-pill-arrow">▾</text>
-          </view>
-        </picker>
-
-        <picker
-          mode="selector"
-          range="{{examSceneOptions}}"
-          value="{{examSceneIndex}}"
-          bindchange="onExamSceneChange"
-        >
-          <view class="meta-pill meta-pill-scene">
-            <text class="meta-pill-text">{{form.examScene}}</text>
-            <text class="meta-pill-arrow">▾</text>
-          </view>
-        </picker>
-
-        <picker
-          mode="selector"
-          range="{{examModuleOptions}}"
-          value="{{examModuleIndex}}"
-          bindchange="onExamModuleChange"
-        >
-          <view class="meta-pill meta-pill-module">
-            <text class="meta-pill-text">{{form.examModule}}</text>
             <text class="meta-pill-arrow">▾</text>
           </view>
         </picker>

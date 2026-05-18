@@ -733,8 +733,6 @@ function buildBackendCardCreatePayload(form = {}) {
     local_temp_id: localTempId,
     content: trimValue(fields.englishText),
     card_type: mapCategoryToBackendCardType(fields.category),
-    exam_scene: trimValue(fields.examScene) || null,
-    exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
     where_encountered: trimValue(fields.whereEncountered) || null,
@@ -756,8 +754,6 @@ function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
   return {
     content: trimValue(fields.englishText),
     card_type: mapCategoryToBackendCardType(fields.category),
-    exam_scene: trimValue(fields.examScene) || null,
-    exam_module: trimValue(fields.examModule) || null,
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
     where_encountered: trimValue(fields.whereEncountered) || null,

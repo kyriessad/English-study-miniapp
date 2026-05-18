@@ -288,18 +288,6 @@
   border-color: #ccebd8;
 }
 
-.meta-pill-scene {
-  color: #6156a8;
-  background: #f3efff;
-  border-color: #ded7fa;
-}
-
-.meta-pill-module {
-  color: #a7772e;
-  background: #fff8ea;
-  border-color: #efd9ab;
-}
-
 .meta-pill-readonly {
   box-shadow: none;
 }
