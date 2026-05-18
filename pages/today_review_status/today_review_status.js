@@ -311,12 +311,16 @@ Page({
   },
 
   async _startReview() {
+    if (this._reviewStarting) return;
+    this._reviewStarting = true;
+
     const activeSession = this.data.activeSession;
 
     if (activeSession) {
       const sessionId = activeSession.id || activeSession.session_id || '';
       const sessionType = activeSession.session_type || 'daily_suggested';
       if (sessionId) {
+        this._reviewStarting = false;
         wx.navigateTo({
           url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
         });
@@ -327,9 +331,11 @@ Page({
     wx.showLoading({ title: '准备复习中...', mask: true });
 
     const chain = ['daily_suggested', 'new_only', 'free_review'];
+    var lastReason = 'empty';
 
-    for (let i = 0; i < chain.length; i++) {
+    for (var i = 0; i < chain.length; i++) {
       const sessionType = chain[i];
+      var stepReason;
 
       try {
         const sessionData = { session_type: sessionType, limit: 5 };
@@ -343,20 +349,32 @@ Page({
 
         if (sessionId && Array.isArray(items) && items.length > 0) {
           wx.hideLoading();
+          this._reviewStarting = false;
           wx.navigateTo({
             url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
           });
           return;
         }
+        stepReason = 'empty';
       } catch (_) {
-        wx.hideLoading();
-        wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
-        return;
+        stepReason = 'network_error';
       }
+
+      if (stepReason === 'network_error') {
+        lastReason = 'network_error';
+        break;
+      }
+      lastReason = 'empty';
     }
 
     wx.hideLoading();
-    wx.showToast({ title: '暂无更多可复习内容', icon: 'none' });
+    this._reviewStarting = false;
+
+    if (lastReason === 'network_error') {
+      wx.showToast({ title: '当前网络不可用，请稍后再试', icon: 'none' });
+    } else {
+      wx.showToast({ title: '暂无可复习内容，可以添加卡片继续', icon: 'none' });
+    }
   },
 
   _navigateToTodayReviewed() {
