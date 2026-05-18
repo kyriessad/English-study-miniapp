@@ -86,6 +86,14 @@
   box-shadow: 0 10rpx 26rpx rgba(86, 126, 82, 0.07);
 }
 
+.today-card__top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
 .today-card__content {
   font-size: 32rpx;
   font-weight: 700;
@@ -103,6 +111,9 @@
   font-size: 24rpx;
   color: #9ba8a0;
   margin-bottom: 16rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .today-card__meta {

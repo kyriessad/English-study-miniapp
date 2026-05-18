@@ -30,14 +30,16 @@
       data-id="{{item.cardId}}"
       bindtap="onCardTap"
     >
+      <view class="today-card__top-row">
+        <view class="today-card__tag today-card__tag--type">{{item.cardType}}</view>
+        <view class="today-card__tag today-card__tag--result">{{item.lastResultLabel}}</view>
+      </view>
       <view class="today-card__content">{{item.content}}</view>
       <view class="today-card__understanding" wx:if="{{item.understanding}}">{{item.understanding}}</view>
       <view wx:if="{{item.whereEncountered}}" class="today-card__source">来自：{{item.whereEncountered}}</view>
 
       <view class="today-card__meta">
         <view class="today-card__tag today-card__tag--count">复习 {{item.todayReviewCount}} 次</view>
-        <view class="today-card__tag today-card__tag--result">{{item.lastResultLabel}}</view>
-        <view class="today-card__tag today-card__tag--type">{{item.cardType}}</view>
       </view>
     </view>
   </view>
