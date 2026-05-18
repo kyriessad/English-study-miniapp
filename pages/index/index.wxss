@@ -1660,12 +1660,33 @@
   margin-top: 14rpx;
   padding-top: 12rpx;
   border-top: 1rpx solid #eef3e9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
 }
 
 .card-meta-text,
 .home-card-item .card-meta-text {
   color: #99a398;
   font-size: 22rpx;
+  flex-shrink: 0;
+}
+
+.card-source-pill {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 300rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eef8ef;
+  color: #5f9f79;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .today-reviewed-hero {

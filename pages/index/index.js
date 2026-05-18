@@ -470,6 +470,7 @@ function decorateCards(cards, selectedCardIds) {
         if (relative) return '已复习 ' + count + ' 次 · 上次: ' + relative;
         return '已复习 ' + count + ' 次';
       })(),
+      whereEncountered: card.whereEncountered || '',
       analysisStatusVisible: analysisStatusDisplay.visible,
       analysisStatusLabel: analysisStatusDisplay.label,
       analysisStatusClass: analysisStatusDisplay.className,

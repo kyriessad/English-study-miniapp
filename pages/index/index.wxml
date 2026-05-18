@@ -211,6 +211,7 @@
 
             <view class="card-meta">
               <view class="card-meta-text">{{item.reviewCountText}}</view>
+              <view wx:if="{{item.whereEncountered}}" class="card-source-pill">来自：{{item.whereEncountered}}</view>
             </view>
           </view>
         </block>
