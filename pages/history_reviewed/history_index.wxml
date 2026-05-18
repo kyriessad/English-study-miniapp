@@ -106,9 +106,12 @@
             </view>
 
             <view class="history-card__meta">
-              <text>{{item.reviewCountText}}</text>
-              <text class="history-card__meta-separator">|</text>
-              <text>最后复习：{{item.lastReviewDisplay}}</text>
+              <view class="history-card__meta-left">
+                <text>{{item.reviewCountText}}</text>
+                <text class="history-card__meta-separator">|</text>
+                <text>最后复习：{{item.lastReviewDisplay}}</text>
+              </view>
+              <view wx:if="{{item.whereEncountered}}" class="history-source-pill">来自：{{item.whereEncountered}}</view>
             </view>
           </view>
         </view>

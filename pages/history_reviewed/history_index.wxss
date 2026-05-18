@@ -328,16 +328,40 @@ page {
 
 .history-card__meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10rpx;
+  justify-content: space-between;
+  gap: 12rpx;
   font-size: 24rpx;
   color: #8a96a8;
   line-height: 1.5;
 }
 
+.history-card__meta-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  flex-shrink: 0;
+}
+
 .history-card__meta-separator {
   color: #c2c9d1;
+}
+
+.history-source-pill {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 280rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eef8ef;
+  color: #5f9f79;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 空状态 */

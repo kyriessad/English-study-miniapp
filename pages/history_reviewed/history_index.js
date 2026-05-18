@@ -144,6 +144,7 @@ function searchHistoryCards(cards = [], keyword = '') {
       item.category,
       item.examScene,
       item.examModule,
+      item.whereEncountered,
       item.lastResultInRange
     ];
 
@@ -206,6 +207,7 @@ function mapBackendHistoryItem(item) {
     category: CARD_TYPE_MAP[item.card_type] || '单词',
     examScene: item.exam_scene || '未分类',
     examModule: item.exam_module || '未分类',
+    whereEncountered: item.where_encountered || '',
     reviewCountInRange: item.review_count_in_range,
     lastResultInRange: REVIEW_RESULT_LABELS[item.last_result] || '—',
     lastReviewDateInRange: `${year}-${month}-${day}`,
