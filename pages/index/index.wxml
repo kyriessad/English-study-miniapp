@@ -120,7 +120,7 @@
         <input
           class="search-input"
           type="text"
-          placeholder="搜索英文、理解、备注或复习信息"
+          placeholder="搜索英文、理解、备注或来源"
           value="{{searchKeyword}}"
           bindinput="onSearchInput"
         />

@@ -225,6 +225,7 @@ function getSearchableText(card) {
     card.englishText,
     card.myUnderstanding,
     card.notes,
+    card.whereEncountered,
     card.updatedLabel,
     card.dateTime,
     card.date,
