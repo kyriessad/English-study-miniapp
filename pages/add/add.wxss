@@ -493,3 +493,10 @@
   height: 86rpx;
   line-height: 86rpx;
 }
+
+.input-source {
+  height: 80rpx;
+  line-height: 80rpx;
+  padding-top: 0;
+  padding-bottom: 0;
+}

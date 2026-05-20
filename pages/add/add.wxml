@@ -59,9 +59,9 @@
     <view class="form-item">
       <view class="label">在哪里遇到（可选）</view>
       <input
-        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        class="textarea input-source {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
         disabled="{{isReadonlyDetailMode}}"
-        placeholder="例如 NBA 解说、美剧 Friends、工作邮件"
+        placeholder="例如 美剧、电影、抖音、B站等"
         value="{{form.whereEncountered}}"
         maxlength="100"
         bindinput="onWhereEncounteredInput"
