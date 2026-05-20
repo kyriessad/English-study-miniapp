@@ -465,10 +465,11 @@ function decorateCards(cards, selectedCardIds) {
         var syncStatus = String(card.backend_sync_status || card.backendSyncStatus || card.syncStatus || '').trim();
         var isLocalPending = syncStatus === 'pending' || card.local_only === true || card.localOnly === true;
         if (isLocalPending && count <= 0) return '已先保存';
-        if (count <= 0) return '未复习';
+        if (count <= 0) return '';
         var relative = formatRelativeReviewTime(card.lastReviewedAt);
-        if (relative) return '已复习 ' + count + ' 次 · 上次: ' + relative;
-        return '已复习 ' + count + ' 次';
+        if (relative === '今天') return '今天复习过';
+        if (relative) return '上次：' + relative;
+        return '';
       })(),
       whereEncountered: card.whereEncountered || '',
       analysisStatusVisible: analysisStatusDisplay.visible,

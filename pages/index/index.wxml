@@ -205,7 +205,7 @@
               还没有写下你的理解，可以现在补充
             </view>
 
-            <view class="card-meta">
+            <view wx:if="{{item.reviewCountText || item.whereEncountered}}" class="card-meta">
               <view class="card-meta-text">{{item.reviewCountText}}</view>
               <view wx:if="{{item.whereEncountered}}" class="card-source-pill">来自：{{item.whereEncountered}}</view>
             </view>
