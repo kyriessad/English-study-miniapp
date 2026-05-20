@@ -78,18 +78,20 @@
     </view>
 
     <!-- Library Tabs / Filter Pills -->
-    <view class="library-tabs">
-      <view
-        wx:for="{{libraryTabs}}"
-        wx:key="key"
-        class="library-tab {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
-        data-key="{{item.key}}"
-        bindtap="onLibraryTabTap"
-      >
-        <text>{{item.label}}</text>
-        <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
+    <scroll-view class="library-tabs-scroll" scroll-x="{{true}}">
+      <view class="library-tabs">
+        <view
+          wx:for="{{libraryTabs}}"
+          wx:key="key"
+          class="library-tab {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
+          data-key="{{item.key}}"
+          bindtap="onLibraryTabTap"
+        >
+          <text>{{item.label}}</text>
+          <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
+        </view>
       </view>
-    </view>
+    </scroll-view>
 
     <!-- Library preparation tip -->
     <view wx:if="{{showLibraryPreparationTip}}" class="library-tip">
@@ -113,6 +115,17 @@
       </view>
     </view>
 
+    <!-- Category Type Filter Pills -->
+    <view class="category-filter-pills">
+      <view
+        wx:for="{{categoryFilterOptions}}"
+        wx:key="*this"
+        class="category-pill {{selectedCategoryFilter === item ? 'category-pill-active' : ''}}"
+        data-index="{{index}}"
+        bindtap="onCategoryPillTap"
+      >{{item}}</view>
+    </view>
+
     <!-- Search (only when > 10 cards) -->
     <view wx:if="{{totalCardCount > 10}}" class="search-row {{showFixedSearch ? 'search-row-fixed' : ''}}">
       <view class="search-box">
@@ -125,39 +138,10 @@
           bindinput="onSearchInput"
         />
         <view wx:if="{{searchKeyword}}" class="search-clear" bindtap="clearSearch">清空</view>
-        <view wx:if="{{!isManageMode}}" class="search-divider"></view>
-        <view
-          wx:if="{{!isManageMode}}"
-          class="search-filter-action {{showMoreFilters ? 'search-filter-action-active' : ''}}"
-          bindtap="toggleMoreFilters"
-        >
-          {{showMoreFilters ? '收起' : '筛选'}}
-        </view>
       </view>
     </view>
 
     <view wx:if="{{totalCardCount > 10 && showFixedSearch}}" class="search-row-spacer"></view>
-
-    <!-- Advanced Filters -->
-    <view wx:if="{{showMoreFilters && !isManageMode}}" class="filter-card">
-      <view class="filter-grid">
-        <view class="filter-item">
-          <view class="filter-label">卡片类型</view>
-          <view class="filter-picker-row">
-            <picker
-              class="filter-picker"
-              mode="selector"
-              range="{{categoryFilterOptions}}"
-              value="{{categoryFilterIndex}}"
-              bindchange="onCategoryFilterChange"
-            >
-              <view class="picker-field">{{selectedCategoryFilter}}</view>
-            </picker>
-            <view class="filter-count">({{categoryCount}})</view>
-          </view>
-        </view>
-      </view>
-    </view>
 
     <!-- Manage Mode Toolbar -->
     <view wx:if="{{isManageMode}}" class="manage-toolbar manage-toolbar-fixed">

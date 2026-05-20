@@ -3220,3 +3220,49 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* ===== Phase 7I-1: 状态 Tab 横向滚动单行 ===== */
+
+.library-tabs-scroll {
+  width: 100%;
+  margin-bottom: 18rpx;
+}
+
+.library-tabs {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 10rpx;
+  margin-bottom: 0;
+  padding-bottom: 4rpx;
+}
+
+.library-tab {
+  flex-shrink: 0;
+}
+
+/* ===== Phase 7I-1: 卡片类型平铺筛选 ===== */
+
+.category-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid #dfe9dc;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #657465;
+}
+
+.category-pill-active {
+  color: #3f7449;
+  background: #f0faf4;
+  border-color: #ccebd8;
+}

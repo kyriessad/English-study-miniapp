@@ -1234,6 +1234,13 @@ Page({
     this.applyFilters();
   },
 
+  onCategoryPillTap(event) {
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const selectedCategoryFilter = CATEGORY_FILTER_OPTIONS[index] || '全部';
+    this.setData({ categoryFilterIndex: index, selectedCategoryFilter });
+    this.applyFilters();
+  },
+
 
   // ========== Review Entry ==========
 
