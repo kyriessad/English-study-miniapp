@@ -1486,8 +1486,8 @@ Page({
 
     if (shouldContinue) {
       wx.showToast({
-        title: pendingSync ? '已先保存，联网后自动更新' : '保存成功',
-        icon: pendingSync ? 'none' : 'success'
+        title: '已保存',
+        icon: 'success'
       });
 
       this.resetFormForContinuousAdd(nextForm);
@@ -1500,10 +1500,8 @@ Page({
     try { wx.setStorageSync('reviewSessionNeedsRestart', true); } catch (e) { /* ignore */ }
 
     wx.showToast({
-      title: pendingSync
-        ? '已先保存，联网后自动更新'
-        : '保存成功',
-      icon: pendingSync ? 'none' : 'success'
+      title: isEdit ? '已更新' : '已保存',
+      icon: 'success'
     });
 
     setTimeout(() => {

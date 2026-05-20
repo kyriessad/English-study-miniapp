@@ -2062,7 +2062,10 @@ async function refreshCardsCacheFromBackend() {
 
     const pendingCards = cachedCards.filter((card) => {
       if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
-      if (card.backend_card_id && backendIdSet.has(String(card.backend_card_id))) return false;
+      // Pending-update cards (have backend_card_id) — always preserve; dedupeCards will
+      // prefer the locally-edited version over stale backend data via updatedAt timestamp.
+      if (card.backend_card_id) return true;
+      // Pending-create cards (no backend_card_id) — exclude if already in nextCards by local id.
       if (card.id && nextCardIdSet.has(String(card.id))) return false;
       return true;
     });
@@ -2123,10 +2126,37 @@ async function syncPendingCardsToBackend() {
 
     for (var i = 0; i < pendingCards.length; i++) {
       var pendingCard = pendingCards[i];
-      var localTempId = trimValue(pendingCard.local_temp_id || '') || createLocalTempId();
       var content = trimValue(pendingCard.englishText || pendingCard.content || '');
 
-      console.log('[phase6h-pending-sync] syncing card local_temp_id', localTempId, 'content', content.slice(0, 30));
+      console.log('[phase6h-pending-sync] syncing card', pendingCard.backend_card_id ? 'update' : 'create', 'content', content.slice(0, 30));
+
+      // Pending-update: card was already synced to backend but edit failed offline — PATCH directly
+      if (pendingCard.backend_card_id) {
+        try {
+          var updatePayload = buildBackendCardPatchPayload(pendingCard, pendingCard);
+          var updatedBackendCard = await updateBackendCard(pendingCard.backend_card_id, updatePayload);
+          var updateFallbackFields = buildCardFields(pendingCard, {});
+          var updatedLocalCard = normalizeBackendCardToLocal(updatedBackendCard, {
+            ...pendingCard,
+            ...updateFallbackFields
+          });
+          upsertCachedCard(updatedLocalCard);
+          synced++;
+          console.log('[phase6h-pending-sync] sync update success backend id', updatedBackendCard.id);
+        } catch (updateError) {
+          failed++;
+          console.log('[phase6h-pending-sync] sync update failed', formatBackendSyncErrorText(updateError));
+          var updateErrorCard = normalizeCard({
+            ...pendingCard,
+            backend_sync_error: formatBackendSyncErrorText(updateError),
+            updatedAt: Date.now()
+          });
+          upsertCachedCard(updateErrorCard);
+        }
+        continue;
+      }
+
+      var localTempId = trimValue(pendingCard.local_temp_id || '') || createLocalTempId();
 
       try {
         var createPayload = buildBackendCardCreatePayload({
@@ -2346,10 +2376,24 @@ async function updateCard(cardId, form) {
   }
 
   const payload = buildBackendCardPatchPayload(form, currentCard);
-  const backendCard = await updateBackendCard(cardId, payload);
-  const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
-
-  return upsertCachedCard(localCard);
+  try {
+    const backendCard = await updateBackendCard(cardId, payload);
+    const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
+    return upsertCachedCard(localCard);
+  } catch (patchError) {
+    // PATCH failed (offline) — preserve edits locally, mark pending so flush can retry
+    const latestFormFields = buildCardFields(form, currentCard);
+    const localCard = normalizeCard({
+      ...currentCard,
+      ...latestFormFields,
+      backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
+      backend_synced_at: '',
+      backend_sync_error: formatBackendSyncErrorText(patchError),
+      updatedAt: Date.now()
+    });
+    upsertCachedCard(localCard);
+    return localCard;
+  }
 }
 
 function updateBackendCardSyncState(cardId, updates = {}) {
