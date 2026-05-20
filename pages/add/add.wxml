@@ -66,6 +66,18 @@
         maxlength="100"
         bindinput="onWhereEncounteredInput"
       />
+      <view wx:if="{{!isReadonlyDetailMode && recentSources.length > 0}}" class="recent-sources">
+        <text class="recent-sources-label">最近用过：</text>
+        <view class="recent-sources-pills">
+          <view
+            wx:for="{{recentSources}}"
+            wx:key="*this"
+            class="source-pill"
+            data-value="{{item}}"
+            bindtap="onSourceSuggestionTap"
+          >{{item}}</view>
+        </view>
+      </view>
     </view>
 
     <view class="form-item">

@@ -269,6 +269,25 @@ function filterDictionaryWarningsWhenSuggestionWorks(warnings, suggestion) {
   return warningList.filter((item) => !isDictionaryUnrecognizedWarning(item));
 }
 
+function buildRecentWhereEncounteredOptions() {
+  var seen = Object.create(null);
+  var result = [];
+  try {
+    var raw = wx.getStorageSync('cardsCache');
+    var cards = Array.isArray(raw) ? raw : [];
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (!card || card.deleted) continue;
+      var src = String(card.whereEncountered || card.where_encountered || '').trim();
+      if (!src || seen[src]) continue;
+      seen[src] = true;
+      result.push(src);
+      if (result.length >= 5) break;
+    }
+  } catch (e) {}
+  return result;
+}
+
 function createEmptyForm() {
   return {
     category: '单词',
@@ -408,6 +427,7 @@ Page({
     hasUserChangedCategory: false,
     isLeavingPage: false,
     isSaving: false,
+    recentSources: []
 
 
 
@@ -638,7 +658,8 @@ Page({
       latestEnglishForSuggest: '',
       hasUserChangedCategory: false,
       isLeavingPage: false,
-      isSaving: false
+      isSaving: false,
+      recentSources: []
 
     };
   },
@@ -733,6 +754,8 @@ Page({
         ...this.getDefaultFormState()
       };
     }
+
+    initialData.recentSources = buildRecentWhereEncounteredOptions();
 
     this.setData(initialData, () => {
       this.setNavigationTitle();
@@ -1388,6 +1411,13 @@ Page({
     });
   },
 
+  onSourceSuggestionTap(event) {
+    if (this.data.isReadonlyDetailMode) return;
+    const value = String(event.currentTarget.dataset.value || '');
+    if (!value) return;
+    this.setData({ 'form.whereEncountered': value });
+  },
+
 
   resetFormForContinuousAdd(savedForm) {
     const nextForm = {
@@ -1423,6 +1453,7 @@ Page({
       latestEnglishForSuggest: '',
       isLeavingPage: false,
       isSaving: false,
+      recentSources: buildRecentWhereEncounteredOptions(),
       form: nextForm,
     });
   },

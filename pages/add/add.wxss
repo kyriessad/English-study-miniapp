@@ -500,3 +500,40 @@
   padding-top: 0;
   padding-bottom: 0;
 }
+
+/* ===== Phase 7J-1: 最近用过来源快捷标签 ===== */
+.recent-sources {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  margin-top: 14rpx;
+}
+
+.recent-sources-label {
+  font-size: 23rpx;
+  color: #8a9689;
+  line-height: 50rpx;
+  flex-shrink: 0;
+}
+
+.recent-sources-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: #f4f9f2;
+  border: 1rpx solid #dfe9dc;
+  font-size: 24rpx;
+  color: #4a7454;
+  max-width: 200rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
