@@ -524,8 +524,7 @@
 }
 
 .source-pill {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
   padding: 8rpx 18rpx;
   border-radius: 999rpx;
   background: #f4f9f2;
@@ -536,4 +535,5 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: middle;
 }

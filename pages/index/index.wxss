@@ -3223,9 +3223,24 @@
 
 /* ===== Phase 7I-1: 状态 Tab 横向滚动单行 ===== */
 
+.library-tabs-wrap {
+  position: relative;
+  margin-bottom: 18rpx;
+}
+
 .library-tabs-scroll {
   width: 100%;
-  margin-bottom: 18rpx;
+  margin-bottom: 0;
+}
+
+.library-tabs-fade {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 4rpx;
+  width: 48rpx;
+  background: linear-gradient(to left, rgba(248, 251, 246, 0.92), transparent);
+  pointer-events: none;
 }
 
 .library-tabs {

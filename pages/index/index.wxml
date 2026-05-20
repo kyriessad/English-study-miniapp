@@ -78,20 +78,23 @@
     </view>
 
     <!-- Library Tabs / Filter Pills -->
-    <scroll-view class="library-tabs-scroll" scroll-x="{{true}}">
-      <view class="library-tabs">
-        <view
-          wx:for="{{libraryTabs}}"
-          wx:key="key"
-          class="library-tab {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
-          data-key="{{item.key}}"
-          bindtap="onLibraryTabTap"
-        >
-          <text>{{item.label}}</text>
-          <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
+    <view class="library-tabs-wrap">
+      <scroll-view class="library-tabs-scroll" scroll-x="{{true}}">
+        <view class="library-tabs">
+          <view
+            wx:for="{{libraryTabs}}"
+            wx:key="key"
+            class="library-tab {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
+            data-key="{{item.key}}"
+            bindtap="onLibraryTabTap"
+          >
+            <text>{{item.label}}</text>
+            <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
+          </view>
         </view>
-      </view>
-    </scroll-view>
+      </scroll-view>
+      <view class="library-tabs-fade" />
+    </view>
 
     <!-- Library preparation tip -->
     <view wx:if="{{showLibraryPreparationTip}}" class="library-tip">

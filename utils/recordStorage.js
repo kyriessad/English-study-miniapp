@@ -964,6 +964,15 @@ function choosePreferredCard(existingCard, candidateCard) {
     return existingCard;
   }
 
+  // Explicit guard: backend pending-update card wins over synced to prevent
+  // offline edits being overwritten by a stale backend refresh.
+  const existingBackendPending = existingCard.backend_sync_status === BACKEND_SYNC_STATUS_PENDING;
+  const candidateBackendPending = candidateCard.backend_sync_status === BACKEND_SYNC_STATUS_PENDING;
+
+  if (existingBackendPending !== candidateBackendPending) {
+    return existingBackendPending ? existingCard : candidateCard;
+  }
+
   const existingUnsynced = isUnsyncedStatus(existingCard.syncStatus);
   const candidateUnsynced = isUnsyncedStatus(candidateCard.syncStatus);
 
