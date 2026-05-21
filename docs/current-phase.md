@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8I completed / Phase 8I-2 readonly passed
+Phase 8K completed — 复习页进度展示、首页进度语义、今日复习内容筛选 UI 优化。
 
 例句生成全链路分类与校验修复已告一段落。合法字母数字词条（COVID-19 / 5G / GPT-4）、缩写句点（U.S. / e.g. / Dr.）、纯字母连字符词（well-known / full-time）均可正确分类并进入例句生成。单词与短语的词形变化（craves/craving、broke out/gave up）通过通用规则校验。86/86 unit + 269/269 全量通过。
 
@@ -12,6 +12,7 @@ Phase 8I-2 readonly 已复核 `_text_in_sentence` 单词模式的 substring matc
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8K | Polish: review progress, home labels, today reviewed filters | — | `af338dc` |
 | Phase 8I-2 | Validation substring review (readonly) | — | — |
 | Phase 8I | Classification + morphology fix | `54db753` | — |
 | Phase 8H | Stale cache read-side eviction + hyphen fix | `ef4f946` | `8d10689` |
@@ -319,6 +320,70 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ---
 
+## Phase 8K — Review Progress Display, Home Label Semantics & Today Reviewed Filters
+
+**提交：** frontend `af338dc` polish review progress and today reviewed filters
+
+### 一、复习页进度展示修复
+
+- 顶部进度文案从"今日进度 X / Y"改为"当前进度 X / Y"。
+- 删除了复习卡片右上角重复的"X / Y"进度数字（`task-progress`），仅保留顶部进度条。
+- 卡片左上角的类型标签（单词/短语/句子）不受影响。
+- 进度条不受影响。
+
+### 二、首页筛选丸子数字可读性
+
+- 卡片库 Tab 数字（library-tab-count）的 opacity 从 0.45 提升到 1，颜色从 `#9aaa9e` 改为 `#4a7358`。
+- 统一使用中等深度的主题绿色，不破坏绿色主题。
+- 筛选 pill 整体风格保持轻量。
+
+### 三、首页进度卡片标签修正
+
+- 首页顶部进度卡片内的 label 从"今日完成"改为"今日目标"。
+- `displayCompleted / displayTotal` 数值不变。
+- 顶部鼓励文案（"今天已完成 N 张，超额完成"）不受影响。
+- 修复了超额完成时"今日完成 5/5"与"今天已完成 8 张"语义冲突的问题。
+- 进度条仍最多 100%，不溢出。
+
+### 四、今日复习情况页产品审查（未改代码）
+
+**审查结论：**
+
+- 该页面仍有存在价值，不建议删除。
+- 核心独特价值：**结果分解**（掌握较好 N 张 / 还需巩固 N 张）——这是首页没有的复盘信息。
+- 该页面是复习完成后的自然落地页。
+
+**后续重构建议：**
+
+- **首页（index）**：轻量进度 + 快速入口（添加卡片 / 开始复习）。当前形态基本正确。
+- **今日复习情况页（today_review_status）**：建议从"进度重复页"重构为"今日复盘页"。
+  - 核心内容：今日真实完成数 → 掌握较好 / 还需巩固分解 → 今日复习内容 → 历史复习内容。
+  - 弱化"继续复习"按钮，强化"查看今日复习内容""查看历史复习内容"入口。
+  - 结果分解（masteredCount / consolidateCount）可以不仅在 all_done/overachieved 状态展示，也可以在 in_progress 状态展示"当前已掌握"等中间态数据。
+
+**本次不做大改**，仅记录方案。
+
+### 五、今日复习内容页增加结果筛选
+
+- 新增 3 个筛选丸子：`全部 / 待加强 / 已掌握`。
+- **待加强**：包含 forgot（想不起来）和 shaky（不太稳）的卡片。
+- **已掌握**：包含 got_it（基本掌握）和 fluent（很熟了）的卡片。
+- 筛选仅影响本地展示，不改后端接口。
+- 每个丸子显示对应数量（基于当前列表实时计算）。
+- 筛选后为空时显示"今天还没有这类复习内容"。
+- 卡片上的来源 pill、反馈结果标签、编辑入口不受影响。
+- 不影响离线缓存展示。
+
+### 未改
+- 后端无改动。
+- 数据库 schema 不变。
+- review session / feedback 核心逻辑不变。
+- dailyGoal 计算逻辑不变。
+- 缓存结构不变。
+- today_review_status 页面未删除、未重构。
+
+---
+
 ## Key Product Semantics
 
 ### 例句生成
@@ -332,6 +397,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 - 卡片背面：我的理解 + 补充备注 + 来自：xxx。
 - 查看理解按钮：白底绿色描边次级按钮。
 - 卡片展开后页面整体滚动，无内部滚动条。
+- 顶部进度：当前进度 X / Y。卡片内不重复显示进度数字。
 
 ### 超额完成
 - 真实完成数作为主信息（"今天完成了 N 张"）。
