@@ -2,17 +2,19 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-5d 已完成：Hunyuan 例句 validation 失败时自动用严格 prompt 重试一次，提升生成成功率。
+Phase 8B-hotfix-6 已完成：参考区 UI 统一、按钮合并、备注格式去标签、strict prompt 加强。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `b7d3f56` refine AI reference fill behavior
 - `51dab96` prefer backend analyze over cloud function
 - `eb58175` document TokenHub Hunyuan migration
 - `60b2d3d` fix AI example generation for note adoption
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `018fc36` tighten Hunyuan strict retry prompt
 - `b1c96d8` retry Hunyuan example generation on validation failure
 - `637fad2` fix TokenHub example generation diagnostics
 - `187799b` add exampleSentence/Translation to AnalyzeResponse
@@ -37,6 +39,29 @@ Phase 8B-hotfix-5d 已完成：Hunyuan 例句 validation 失败时自动用严�
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8B-hotfix-6：参考区 UI 与备注格式优化（本次）
+
+- **参考区统一**：
+  - 原来"参考理解"和"AI 例句"两个独立区域合并为一个"参考"区
+  - 展示结构：理解 / 例句 / 翻译 / [全部填入]
+  - 参考框在填入后保留，不消失
+- **按钮合并**：
+  - 原来"采纳建议"和"采用到备注"两个按钮合并为一个"全部填入"
+  - 点击后一次性写入"我的理解"和"补充备注"
+  - 写入后按钮变为"已填入"，样式弱化（灰色）
+  - 再次点击不重复写入（重复检测）
+  - 用户手动修改理解或删除备注例句后，按钮自动恢复为"全部填入"
+- **备注格式**：
+  - 去掉"AI例句："和"参考理解："标签
+  - 新格式仅写：例句英文 + 换行 + 中文翻译
+  - 如已有备注内容，追加时空行分隔
+- **strict prompt 加强**：
+  - retry prompt 明确禁止 -ing/-ed/-s 等变形
+  - crave 10/10 次测试全部通过
+- **不改**：数据库、云函数、保存逻辑
+- **测试**：183 passed
+- **当前 TokenHub base URL**：`https://tokenhub.tencentmaas.cn/v1`
 
 ## Phase 8B-hotfix-5d：validation 失败重试（本次）
 
