@@ -1,334 +1,411 @@
 # Current Phase
 
-## 当前阶段
+## Current Phase
 
-Phase 8H 已完成：例句生成全链路覆盖诊断与最小修复。
+Phase 8I completed / Phase 8I-2 readonly recommended
 
-## 最新提交
+例句生成全链路分类与校验修复已告一段落。合法字母数字词条（COVID-19 / 5G / GPT-4）、缩写句点（U.S. / e.g. / Dr.）、纯字母连字符词（well-known / full-time）均可正确分类并进入例句生成。单词与短语的词形变化（craves/craving、broke out/gave up）通过通用规则校验。86/86 unit + 269/269 全量通过。
 
-前端（English-study-miniapp）：
-- `8d10689` fix stale cache eviction for word/phrase with empty example sentence
-- `365fe20` fix example generation cache and translation gate
-- `731ca47` polish review reveal and overachieved status UI
-- `51f7d21` make add card primary home action
-- `3f4d303` polish AI example font and relax crave validation
-- `b7d3f56` refine AI reference fill behavior
-- `51dab96` prefer backend analyze over cloud function
-- `eb58175` document TokenHub Hunyuan migration
-- `60b2d3d` fix AI example generation for note adoption
+建议下一步为只读复核，确认无 substring 误匹配风险后再进入人工验收。
 
-后端（English-analyzer-backend）：
-- `211d57e` fix example generation cache and translation gate
-- `2d7ef6f` relax crave validation — exact word first, inflection fallback
-- `018fc36` tighten Hunyuan strict retry prompt
-- `b1c96d8` retry Hunyuan example generation on validation failure
-- `637fad2` fix TokenHub example generation diagnostics
-- `187799b` add exampleSentence/Translation to AnalyzeResponse
-- `8eac605` migrate Hunyuan example generation to TokenHub
-- `29f9779` add Hunyuan example sentence generation
+## Recently Completed
 
-## Phase 8H：例句生成全链路诊断与最小修复（本次）
-
-### 诊断结论
-- clutch / crave / break a leg：模型链路正常（Hunyuan strict 直接通过），根因是 Phase 8D 前写入的旧 stale cache，读取时静默返回空例句。
-- 连字符词（well-known / full-time / follow-up 等）：validator.py Rule 3 bug，被错误分类为 unknown，不进入 Hunyuan。
-
-### 前端修复（本次）
-- `getAnalyzeCacheItem`：读取时检测 word/phrase 且 exampleSentence 为空的条目 → 丢弃，触发新请求。清除 Phase 8D 前的旧 stale 缓存，避免用户设备继续看不到例句。
-
-### 后端修复（本次，commit `ef4f946`）
-- `validator.py` Rule 3：允许纯字母+连字符（无数字）的合法复合词（well-known / full-time / e-mail / follow-up / check-in 等）进入正常分类，不再硬判 unknown。
-- 新增 35 个单元测试（分类 + 例句链路），全部通过。
-
-### 剩余边界（Phase 8I）
-- 缩写句点 U.S. / e.g. / Dr. → 被 SENTENCE_END_RE 判 sentence，不生成例句（规则复杂，延至 8I）
-- COVID-19 → 含数字，仍 unknown（延至 8I）
-- commit guilty → phrase 类，会进入 Hunyuan 生成例句（非预期，未阻断）
-- #N/A → 被归为 phrase（N、A 两个 token），产品行为待确认
-
-### 人工验收
-重新编译后输入：
-- clutch / crave / break a leg → 应有例句（旧 stale cache 已被丢弃，触发新请求）
-- well-known / full-time / follow-up → 应有例句（Rule 3 修复，首次进入 Hunyuan）
-- commit guilty → 可能有例句（phrase 类，不阻断）
-- 2024 / 100-200 / -50 → 无例句（仍 unknown，符合预期）
+| Phase | Type | Backend commit | Frontend commit |
+|---|---|---|---|
+| Phase 8I | Classification + morphology fix | `54db753` | — |
+| Phase 8H | Stale cache read-side eviction + hyphen fix | `ef4f946` | `8d10689` |
+| Phase 8E | Diagnostic logging (no behavior change) | `d185306` | — |
+| Phase 8F | validate_english readonly review | — | — |
+| Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
+| Phase 8C | Review UI polish | — | `731ca47` |
+| Phase 8C-first-mini | Home button priority | — | `51f7d21` |
 
 ---
 
-## Phase 8D-hotfix：例句生成缓存与 translation 门槛修复（本次）
+## Phase 8B — Initial AI Example Sentence Chain
 
-- **问题 1（前端）**：`setAnalyzeCacheItem` 会把 `exampleSentence` 为空的 word/phrase 分析结果写入 30 天缓存。Hunyuan 暂时故障时，用户的某个词会被封印"无例句"状态长达 30 天，服务恢复后也看不到例句。
-- **问题 2（后端）**：`analyzer.py` 中 `if category in ("word", "phrase") and translation:` 这个门槛在 translation 失败时会跳过 Hunyuan 调用，而 Hunyuan 的 `chinese_meaning` 参数本为可选，不依赖 translation 也能工作。
-- **前端修复**（`pages/add/add.js`）：`setAnalyzeCacheItem` 在写入前检查：若 category 为 word/phrase 且 `exampleSentence` 为空，直接 return，不写入本地缓存。sentence/paragraph 类型缓存行为不变。
-- **后端修复**（`app/services/analyzer.py`）：将条件改为 `if category in ("word", "phrase")`，允许 Hunyuan 在 translation=None 时尝试生成例句。TMT fallback 仍用 `elif translation` 保护（TMT 需要中文翻译构建模板句）。
-- **新增测试**（`tests/test_analyzer_unit.py`）：9 个单元测试，覆盖 translation 有无时 Hunyuan/TMT 调用行为、sentence 排除、Hunyuan 结果透传。
-- **验证**：`python -m pytest -q` → 192 passed；`node --check pages/add/add.js` → OK；`git diff --check` → OK。
-- **未改**：数据库、卡片 schema、例句持久化、UI 大结构、sentence/paragraph 不生成例句的产品语义、TMT fallback 模板。
+### 概述
 
-## Phase 8B-hotfix-4：Hunyuan 迁移到 TokenHub（本次）
+在 Add/Edit 页实时分析英文输入时，后端返回 `exampleSentence` / `exampleTranslation`，
+前端映射到 `aiExampleSentence` / `aiExampleTranslation` 并在 suggestion-box 中展示。
+例句仅实时展示，不持久化到 card，不改数据库 schema。用户可点击"采用到备注"将例句追加到 note。
 
-- **目标**：将 Hunyuan 例句生成从旧腾讯云 SDK 迁移到 TokenHub OpenAI-compatible API
-- **原因**：腾讯云旧「大模型 API」平台将于 2026-09-30 停服，TokenHub 已创建 API Key 和服务
-- **修改文件**：`app/core/config.py`（新增环境变量）、`app/services/hunyuan_example.py`（重写为 HTTP POST）
-- **新增环境变量**：
-  - `HUNYUAN_API_KEY` — TokenHub API Key（未配置时 Hunyuan 直接返回 None, None）
-  - `HUNYUAN_BASE_URL` — 默认 `https://api.hunyuan.cloud.tencent.com/v1`
-  - `HUNYUAN_MODEL` — 默认 `hunyuan-role-latest`
-- **当前 TokenHub 服务 ID**：`hunyuan-role-latest`（免费体验，后付费未开启）
-- **调用方式**：`POST {base_url}/chat/completions`，Bearer token，OpenAI-compatible 格式
-- **Prompt**：system + user 英文 prompt，temperature 0.2，response_format json_object
-- **TMT fallback 保留**：Hunyuan 失败 → TMT → None 链路不变
-- **不改前端、云函数、数据库**
-- **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
-- **测试**：183 passed
+### 阶段链
 
-## Phase 8C-ui-hotfix：复习页 UI 降噪（本次）
+**8B 初版**（`5137767` frontend / `88062e1` backend）
+- 后端接入 Free Dictionary API (`api.dictionaryapi.dev`) 获取真实英文例句，TMT 翻译为中文。
+- 前端新增 `aiExampleSentence` / `aiExampleTranslation` state，在 suggestion-box 中展示。
+- 前端 `adoptNoteExample()` 将例句追加到备注。
+- `5137767` 同时包含复习页来源上移（Phase 8A）。
 
-- **A. 查看理解按钮降级**（`pages/review/review.wxss`）
-  - `.reveal-btn`：白底 + 绿色描边 + 绿色文字，去掉绿色渐变实心背景和大阴影
-  - 保持宽度 86%、高度 92rpx、圆角 999rpx 不变
-  - 新增 `.reveal-btn:active` 浅绿背景反馈
-- **B. 卡片展开去内部滚动条**（`pages/review/review.wxml` + `review.wxss`）
-  - WXML：将展开区 3 个 `scroll-view` 替换为普通 `view`（task-answer-scroll / task-answer-limited / task-notes-limited）
-  - WXSS：`.task-card-open` 由 `height: 690rpx` 改为 `height: auto; overflow: visible`；`.task-answer-slot` 改为 `flex: none`（展开态）；`.task-answer-scroll` 去掉 `height: 100%`
-  - 卡片展开后自然撑高，由页面整体滚动；不再产生内部灰色滚动条
-- **C. 超额完成状态文案层级**（`pages/today_review_status/today_review_status.js`）
-  - `overachieved` 分支：`stateLabel` 改为 `"今天完成了 N 张"`（突出真实完成数）
-  - `stateSub` 改为 `"目标 5 / 5 · 已超额完成"`（目标进度降为副信息）
-  - 🎉 emoji 由 WXML 模板固定，不变
-  - `all_done` 分支（恰好达标）保持不变
-- **未改**：review session / feedback / dailyGoal 逻辑、接口、数据结构、历史页
+**8B-hotfix**（`60b2d3d` frontend）
+- 初版错误地将 `form.englishText`（用户输入本身）当作 AI 例句。
+- 修复：使用后端返回的真实 `exampleSentence` / `exampleTranslation`。
 
-**验收步骤：**
-1. 复习页未展开：查看理解为白底绿描边次级按钮，非绿色实心
-2. 点击查看理解：理解和备注正常展开，右侧无灰色滚动条，页面可整体滚动
-3. 反馈按钮（想不起来/不太稳/基本掌握/很熟了）样式逻辑不变
-4. 超额完成时（如完成 8 张，目标 5 张）：主标题"今天完成了 8 张"，副信息"目标 5 / 5 · 已超额完成"
-5. 恰好完成（5/5）：主标题"今日完成 5 / 5"不受影响
-6. in_progress / not_started 状态展示不受影响
+**8B-hotfix-2 — TMT 兜底**（`88062e1` backend，与 Free Dictionary 同 commit）
+- Free Dictionary 不可用时，用中文翻译构造模板句 → TMT zh→en → 验证 → 采纳。
+- 常用动词/形容词效果好；基础词（go/be/have）因 TMT 同义词替换可能验证不通过，静默返回 None。
 
-## Phase 8C-first-mini：首页按钮主次调整（本次）
+**8B-hotfix-3 — Hunyuan**（`29f9779` backend）
+- 新增 `app/services/hunyuan_example.py`，用 Tencent Hunyuan ChatCompletions 生成例句。
+- Prompt 要求返回 `{"exampleSentence": "...", "exampleTranslation": "..."}`。
+- 校验：两字段非空、例句不等于原词、例句含原词 substring、≥3 词。
+- 链路：Hunyuan → TMT fallback → None。
 
-- **首页仅调整添加/复习按钮主次**：
-  - `pages/index/index.wxml`：goal_blocked 块交换两按钮 class（fix 历史反用）；更新注释
-  - `pages/index/index.wxss`：`.add-main-btn` 改为 flex:2 + 绿色主按钮样式；`.review-main-btn` 改为 flex:1 + 白色次按钮样式
-  - 按钮比例：添加 ≈66%，复习 ≈34%
-- **添加卡片成为主按钮**（绑定 `goToAddPage`，绿色渐变，视觉权重高）
-- **复习入口降为次按钮**（绑定 `goToReview`，白色，视觉权重低）；disabled 态保持原有 `!important` 样式
-- **未改**：dailyGoal、状态卡、今日完成统计、review session 逻辑、后端、数据库
+**8B-hotfix-4 — TokenHub 迁移**（`8eac605` backend）
+- 从旧腾讯云 SDK 迁移到 TokenHub OpenAI-compatible API (`POST {base_url}/chat/completions`)。
+- 新增环境变量：`HUNYUAN_API_KEY`、`HUNYUAN_BASE_URL`、`HUNYUAN_MODEL`。
+- 当前服务 ID：`hunyuan-role-latest`。
 
-**人工验收：**
-1. 首页打开：添加卡片为绿色宽按钮（约 2/3 宽）
-2. 开始复习/继续复习为白色窄按钮（约 1/3 宽）
-3. 点击添加卡片正常进入添加页
-4. 点击复习正常进入复习流程
-5. 今日完成卡片、进度条、搜索、筛选、卡片列表不受影响
-6. Console 无 JS 报错
+**8B-hotfix-5 — 直连后端**（`187799b` backend / `51dab96` frontend）
+- 问题：云函数 `analyzeEnglish` 默认 3s 超时，TokenHub 返回无法到达前端。
+- 后端 `AnalyzeResponse` 补上 `exampleSentence` / `exampleTranslation` 字段。
+- 前端 `apiClient.js` 新增 `analyzeEnglishDirect()` 直连 FastAPI（15s timeout）。
+- 链路优先级：直连后端 → 云函数兜底 → 离线返回。
 
-## Phase 8B-hotfix-7：AI 例句字体与 crave 词形变化兜底（本次）
+**8B-hotfix-5c — TokenHub 诊断日志**（`637fad2` backend）
+- TokenHub API key 被 `api.hunyuan.cloud.tencent.com` 返回 HTTP 401。
+- 新增诊断日志：API key 配置状态、base_url/model、HTTP status、choices/content/JSON 解析状态。
 
-- **AI 例句英文取消斜体**：
-  - 删除 `pages/add/add.wxss` 中 `.reference-example { font-style: italic; }` 块
-  - 例句字体恢复为正常，保持现有字号、颜色、间距不变
-- **crave 优先原词 + 词形变化兜底**：
-  - 交换 prompt 顺序：第一次优先要求 exact word（strict prompt）→ 第二次允许 inflection
-  - 新增 `_text_in_sentence()` 校验函数：非 strict 模式下接受常见规则变形（+s/+es/+d/+ed/+ing/去e+ing/去e+ed 等）
-  - strict 模式仍只要 exact substring match
-  - 保持 max 1 retry + TMT fallback
-- **不改**：数据库、云函数、保存逻辑、前端按钮/填入逻辑
-- **测试**：182 passed（1 pre-existing failure unrelated）
+**8B-hotfix-5d — Validation 失败重试**（`b1c96d8` backend）
+- 问题：模型有时生成 inflection（craving 而非 crave），validation 丢弃有效例句。
+- 修复：首次调用允许 inflection → 若 `text not in sentence`，用严格 prompt 重试一次（禁止变形/同义词）。
+- 最多重试一次，其他失败原因不重试，直接走 TMT fallback。
 
-**人工验收：**
-1. 重启后端
-2. 微信开发者工具重新编译
-3. 输入 penetrate / pertinence / eager → 确认英文例句不再斜体（正常字体）
-4. 输入 crave → 优先看是否生成含 "crave" 的句子
-5. 若未用原词，允许出现 craving / craved / craves
-6. 不接受不相关同义词句子
-7. "全部填入 / 已填入"逻辑不受影响
-8. 保存并返回、保存并继续新增正常
+**8B-hotfix-6 — 参考区 UI 合并 + strict prompt 加强**（`018fc36` backend / `b7d3f56` frontend）
+- "参考理解"和"AI 例句"两个区域合并为一个"参考"区。
+- "采纳建议"和"采用到备注"合并为"全部填入"，一键写入理解和备注。
+- 备注格式简化为：例句英文 + 换行 + 中文翻译。
+- retry prompt 明确禁止 -ing/-ed/-s 等变形。
 
-## Phase 8B-hotfix-6：参考区 UI 与备注格式优化（本次）
+**8B-hotfix-7 — 例句字体 + crave 词形兜底**（`2d7ef6f` backend / `3f4d303` frontend）
+- AI 例句英文取消斜体。
+- crave 优先原词匹配，允许常见词形变化（+s/+es/+d/+ed/+ing 等）兜底。
+- strict 模式仍只要 exact substring match。
 
-- **参考区统一**：
-  - 原来"参考理解"和"AI 例句"两个独立区域合并为一个"参考"区
-  - 展示结构：理解 / 例句 / 翻译 / [全部填入]
-  - 参考框在填入后保留，不消失
-- **按钮合并**：
-  - 原来"采纳建议"和"采用到备注"两个按钮合并为一个"全部填入"
-  - 点击后一次性写入"我的理解"和"补充备注"
-  - 写入后按钮变为"已填入"，样式弱化（灰色）
-  - 再次点击不重复写入（重复检测）
-  - 用户手动修改理解或删除备注例句后，按钮自动恢复为"全部填入"
-- **备注格式**：
-  - 去掉"AI例句："和"参考理解："标签
-  - 新格式仅写：例句英文 + 换行 + 中文翻译
-  - 如已有备注内容，追加时空行分隔
-- **strict prompt 加强**：
-  - retry prompt 明确禁止 -ing/-ed/-s 等变形
-  - crave 10/10 次测试全部通过
-- **不改**：数据库、云函数、保存逻辑
-- **测试**：183 passed
-- **当前 TokenHub base URL**：`https://tokenhub.tencentmaas.cn/v1`
+---
 
-## Phase 8B-hotfix-5d：validation 失败重试（本次）
+## Phase 8C — Review UI Polish
 
-- **问题**：模型有时生成包含 inflection（如 craving）而非原词（crave）的例句，validation 因 `text not in sentence` 丢弃了有效例句
-- **修复**：
-  - 将 Hunyuan 调用和 validation 抽为 `_call_and_validate()` 内部函数
-  - 首次调用使用允许 inflection 的 prompt
-  - 若 validation 失败且原因为 `text not in sentence`（`retry_eligible=True`），自动用更严格的 prompt 重试一次
-  - 严格 prompt：`You MUST use the exact word/phrase "{text}" — do NOT use synonyms, do NOT use different forms, do NOT use inflections`
-  - 最多重试一次（不无限重试）
-  - 其他失败原因（空内容、JSON 解析失败等）不重试，直接走 TMT fallback
-- **不改**：前端、云函数、数据库
-- **测试**：183 passed
-- **当前 TokenHub base URL**：`https://tokenhub.tencentmaas.cn/v1`
+**提交：** frontend `731ca47` polish review reveal and overachieved status UI
+**文档：** frontend `c1aaf2c` document review UI hotfix phase 8C
 
-**人工验收：**
-1. 重启后端
-2. 输入 `crave` → 应显示完整英文例句
-3. 输入 `eager`、`shot` → 仍正常
-4. 若两次都失败 → 不显示空例句区块，走 TMT fallback
+### A. 查看理解按钮降级
+- `pages/review/review.wxss`：`.reveal-btn` 从绿色实心主按钮降为白底 + 绿色描边次级按钮。
+- 新增 `.reveal-btn:active` 浅绿背景反馈。
 
-## Phase 8B-hotfix-5c：TokenHub 例句生成诊断日志（本次）
+### B. 卡片展开去内部滚动条
+- `pages/review/review.wxml`：展开区 3 个 `scroll-view` 替换为普通 `view`。
+- `pages/review/review.wxss`：`.task-card-open` 改为 `height: auto; overflow: visible`。
+- 卡片展开后自然撑高，页面整体滚动。
 
-- **问题**：direct backend 已生效，但 `exampleSentence received: false`。根因：TokenHub API key 被 `api.hunyuan.cloud.tencent.com` 返回 HTTP 401（Incorrect API key）
-- **诊断日志新增**：
-  - `hunyuan_example.py`：API key 是否配置、base_url / model、HTTP status 和错误信息、choices 是否存在、content 是否为空、JSON 解析是否成功、validation 失败的具体原因
-  - `analyzer.py`：Hunyuan 成功/失败、TMT fallback 触发/成功/失败
-  - 所有日志均不打印 API Key
-- **当前状态**：日志已就绪，等待用户确认正确的 TokenHub OpenAI-compatible base URL
-- **不改**：前端、云函数、数据库
-- **测试**：183 passed
-- **下一步**：用户从 TokenHub 控制台确认正确的 base URL，更新 `.env` 中 `HUNYUAN_BASE_URL`
+### C. 超额完成状态层级调整
+- `pages/today_review_status/today_review_status.js`：`overachieved` 分支真实完成数作为主信息，目标 5/5 作为副信息。
+- `all_done` 分支（恰好达标）不变。
 
-## Phase 8B-hotfix-5：添加页 AI 分析优先直连后端（本次）
+### 未改
+review session / feedback / dailyGoal 业务逻辑、接口、数据结构、历史页。
 
-- **问题**：添加页 AI 分析链路经过 `cloud.callFunction('analyzeEnglish')`，云函数默认 3 秒超时，导致 TokenHub 返回结果无法到达前端，AI 例句区块不显示
-- **修复**：
-  1. 后端 `AnalyzeResponse` 补上 `exampleSentence` / `exampleTranslation` 字段（之前被 Pydantic response_model 过滤）
-  2. 前端 `apiClient.js` 新增 `analyzeEnglishDirect()` 直连 FastAPI
-  3. 前端 `add.js` 新增 `callBackendAnalyzeDirect()` 方法，优先直连后端 → 云函数兜底
-- **链路优先级**：直连后端（15s timeout）→ `cloud.callFunction('analyzeEnglish')`（兜底）→ 离线返回
-- **不改**：云函数（保留不删）、数据库、保存流程、卡片 schema
-- **TokenHub 例句字段**仍通过 `exampleSentence` / `exampleTranslation` 返回
-- **测试**：183 passed
+### Phase 8C-first-mini — 首页按钮主次调整
+**提交：** frontend `51f7d21` make add card primary home action
 
-## Phase 8B-hotfix-3：Hunyuan 例句生成（已完成）
+- 添加卡片升级为绿色渐变主按钮（flex:2，≈66% 宽）。
+- 复习入口降为白色次按钮（flex:1，≈34% 宽）。
 
-- **目标**：直接用 Hunyuan ChatCompletions 生成 `exampleSentence` / `exampleTranslation`
-- **新增文件**：`app/services/hunyuan_example.py`
-  - 函数：`generate_example_with_hunyuan(text, chinese_meaning=None) → (str|None, str|None)`
-  - Prompt 要求 Hunyuan 仅返回 `{"exampleSentence": "...", "exampleTranslation": "..."}`
-  - 校验：两字段非空；例句不等于输入词本身；例句必须包含原始输入（substring）；句子不少于 3 词
-  - 任何异常（未开通、超时、格式错）一律返回 `None, None`，不影响主流程
-- **修改文件**：`app/services/analyzer.py`（删除内联 Hunyuan 函数，import 新模块）
-- **链路顺序**：`generate_example_with_hunyuan()` → `_generate_example_with_tmt()` → `None`
-- **环境变量**：使用现有 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`，与 TMT 共用，无需新增
-- **前端**：不改。`aiExampleSentence`/`aiExampleTranslation` 消费链路已就绪
-- **云函数**：不改。`exampleSentence`/`exampleTranslation` 已透传
-- **数据库**：不改。例句临时结果，不持久化
-- **测试**：183 passed
+---
 
-**人工验收步骤：**
-1. 在腾讯云控制台开通混元大模型（hunyuan-lite 免费额度）
-2. 确认 `.env` 中 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` 已配置（与 TMT 同一账号密钥即可）
-3. 重启后端：`uvicorn app.main:app --reload`
-4. 输入 `crave`，应在建议框看到完整英文例句（含 crave）+ 中文翻译
-5. 点击"采用到备注"，备注应追加 `AI例句：...`
-6. 输入 `clutch`，验证例句包含 clutch
-7. 若 Hunyuan 不可用，应 fallback 到 TMT；TMT 失败则不显示例句区块，不影响"参考理解"显示
+## Phase 8D-hotfix — Example Generation Cache & Translation Gate
 
-## Phase 8B-hotfix-2：AI 例句 TMT 兜底（已完成）
+**提交：**
+- backend `211d57e` fix example generation cache and translation gate
+- frontend `365fe20` fix example generation cache and translation gate
+- frontend `c331c81` document Phase 8D-hotfix example generation fixes
 
-- **问题**：Tencent Hunyuan 未开通（ServiceNotActivated），例句始终为空
-- **修复**：在 Hunyuan 失败后，追加一条 TMT 双向翻译兜底路径
-- **原理**：用中文翻译构造中文模板句，调用 TMT（zh→en），验证英文结果包含原词后采纳
-- **改动文件**：`tencent_translator.py`（新增 `translate_to_en`）、`analyzer.py`（新增 `_generate_example_with_tmt`，接在 Hunyuan 之后调用）
-- **覆盖范围**：对常用动词/形容词等中英对应较明确的词效果好；基础词（go/be/have）因 TMT 同义词替换可能验证不通过，静默返回 None（不展示按钮）
-- **Hunyuan 保留**：一旦在腾讯云控制台开通混元服务，高质量 AI 例句将自动启用（无需再改代码）
-- **未改变**：前端 add.js / add.wxml / add.wxss、云函数 analyzeEnglish、数据库 schema、保存流程
+### 问题 1（前端缓存写入）
+`setAnalyzeCacheItem` 把 `exampleSentence` 为空的 word/phrase 分析结果写入 30 天缓存。Hunyuan 暂时故障时，用户的某个词会被封印"无例句"状态长达 30 天。
 
-## Phase 8A：复习页来源上移（已完成）
+**修复：** word/phrase 且 `exampleSentence` 为空时，跳过缓存写入。sentence/paragraph 缓存行为不变。
 
-- **改动**：`review.wxml` 在 `.task-main`（英文区）与 `.task-answer-slot` 之间插入来源行
-- **条件**：`wx:if="{{currentCard.whereEncountered && !answerVisible}}"` — 仅在卡片未翻面时展示，翻面后由原来的 answer panel 展示
-- **格式**：`来自：xxx`，居中，24rpx，弱灰色（#9ba8a0）
-- **保留**：原来 answer panel 内的来源展示不动
-- **未改变**：feedback 四个按钮、review session 创建/完成/跳转逻辑、状态机、进度条
+### 问题 2（后端 translation gate）
+`analyzer.py` 中 `if category in ("word", "phrase") and translation:` —— translation 为空时跳过 Hunyuan，但 Hunyuan 的 `chinese_meaning` 参数为可选，不依赖 translation。
 
-## Phase 8B-hotfix：AI 例句真实生成（已完成）
+**修复：** 改为 `if category in ("word", "phrase")`。TMT fallback 仍用 `elif translation` 保护（TMT 需要中文翻译构建模板句）。
 
-- **问题**：Phase 8B 把 `form.englishText`（用户输入本身）当成 AI 例句，输入 crave 备注变成 `AI例句：crave`，不是真实例句
-- **修复**：后端调用 Free Dictionary API 获取真实英文例句（无需 API key），再用现有 Tencent TMT 翻译例句到中文
-- **例句来源**：`api.dictionaryapi.dev`（免费词典，仅对 word/phrase 类型生效）
-- **改动文件**：`analyzer.py`（后端）、`analyzeEnglish/index.js`（云函数）、`add.js`、`add.wxml`、`add.wxss`（前端）
-- **前端 state**：新增 `aiExampleSentence` / `aiExampleTranslation`；`adoptNoteExample()` 只使用这两个字段
-- **展示**：suggestion-box 内新增 `ai-example-block`，仅在 `aiExampleSentence` 非空时显示；`采用到备注` 按钮也在此块内
-- **采纳格式**：`AI例句：[real example sentence]\n参考理解：[translated example]`
-- **保护**：重复检测；`translating` 时禁用；`isReadonlyDetailMode` 时禁用；词典查询失败静默降级（按钮不出现）
-- **未改变**：现有"采纳建议"按钮（→ 我的理解）、保存流程、离线保存、pending sync、编辑旧卡、数据库 schema
+### 测试
+9 个单元测试覆盖 translation 有无时 Hunyuan/TMT 调用行为。192 passed。
 
-## Phase 8B：添加页 AI 例句（初版，已被 hotfix 取代）
+---
 
-- 初版错误地把 `form.englishText` 作为例句，已由 8B-hotfix 修正
+## Phase 8E-diagnostic — Example Generation Failure Diagnostic Logging
 
-## 本次未改变
+**提交：**
+- backend `d185306` add diagnostic logs for example generation failures
+- backend `06b297f` docs: record Phase 8E-diagnostic — diagnostic logging only
 
-- 后端（English-analyzer-backend）
-- 数据库 / Card schema
-- 云函数 analyzeEnglish
-- review session / feedback / 状态机
-- 复习进度逻辑
-- whereEncountered 字段语义
-- 历史页 / 今日复习内容页
-- 首页筛选逻辑
+### 目的
+在不改变任何业务逻辑的前提下，添加结构化诊断日志，定位例句生成失败的具体原因。
 
-## Phase 8A/8B 选型说明
+### fail_reason 代码
 
-- **不新增数据库字段**：AI 例句内容是分析时的临时结果（translation/understanding），不需要持久化
-- **不做 migration**：无 schema 变更
-- **不改 cards API 主结构**：仅前端展示层变化
-- **最小方案**：复用 suggestionText，追加到 note，不新增必填项，不破坏任何现有保存链路
+| Code | Trigger |
+|---|---|
+| `model_api_error` | Non-200 HTTP、无 API key、异常 |
+| `model_timeout` | `requests.exceptions.Timeout`（15s） |
+| `empty_response` | 无 choices 或 content 为空 |
+| `json_parse_failed` | 无 `{}` 或 `JSONDecodeError` |
+| `missing_example_sentence` | `exampleSentence` / `exampleTranslation` 为空 |
+| `exact_match_failed` | strict 模式：原词不在句子中 |
+| `too_few_words` | 句子 < 3 token |
+| `loose_match_failed` | loose 模式：词形不在句子中 |
+| `tmt_fallback_failed` | 所有 TMT 模板翻译均失败 |
 
-## Phase 7K-hotfix 修复内容（已完成，上一阶段）
+### 日志格式
+```
+[hunyuan][diag] start | text='clutch' | mode=strict | has_translation=True
+[hunyuan][diag] pass | text='clutch' | mode=strict | sentence='She clutched her bag tightly.'
+[tmt][diag] fail_reason=tmt_fallback_failed | text='commit guilty' | all templates failed
+```
 
-- **P2-1**（离线编辑 pending update 显式保护）：`choosePreferredCard` 在旧 `syncStatus` 判断之前新增 `backend_sync_status === 'pending'` 显式优先判断。
-- **P2-2**（来源 pill 超长文本省略号保护）：`pages/add/add.wxss` 将 `.source-pill` 改为 `inline-block`。
-- **P2-3**（首页状态 Tab 横向滚动可发现性）：`pages/index/index.wxml` 右侧新增渐变蒙版。
+- 所有 [hunyuan][diag] / [tmt][diag] 行使用 `key=value` 格式，便于 grep。
+- API keys / tokens / headers 不输出。
+- Raw response 截断至 300 字符。
+- sentence/paragraph 仍不进入例句生成，缓存行为不变。
 
-## 当前产品语义
+---
+
+## Phase 8F-readonly — validate_english Classification Review
+
+**类型：** read-only audit，无代码提交。
+
+### 核心发现
+- `clutch` / `crave` 等普通词分类为 `word`，正确进入 Hunyuan。
+- `commit guilty` 实际分类为 `phrase`，问题不是分类，而是不自然短语 + 校验不通过。
+- `well-known` / `full-time` / `follow-up` / `e-mail` 等连字符词被 Rule 3 判 `unknown`，不进入 Hunyuan → 延至 Phase 8H 修复。
+- `U.S.` / `e.g.` / `Dr.` 等缩写句点被 SENTENCE_END_RE 判 `sentence` → 延至 Phase 8I 修复。
+- 没有 `[hunyuan][diag]` 日志时，优先怀疑分类、缓存、API key、接口路径，而非直接怀疑模型。
+
+---
+
+## Phase 8H — Full-Coverage Diagnosis & Stale Cache / Hyphen Fix
+
+**提交：**
+- backend `ef4f946` fix example generation coverage for common word patterns
+- backend `533eca9` document Phase 8H diagnostic and fix results
+- frontend `8d10689` fix stale cache eviction for word/phrase with empty example sentence
+- frontend `1018f65` document Phase 8H diagnostic and fix results
+
+### 诊断结论
+建立样本矩阵，真实诊断 clutch、crave、break a leg、well-known、full-time、follow-up 等词的完整链路：
+
+- **clutch / crave / break a leg**：模型链路正常（Hunyuan strict 直接通过），根因是 **stale cache**。Phase 8D-hotfix 只修了写入侧（新空结果不写入），但旧缓存中已存在的无例句条目读取时仍被返回。
+- **well-known / full-time / follow-up / e-mail / co-worker 等连字符词**：validator.py Rule 3 分类 bug —— 含连字符被硬判 `unknown`，不进入 Hunyuan。
+
+### 后端修复（`ef4f946`）
+- `validator.py` Rule 3：允许纯字母+连字符（无数字）的合法复合词进入正常分类，不再硬判 `unknown`。
+- `2024` / `100-200` / `-50` 仍为 `unknown`（含数字或无字母）。
+- 新增 35 单元测试（分类 + 例句链路），218/218 passed。
+
+### 前端修复（`8d10689`）
+- `getAnalyzeCacheItem` 读取侧修复：word/phrase 且 `exampleSentence` 为空的旧缓存条目 → 丢弃，触发新请求。
+- 清除 Phase 8D 前写入的旧 stale 缓存。
+
+### 未改
+Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据库 schema。
+
+---
+
+## Phase 8I — Alphanumeric Classification, Abbreviation Detection & Example Morphology Matching
+
+**提交：**
+- backend `54db753` fix alphanumeric classification and example morphology matching
+- backend `c721ff5` docs: record Phase 8I fixes in current-phase.md
+
+### 一、分类修复
+
+**`_classify_text` no-space 分支重写**（`app/services/validator.py`）
+
+旧 Rule 3 只允许纯字母连字符词，含数字一律 `unknown`。新规则：
+
+```
+无空格输入 → 检查是否全由 [A-Za-z0-9.\-'']+ 组成
+  → 不是（含 # / @ ! 等）→ unknown
+  → 是，但无英文字母 → unknown
+  → 是，有英文字母，末尾有 . 且满足 _is_abbreviation_like → word（绕过 SENTENCE_END_RE）
+  → 其他 → word
+```
+
+**新函数 `_is_abbreviation_like(text)`**：判断缩写句点模式——末尾有 `.`，所有点分段均为 1-4 个字母。
+
+### 二、分类对照
+
+| input | old | new | 例句 |
+|---|---|---|---|
+| COVID-19 | unknown | **word** | Y |
+| 5G | unknown | **word** | Y |
+| B2B | unknown | **word** | Y |
+| GPT-4 | unknown | **word** | Y |
+| U.S. | sentence | **word** | Y |
+| e.g. | sentence | **word** | Y |
+| Dr. | sentence | **word** | Y |
+| well-known | word | word | Y（Phase 8H 已修复） |
+| #N/A | phrase | **unknown** | N |
+| 2024 | unknown | unknown | N |
+
+### 三、Example Validation 重写
+
+**`_text_in_sentence`（`app/services/hunyuan_example.py`）**
+
+| 输入类型 | 校验行为 |
+|---|---|
+| 单词 | 精确子串检查 + 词形集合 token 匹配 |
+| 短语 | 精确子串检查 + **仅第一词**词形变化，其余词**连续出现** |
+
+**新增 `_IRREGULAR_FORMS` 表**（36 个常见不规则动词）和 **`_generate_word_forms(base)`**：
+- 不规则形式（break→broke/broken、give→gave/given、come→came 等）
+- 规则 +s / +ed / +ing
+- e 结尾去 e（crave→craving/craved）
+- y→ies/ied（study→studied）
+- 同化结尾 +es（watch→watches）
+
+### 四、词形校验对照
+
+| input | example sentence | old | new | reason |
+|---|---|---|---|---|
+| crave | She craves chocolate. | pass | pass | "crave" 是 "craves" 子串 |
+| crave | He was craving attention. | pass | pass | e-stem: craving |
+| avoid | She avoided the question. | pass | pass | "avoid" 是 "avoided" 子串 |
+| break out | A fire broke out last night. | **fail** | **pass** | 短语词形：broke out |
+| give up | She gave up smoking. | **fail** | **pass** | 短语词形：gave up |
+| pick up | He picked up the phone. | **fail** | **pass** | 短语词形：picked up |
+| crave | She really wanted chocolate. | fail | fail | 纯同义替换 |
+| break a leg | Good luck with your interview. | fail | fail | 无 break a leg 形式 |
+| commit guilty | He was found guilty of committing a crime. | fail | fail | committing + guilty 不连续 |
+
+### 五、硬编码白名单声明
+- 分类规则基于字符集结构（`[A-Za-z0-9.\-'']+` + `_has_english`），非样例列表。
+- 缩写检测基于段长通用规则（每段 1-4 字母）。
+- 词形基于通用生成规则（+s/ed/ing/e-stem/y-stem）+ 不规则动词补充表。
+- COVID-20 / GPT-5 / part-time / co-founder / avoided / admiring / picked up 等同类词无需新增白名单即可适配。
+
+### 六、测试
+- 新增 51 个测试（AlphanumericClassificationTest、AlphanumericExampleChainTest、ExampleValidationTest）。
+- 更新 2 个旧测试（`test_covid19_is_unknown` → `test_covid19_is_word` 等）。
+- 全量：86/86 unit + 269/269 全量通过。
+
+---
+
+## Key Product Semantics
+
+### 例句生成
+- 例句仅在 Add/Edit 页实时展示，不持久化到 card 或数据库。
+- 只有 word/phrase 分类才进入 Hunyuan 例句生成。sentence/paragraph 不生成例句。
+- Hunyuan → TMT fallback → None 三级链路。
+- 例句可通过"全部填入"按钮写入备注（格式：例句英文 + 换行 + 中文翻译）。
 
 ### 复习页
+- 卡片正面：英文内容 + 来自：xxx（有来源才显示，未翻面时展示）。
+- 卡片背面：我的理解 + 补充备注 + 来自：xxx。
+- 查看理解按钮：白底绿色描边次级按钮。
+- 卡片展开后页面整体滚动，无内部滚动条。
 
-- 卡片正面（未翻面）：英文内容 + **来自：xxx**（有来源才显示）
-- 卡片背面（翻面后）：我的理解 + 补充备注 + 来自：xxx（原展示位置保留）
-- feedback 四个按钮不变
+### 超额完成
+- 真实完成数作为主信息（"今天完成了 N 张"）。
+- 目标 5/5 作为副信息。
 
-### Add/Edit 页
-
-- 输入英文后 AI 分析，显示"参考理解"建议框
-- 建议框内：`采纳建议`（→ 我的理解）+ `采用到备注`（→ 补充备注，格式：AI例句+参考理解）
-- 如果 AI 未返回建议（translating 或无内容），"采用到备注"不显示
-- 重复点击不会重复追加同一条例句
-- 来源输入框 placeholder"例如 美剧、电影、抖音、B站等"，下方"最近用过"快捷标签
-
-### 首页卡片库
-
-- 状态 Tab 单行横向可滚动，右侧渐变提示
-- 卡片类型筛选常驻在搜索框上方
-- meta 行来源 pill"来自：xxx"（有值才显示）
+### 首页
+- 添加卡片为主按钮（绿色渐变，≈66% 宽），复习为次按钮（白色，≈34% 宽）。
+- 今日任务/今日已完成采用 unique card count，不统计已删除卡片。
 
 ### whereEncountered
+- 字段可选，空值不展示。
+- 后端字段名 `where_encountered`，前端字段名 `whereEncountered`。
 
-- 字段可选，空值不展示
-- 复习卡正面：弱灰小字（24rpx，#9ba8a0），仅未翻面时显示
-- 复习卡背面：弱色小字（原展示）
-- 首页列表：弱绿色 pill
+---
 
-## 注意
+## What Is Fixed
 
-- 后端字段名 where_encountered，前端字段名 whereEncountered，不要混用。
-- 不要把今日页和历史页混用。历史页是历史快照语义，今日页是当前卡片语义。
-- 列表页统一不展示备注，详情页（Add/Edit、复习、历史详情）仍可展示。
+| 问题 | 根因 | 修复阶段 |
+|---|---|---|
+| word/phrase 30 天无例句 | 缓存写入空例句 | 8D（写入侧）+ 8H（读取侧） |
+| translation 为空不调 Hunyuan | translation gate | 8D |
+| well-known 等连字符词无例句 | Rule 3 将连字符词判 unknown | 8H |
+| COVID-19 / 5G / GPT-4 无例句 | 含数字硬判 unknown | 8I |
+| U.S. / e.g. / Dr. 无例句 | SENTENCE_END_RE 判 sentence | 8I |
+| broke out / gave up 校验失败 | 短语不检查第一词词形变化 | 8I |
+| craving / avoided 可能丢例句 | 单词不检查常见词形变化 | 8I |
+
+---
+
+## Known Remaining Boundaries
+
+| 场景 | 状态 |
+|---|---|
+| 完整句子（I love English.）不生成例句 | 产品语义保留，不变 |
+| `commit guilty` 分类为 phrase，进入 Hunyuan | 不阻断（产品无害），词形校验正确拒绝非连续匹配 |
+| substring false positive 风险（he in "the", art in "party"） | 延至 Phase 8I-2-readonly 复核 |
+| 不规则名词复数（analysis→analyses） | 未处理，但 analysis 是 analyses 子串，实际可过 |
+| 不做例句持久化 | 产品语义保留 |
+| 不换模型 | 不变 |
+| 数据库 schema 不变 | 始终不变 |
+
+---
+
+## Recommended Next Step
+
+### Phase 8I-2-readonly: Substring False Positive Review
+
+Phase 8I 的 `_text_in_sentence` 对单词使用 `text in sentence.lower()` 作为主检查（辅以 token-based inflection fallback）。裸 substring match 可能存在 false positive：
+
+| input | sentence | match | actual? |
+|---|---|---|---|
+| he | "She went to the store." | "he" in "she" | false positive |
+| art | "We went to the party." | "art" in "party" | false positive |
+| in | "That's interesting." | "in" in "interesting" | false positive |
+| go | "The logo is nice." | "go" in "logo" | false positive |
+
+**复核要点：**
+- 如果 Hunyuan 自然生成的就是包含完整单词的句子，false positive 概率低，可直接进入人工验收。
+- 如果确认存在风险，应加词边界检查（`\b` 或 token set 匹配）作为单词主检查，再辅以词形 fallback。
+
+**不建议现在新增 Claude Code skill / command**。等例句生成链路经过多轮人工验收稳定后再沉淀命令。
+
+---
+
+## Important Commits
+
+### Backend（English-analyzer-backend）
+
+| Commit | Phase | Description |
+|---|---|---|
+| `54db753` | 8I | fix alphanumeric classification and example morphology matching |
+| `c721ff5` | 8I | docs: record Phase 8I fixes in current-phase.md |
+| `ef4f946` | 8H | fix example generation coverage for common word patterns |
+| `533eca9` | 8H | document Phase 8H diagnostic and fix results |
+| `d185306` | 8E | add diagnostic logs for example generation failures |
+| `06b297f` | 8E | docs: record Phase 8E-diagnostic — diagnostic logging only |
+| `211d57e` | 8D | fix example generation cache and translation gate |
+| `2d7ef6f` | 8B-7 | relax crave validation — exact word first, inflection fallback |
+| `018fc36` | 8B-6 | tighten Hunyuan strict retry prompt |
+| `b1c96d8` | 8B-5d | retry Hunyuan example generation on validation failure |
+| `637fad2` | 8B-5c | fix TokenHub example generation diagnostics |
+| `187799b` | 8B-5 | add exampleSentence/Translation to AnalyzeResponse |
+| `8eac605` | 8B-4 | migrate Hunyuan example generation to TokenHub |
+| `29f9779` | 8B-3 | add Hunyuan example sentence generation |
+| `88062e1` | 8B-2 | fix AI generated example sentences (Free Dictionary + TMT) |
+
+### Frontend（English-study-miniapp）
+
+| Commit | Phase | Description |
+|---|---|---|
+| `8d10689` | 8H | fix stale cache eviction for word/phrase with empty example sentence |
+| `1018f65` | 8H | document Phase 8H diagnostic and fix results |
+| `365fe20` | 8D | fix example generation cache and translation gate |
+| `c331c81` | 8D | document Phase 8D-hotfix example generation fixes |
+| `731ca47` | 8C | polish review reveal and overachieved status UI |
+| `c1aaf2c` | 8C | document review UI hotfix phase 8C |
+| `51f7d21` | 8C-mini | make add card primary home action |
+| `3f4d303` | 8B-7 | polish AI example font and relax crave validation |
+| `b7d3f56` | 8B-6 | refine AI reference fill behavior |
+| `51dab96` | 8B-5 | prefer backend analyze over cloud function |
+| `60b2d3d` | 8B-hotfix | fix AI example generation for note adoption |
+| `5137767` | 8B | implement review source prominence and AI example note adoption |
