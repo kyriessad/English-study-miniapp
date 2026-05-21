@@ -2,12 +2,13 @@
 
 ## Current Phase
 
-Phase 8L-hotfix completed — 首页"今日目标"板块点击行为调整。
+Phase 8L-2-hotfix completed — 首页今日目标入口路由调整 + 今日复习内容页历史入口。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8L-2-hotfix | Home goal card dual routing + today reviewed history link | — | `9d88c8b` |
 | Phase 8L-hotfix | Home goal card routing to today reviewed | — | `4e41639` |
 | Phase 8K | Polish: review progress, home labels, today reviewed filters | — | `af338dc` |
 | Phase 8I-2 | Validation substring review (readonly) | — | — |
@@ -314,6 +315,44 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 ### 保留项
 - 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
 - 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
+
+---
+
+## Phase 8L-2-hotfix — Home Goal Card Dual Routing + Today Reviewed History Link
+
+**提交：** frontend `9d88c8b` adjust home goal card routing and today reviewed history link
+
+### 变更内容
+
+#### 首页今日目标板块
+
+- `actualCompletedToday > 0`（今日已复习卡片数 > 0）：跳转到 `today_reviewed`（今日复习内容页）
+- `actualCompletedToday == 0`：跳转到 `today_review_status`（今日复习情况页），用户看到 `not_started` 引导态 + "查看历史复习内容"入口
+- 右侧绿色小箭头在所有状态下均显示（0/5、2/5、5/5、超额均显示）
+- hover-class 在所有状态下均生效
+
+#### 今日复习内容页右上角入口
+
+- 原"共 X 张卡片"（`.today-hero__sub`）替换为弱链接"历史复习内容 ›"（`.today-hero__history-link`）
+- 点击跳转 `/pages/history_reviewed/history_index`
+- 字号 24rpx、颜色 `#8a9a8e`（muted）、无加粗，视觉权重明显弱于主标题
+
+### 状态行为
+
+| 首页状态 | 箭头 | 点击跳转 |
+|---|---|---|
+| 0/5 — 未复习任何卡片 | 显示 | today_review_status（not_started 态） |
+| 2/5 — 已复习部分 | 显示 | today_reviewed（今日复习内容页） |
+| 5/5 — 恰好完成 | 显示 | today_reviewed |
+| 超额完成 | 显示 | today_reviewed |
+
+### 未改
+
+- 后端、数据库 schema、review session / feedback 核心逻辑不变
+- dailyGoal / goal_progress 计算不变
+- today_review_status 页面保留，未改内部结构
+- 复习完成后 redirect 到 today_review_status 链路（review.js）保留
+- 历史页内部逻辑未改
 
 ---
 
