@@ -69,6 +69,10 @@
         </view>
       </view>
 
+      <view wx:if="{{currentCard.whereEncountered && !answerVisible}}" class="task-front-source">
+        来自：{{currentCard.whereEncountered}}
+      </view>
+
       <view class="task-answer-slot">
         <block wx:if="{{answerVisible}}">
           <scroll-view scroll-y class="task-answer-scroll">

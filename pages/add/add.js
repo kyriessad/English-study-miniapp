@@ -1396,6 +1396,23 @@ Page({
     })
   },
 
+  adoptNoteExample() {
+    if (this.data.isReadonlyDetailMode) return;
+    const englishText = normalizePlainText(this.data.form.englishText);
+    const suggestionText = normalizePlainText(
+      this.data.understandingSuggestion || this.data.suggestionText
+    );
+    if (!englishText || !suggestionText || this.data.translating) return;
+
+    const noteEntry = `AI例句：${englishText}\n参考理解：${suggestionText}`;
+    const currentNotes = this.data.form.notes || '';
+
+    if (currentNotes.includes(`AI例句：${englishText}`)) return;
+
+    const newNotes = currentNotes ? `${currentNotes}\n\n${noteEntry}` : noteEntry;
+    this.setData({ 'form.notes': newNotes });
+  },
+
 
   onNotesInput(event) {
     if (this.data.isReadonlyDetailMode) return;

@@ -54,6 +54,9 @@
       <view class="suggestion-content">
         {{translating ? '正在生成参考理解...' : suggestionText}}
       </view>
+      <view wx:if="{{suggestionText && !translating}}" class="adopt-note-row">
+        <view class="adopt-note-btn" bindtap="adoptNoteExample">采用到备注</view>
+      </view>
     </view>
 
     <view class="form-item">

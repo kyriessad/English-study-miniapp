@@ -537,3 +537,22 @@
   white-space: nowrap;
   vertical-align: middle;
 }
+
+/* Phase 8B: AI 例句采用到备注 */
+.adopt-note-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14rpx;
+}
+
+.adopt-note-btn {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #3f7449;
+  background: #ffffff;
+  border: 1rpx solid #dcebd8;
+}
