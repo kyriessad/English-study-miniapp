@@ -408,6 +408,20 @@ function getTodayReviewed() {
   });
 }
 
+function analyzeEnglishDirect(text, category) {
+  return request({
+    url: '/api/analyze-english',
+    method: 'POST',
+    data: {
+      text: text,
+      cardType: category || 'auto',
+      targetLang: 'zh'
+    },
+    skipAuthHeader: true,
+    timeout: 15000
+  });
+}
+
 module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
@@ -431,5 +445,6 @@ module.exports = {
   createReviewSession,
   getReviewOverview,
   getTodayReview,
-  submitReviewFeedback
+  submitReviewFeedback,
+  analyzeEnglishDirect
 };

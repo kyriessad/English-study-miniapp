@@ -8,7 +8,7 @@ const {
   DEFAULT_EXAM_MODULE
 } = require('../../utils/cardStorageFacade');
 
-const { updateBackendCard } = require('../../utils/apiClient');
+const { updateBackendCard, analyzeEnglishDirect } = require('../../utils/apiClient');
 
 const {
   CARD_CATEGORIES
@@ -436,6 +436,46 @@ Page({
 
   },
 
+  async callBackendAnalyzeDirect(text, category, cacheKey) {
+    try {
+      const backendResp = await analyzeEnglishDirect(text, category);
+
+      const categoryMap = { word: '单词', phrase: '短语', sentence: '句子', paragraph: '句子', unknown: '' };
+      const mappedCategory = categoryMap[backendResp.category] || category;
+      const words = getNormalizedWordList(text);
+
+      return {
+        ok: backendResp.ok !== false,
+        text: backendResp.normalizedText || text,
+        normalizedText: backendResp.normalizedText || text,
+        category: mappedCategory,
+        analysisStatus: backendResp.level === 'failed' ? 'failed' : 'done',
+        validation: {
+          errors: Array.isArray(backendResp.errors) ? backendResp.errors : [],
+          warnings: Array.isArray(backendResp.warnings) ? backendResp.warnings : [],
+          normalizedText: backendResp.normalizedText || text
+        },
+        understanding: {
+          candidate: backendResp.translation || backendResp.understanding || '',
+          source: backendResp.provider || 'tencent'
+        },
+        cacheKey: cacheKey || `${mappedCategory}::${text.toLowerCase()}::${words.map(function(w) { return normalizeEnglishText(w).toLowerCase(); }).filter(Boolean).join('|')}`,
+        fromCache: Boolean(backendResp.cacheHit),
+        backend: {
+          level: backendResp.level || '',
+          category: backendResp.category || '',
+          provider: backendResp.provider || '',
+          translation: backendResp.translation || '',
+          understanding: backendResp.understanding || ''
+        },
+        exampleSentence: normalizePlainText(backendResp.exampleSentence || ''),
+        exampleTranslation: normalizePlainText(backendResp.exampleTranslation || '')
+      };
+    } catch (error) {
+      return null;
+    }
+  },
+
   async callAnalyzeEnglish(englishText, category, options = {}) {
     const text = normalizeEnglishText(englishText);
     const useCache = options.useCache !== false;
@@ -469,6 +509,19 @@ Page({
     }
 
     if (!wx.cloud) {
+      try {
+        const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey);
+        if (directResult) {
+          console.log('[add] analyze source: direct backend');
+          if (directResult.ok !== false) {
+            this.setAnalyzeCacheItem(cacheKey, directResult);
+          }
+          return directResult;
+        }
+      } catch (directError) {
+        // direct backend failed, fall through to offline
+      }
+
       return {
         ok: false,
         validation: {
@@ -483,6 +536,22 @@ Page({
       };
     }
 
+    // Try direct backend first (bypass 3s cloud function timeout)
+    try {
+      const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey);
+      if (directResult) {
+        console.log('[add] analyze source: direct backend');
+        console.log('[add] exampleSentence received:', Boolean(directResult.exampleSentence));
+        if (directResult.ok !== false) {
+          this.setAnalyzeCacheItem(cacheKey, directResult);
+        }
+        return directResult;
+      }
+    } catch (directError) {
+      console.log('[add] direct backend unavailable, falling back to cloud function');
+    }
+
+    console.log('[add] analyze source: cloud fallback');
     try {
       const response = await wx.cloud.callFunction({
         name: 'analyzeEnglish',
