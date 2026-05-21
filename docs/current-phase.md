@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-5c 已完成：后端 TokenHub 例句生成增加诊断日志，定位到 TokenHub API key 被 api.hunyuan.cloud.tencent.com 返回 401。
+Phase 8B-hotfix-5d 已完成：Hunyuan 例句 validation 失败时自动用严格 prompt 重试一次，提升生成成功率。
 
 ## 最新提交
 
@@ -13,6 +13,7 @@ Phase 8B-hotfix-5c 已完成：后端 TokenHub 例句生成增加诊断日志，
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `b1c96d8` retry Hunyuan example generation on validation failure
 - `637fad2` fix TokenHub example generation diagnostics
 - `187799b` add exampleSentence/Translation to AnalyzeResponse
 - `8eac605` migrate Hunyuan example generation to TokenHub
@@ -36,6 +37,26 @@ Phase 8B-hotfix-5c 已完成：后端 TokenHub 例句生成增加诊断日志，
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8B-hotfix-5d：validation 失败重试（本次）
+
+- **问题**：模型有时生成包含 inflection（如 craving）而非原词（crave）的例句，validation 因 `text not in sentence` 丢弃了有效例句
+- **修复**：
+  - 将 Hunyuan 调用和 validation 抽为 `_call_and_validate()` 内部函数
+  - 首次调用使用允许 inflection 的 prompt
+  - 若 validation 失败且原因为 `text not in sentence`（`retry_eligible=True`），自动用更严格的 prompt 重试一次
+  - 严格 prompt：`You MUST use the exact word/phrase "{text}" — do NOT use synonyms, do NOT use different forms, do NOT use inflections`
+  - 最多重试一次（不无限重试）
+  - 其他失败原因（空内容、JSON 解析失败等）不重试，直接走 TMT fallback
+- **不改**：前端、云函数、数据库
+- **测试**：183 passed
+- **当前 TokenHub base URL**：`https://tokenhub.tencentmaas.cn/v1`
+
+**人工验收：**
+1. 重启后端
+2. 输入 `crave` → 应显示完整英文例句
+3. 输入 `eager`、`shot` → 仍正常
+4. 若两次都失败 → 不显示空例句区块，走 TMT fallback
 
 ## Phase 8B-hotfix-5c：TokenHub 例句生成诊断日志（本次）
 
