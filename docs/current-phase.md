@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix 已完成：修复 AI 例句真实生成。
+Phase 8B-hotfix-2 已完成：AI 例句双向 TMT 翻译兜底。
 
 ## 最新提交
 
@@ -11,7 +11,18 @@ Phase 8B-hotfix 已完成：修复 AI 例句真实生成。
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `88062e1` fix AI generated example sentences
 - `f6db7d5` fix AI example generation for note adoption
+
+## Phase 8B-hotfix-2：AI 例句 TMT 兜底（已完成）
+
+- **问题**：Tencent Hunyuan 未开通（ServiceNotActivated），例句始终为空
+- **修复**：在 Hunyuan 失败后，追加一条 TMT 双向翻译兜底路径
+- **原理**：用中文翻译构造中文模板句，调用 TMT（zh→en），验证英文结果包含原词后采纳
+- **改动文件**：`tencent_translator.py`（新增 `translate_to_en`）、`analyzer.py`（新增 `_generate_example_with_tmt`，接在 Hunyuan 之后调用）
+- **覆盖范围**：对常用动词/形容词等中英对应较明确的词效果好；基础词（go/be/have）因 TMT 同义词替换可能验证不通过，静默返回 None（不展示按钮）
+- **Hunyuan 保留**：一旦在腾讯云控制台开通混元服务，高质量 AI 例句将自动启用（无需再改代码）
+- **未改变**：前端 add.js / add.wxml / add.wxss、云函数 analyzeEnglish、数据库 schema、保存流程
 
 ## Phase 8A：复习页来源上移（已完成）
 
