@@ -2,12 +2,13 @@
 
 ## Current Phase
 
-Phase 8L-2-hotfix completed — 首页今日目标入口路由调整 + 今日复习内容页历史入口。
+Phase 8L-3-hotfix completed — today_review_status 0 复习状态精简为"今天还没开始"引导页。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8L-3-hotfix | Simplify not_started state in today_review_status | — | `f2ba18b` |
 | Phase 8L-2-hotfix | Home goal card dual routing + today reviewed history link | — | `9d88c8b` |
 | Phase 8L-hotfix | Home goal card routing to today reviewed | — | `4e41639` |
 | Phase 8K | Polish: review progress, home labels, today reviewed filters | — | `af338dc` |
@@ -315,6 +316,43 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 ### 保留项
 - 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
 - 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
+
+---
+
+## Phase 8L-3-hotfix — Simplify Not-Started State in Today Review Status
+
+**提交：** frontend `f2ba18b` simplify empty today review status page
+
+### 变更内容
+
+#### today_review_status `not_started` 状态精简
+
+`not_started` 状态：今天有复习任务（`displayTotal > 0`）但 `actualCompletedToday == 0`，即今天还没有开始复习。
+
+**页面标题区**：
+- 将 `<view class="status-page-title">` 外包 flex header 行
+- `not_started` 时右侧显示弱链接"历史复习内容 ›"（点击走 `onHistoryTap` → `history_index`）
+- 其他状态标题行不变（历史链接不显示）
+
+**not_started 主体**：
+- 保留：hero 图标 `●`、标题"今日完成 0 / N"、副文案"还没开始，今天先复习一点"
+- 保留：绿色主按钮"开始复习"（`onMainButtonTap` → `_startReview`）
+- 保留：底部"每日目标 N 张 调整 ›"（所有状态共用，未改）
+- **移除**：disabled 入口"暂无复习内容"（卡片式按钮）
+- **移除**：secondary 区域内的"查看历史复习内容"大按钮（移至标题行弱链接）
+
+### 判断字段
+
+- `state === 'not_started'`：`displayCompleted === 0 && displayTotal > 0`
+- `actualCompletedToday`：来自 `goalProgress.completed_unique_today`（无 goal_progress 时用 `completedToday`）
+
+### 未改
+
+- 其他状态（in_progress、goal_blocked、all_done、overachieved、offline_cached）的展示逻辑完全不变
+- `_startReview` 业务逻辑不变
+- 复习完成 redirect 链路（review.js）不变
+- 历史页内部逻辑不变
+- 离线状态（`offline_cached`、`loadFailed`）不变
 
 ---
 
