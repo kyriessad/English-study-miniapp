@@ -2,11 +2,12 @@
 
 ## 当前阶段
 
-Phase 8D-hotfix 已完成：修复部分单词/短语例句长期无法生成的两个根因。
+Phase 8H 已完成：例句生成全链路覆盖诊断与最小修复。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `8d10689` fix stale cache eviction for word/phrase with empty example sentence
 - `365fe20` fix example generation cache and translation gate
 - `731ca47` polish review reveal and overachieved status UI
 - `51f7d21` make add card primary home action
@@ -25,6 +26,34 @@ Phase 8D-hotfix 已完成：修复部分单词/短语例句长期无法生成的
 - `187799b` add exampleSentence/Translation to AnalyzeResponse
 - `8eac605` migrate Hunyuan example generation to TokenHub
 - `29f9779` add Hunyuan example sentence generation
+
+## Phase 8H：例句生成全链路诊断与最小修复（本次）
+
+### 诊断结论
+- clutch / crave / break a leg：模型链路正常（Hunyuan strict 直接通过），根因是 Phase 8D 前写入的旧 stale cache，读取时静默返回空例句。
+- 连字符词（well-known / full-time / follow-up 等）：validator.py Rule 3 bug，被错误分类为 unknown，不进入 Hunyuan。
+
+### 前端修复（本次）
+- `getAnalyzeCacheItem`：读取时检测 word/phrase 且 exampleSentence 为空的条目 → 丢弃，触发新请求。清除 Phase 8D 前的旧 stale 缓存，避免用户设备继续看不到例句。
+
+### 后端修复（本次，commit `ef4f946`）
+- `validator.py` Rule 3：允许纯字母+连字符（无数字）的合法复合词（well-known / full-time / e-mail / follow-up / check-in 等）进入正常分类，不再硬判 unknown。
+- 新增 35 个单元测试（分类 + 例句链路），全部通过。
+
+### 剩余边界（Phase 8I）
+- 缩写句点 U.S. / e.g. / Dr. → 被 SENTENCE_END_RE 判 sentence，不生成例句（规则复杂，延至 8I）
+- COVID-19 → 含数字，仍 unknown（延至 8I）
+- commit guilty → phrase 类，会进入 Hunyuan 生成例句（非预期，未阻断）
+- #N/A → 被归为 phrase（N、A 两个 token），产品行为待确认
+
+### 人工验收
+重新编译后输入：
+- clutch / crave / break a leg → 应有例句（旧 stale cache 已被丢弃，触发新请求）
+- well-known / full-time / follow-up → 应有例句（Rule 3 修复，首次进入 Hunyuan）
+- commit guilty → 可能有例句（phrase 类，不阻断）
+- 2024 / 100-200 / -50 → 无例句（仍 unknown，符合预期）
+
+---
 
 ## Phase 8D-hotfix：例句生成缓存与 translation 门槛修复（本次）
 
