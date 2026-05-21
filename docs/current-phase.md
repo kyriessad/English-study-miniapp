@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-3 已完成：Hunyuan 例句生成模块化，TMT 兜底保留。
+Phase 8B-hotfix-4 已完成：Hunyuan 例句生成迁移到 TokenHub OpenAI-compatible API，TMT 兜底保留。
 
 ## 最新提交
 
@@ -11,9 +11,27 @@ Phase 8B-hotfix-3 已完成：Hunyuan 例句生成模块化，TMT 兜底保留�
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `8eac605` migrate Hunyuan example generation to TokenHub
 - `29f9779` add Hunyuan example sentence generation
 - `88062e1` fix AI generated example sentences
 - `f6db7d5` fix AI example generation for note adoption
+
+## Phase 8B-hotfix-4：Hunyuan 迁移到 TokenHub（本次）
+
+- **目标**：将 Hunyuan 例句生成从旧腾讯云 SDK 迁移到 TokenHub OpenAI-compatible API
+- **原因**：腾讯云旧「大模型 API」平台将于 2026-09-30 停服，TokenHub 已创建 API Key 和服务
+- **修改文件**：`app/core/config.py`（新增环境变量）、`app/services/hunyuan_example.py`（重写为 HTTP POST）
+- **新增环境变量**：
+  - `HUNYUAN_API_KEY` — TokenHub API Key（未配置时 Hunyuan 直接返回 None, None）
+  - `HUNYUAN_BASE_URL` — 默认 `https://api.hunyuan.cloud.tencent.com/v1`
+  - `HUNYUAN_MODEL` — 默认 `hunyuan-role-latest`
+- **当前 TokenHub 服务 ID**：`hunyuan-role-latest`（免费体验，后付费未开启）
+- **调用方式**：`POST {base_url}/chat/completions`，Bearer token，OpenAI-compatible 格式
+- **Prompt**：system + user 英文 prompt，temperature 0.2，response_format json_object
+- **TMT fallback 保留**：Hunyuan 失败 → TMT → None 链路不变
+- **不改前端、云函数、数据库**
+- **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
+- **测试**：183 passed
 
 ## Phase 8B-hotfix-3：Hunyuan 例句生成（已完成）
 
