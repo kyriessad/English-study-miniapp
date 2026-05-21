@@ -167,8 +167,8 @@ Page({
       mainButtonDisabled = true;
     } else if (isGoalOverachieved) {
       state = 'overachieved';
-      stateLabel = '今日完成 ' + displayTotal + ' / ' + displayTotal;
-      stateSub = '今天已完成 ' + actualCompletedToday + ' 张，超额完成';
+      stateLabel = '今天完成了 ' + actualCompletedToday + ' 张';
+      stateSub = '目标 ' + displayTotal + ' / ' + displayTotal + ' · 已超额完成';
       mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
       this._fetchResultBreakdown();

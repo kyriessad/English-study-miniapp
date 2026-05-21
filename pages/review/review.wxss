@@ -152,9 +152,10 @@
   height: 430rpx;
 }
 
-/* 查看理解后：白卡展开，理解区固定 */
+/* 查看理解后：白卡自然撑高，由页面整体滚动 */
 .task-card-open {
-  height: 690rpx;
+  height: auto;
+  overflow: visible;
 }
 
 /* 顶部眉批：去药丸化 */
@@ -201,10 +202,8 @@
   word-break: break-word;
 }
 
-/* 答案区：固定高度，始终占位 */
+/* 答案区 */
 .task-answer-slot {
-  flex: 1;
-  min-height: 0;
   margin-top: 18rpx;
   box-sizing: border-box;
 }
@@ -214,9 +213,12 @@
   display: none;
 }
 
-/* 理解内部滚动，不能撑高卡片 */
+/* 展开后撑高卡片；由页面整体滚动 */
+.task-card-open .task-answer-slot {
+  flex: none;
+}
+
 .task-answer-scroll {
-  height: 100%;
   box-sizing: border-box;
 }
 
@@ -330,14 +332,19 @@
   margin-top: 28rpx;
 }
 
-/* 查看理解按钮 */
+/* 查看理解按钮：次级描边样式，视觉权重低于反馈按钮 */
 .reveal-btn {
   width: 86%;
   height: 92rpx;
   border-radius: 999rpx;
-  color: #ffffff;
-  background: linear-gradient(135deg, #63d99a 0%, #35b779 100%);
-  box-shadow: 0 16rpx 34rpx rgba(53, 183, 121, 0.20);
+  color: #35b779;
+  background: #ffffff;
+  border: 2rpx solid #bfe4cc;
+  box-shadow: 0 8rpx 18rpx rgba(53, 183, 121, 0.06);
+}
+
+.reveal-btn:active {
+  background: #f1fbf5;
 }
 
 /* 收起理解：放在卡片外，弱化纯文本 */

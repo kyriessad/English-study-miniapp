@@ -75,7 +75,7 @@
 
       <view class="task-answer-slot">
         <block wx:if="{{answerVisible}}">
-          <scroll-view scroll-y class="task-answer-scroll">
+          <view class="task-answer-scroll">
             <view class="task-answer-panel">
               <view class="task-answer-top">
                 <view class="task-answer-title">我的理解</view>
@@ -89,15 +89,12 @@
                 </text>
               </view>
 
-              <scroll-view
+              <view
                 wx:if="{{currentCard.myUnderstanding}}"
-                scroll-y
-                class="task-answer task-answer-limited"
+                class="task-answer"
               >
-                <view>
-                  {{currentCard.myUnderstanding}}
-                </view>
-              </scroll-view>
+                {{currentCard.myUnderstanding}}
+              </view>
 
               <view wx:else class="task-answer-placeholder" bindtap="editCurrentCard">
                 还没有写下你的理解，可以现在补充
@@ -106,11 +103,9 @@
               <view wx:if="{{currentCard.notes}}" class="task-notes">
                 <view class="task-notes-divider"></view>
                 <view class="task-label">补充备注</view>
-                <scroll-view scroll-y class="task-notes-text task-notes-limited">
-                  <view>
-                    {{currentCard.notes}}
-                  </view>
-                </scroll-view>
+                <view class="task-notes-text">
+                  {{currentCard.notes}}
+                </view>
               </view>
 
               <view wx:if="{{currentCard.whereEncountered}}" class="task-source">
@@ -118,7 +113,7 @@
                 <text class="task-source-text">来自：{{currentCard.whereEncountered}}</text>
               </view>
             </view>
-          </scroll-view>
+          </view>
         </block>
       </view>
     </view>
