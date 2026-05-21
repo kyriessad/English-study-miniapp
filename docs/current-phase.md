@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-2 已完成：AI 例句双向 TMT 翻译兜底。
+Phase 8B-hotfix-3 已完成：Hunyuan 例句生成模块化，TMT 兜底保留。
 
 ## 最新提交
 
@@ -11,8 +11,34 @@ Phase 8B-hotfix-2 已完成：AI 例句双向 TMT 翻译兜底。
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `29f9779` add Hunyuan example sentence generation
 - `88062e1` fix AI generated example sentences
 - `f6db7d5` fix AI example generation for note adoption
+
+## Phase 8B-hotfix-3：Hunyuan 例句生成（已完成）
+
+- **目标**：直接用 Hunyuan ChatCompletions 生成 `exampleSentence` / `exampleTranslation`
+- **新增文件**：`app/services/hunyuan_example.py`
+  - 函数：`generate_example_with_hunyuan(text, chinese_meaning=None) → (str|None, str|None)`
+  - Prompt 要求 Hunyuan 仅返回 `{"exampleSentence": "...", "exampleTranslation": "..."}`
+  - 校验：两字段非空；例句不等于输入词本身；例句必须包含原始输入（substring）；句子不少于 3 词
+  - 任何异常（未开通、超时、格式错）一律返回 `None, None`，不影响主流程
+- **修改文件**：`app/services/analyzer.py`（删除内联 Hunyuan 函数，import 新模块）
+- **链路顺序**：`generate_example_with_hunyuan()` → `_generate_example_with_tmt()` → `None`
+- **环境变量**：使用现有 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`，与 TMT 共用，无需新增
+- **前端**：不改。`aiExampleSentence`/`aiExampleTranslation` 消费链路已就绪
+- **云函数**：不改。`exampleSentence`/`exampleTranslation` 已透传
+- **数据库**：不改。例句临时结果，不持久化
+- **测试**：183 passed
+
+**人工验收步骤：**
+1. 在腾讯云控制台开通混元大模型（hunyuan-lite 免费额度）
+2. 确认 `.env` 中 `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` 已配置（与 TMT 同一账号密钥即可）
+3. 重启后端：`uvicorn app.main:app --reload`
+4. 输入 `crave`，应在建议框看到完整英文例句（含 crave）+ 中文翻译
+5. 点击"采用到备注"，备注应追加 `AI例句：...`
+6. 输入 `clutch`，验证例句包含 clutch
+7. 若 Hunyuan 不可用，应 fallback 到 TMT；TMT 失败则不显示例句区块，不影响"参考理解"显示
 
 ## Phase 8B-hotfix-2：AI 例句 TMT 兜底（已完成）
 
