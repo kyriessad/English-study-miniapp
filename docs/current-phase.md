@@ -2,11 +2,12 @@
 
 ## 当前阶段
 
-Phase 8C-first-mini 已完成：首页仅调整添加/复习按钮主次，添加卡片成为主按钮。
+Phase 8C-ui-hotfix 已完成：复习页查看理解按钮降级、卡片展开去内部滚动条、超额完成状态文案层级优化。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `731ca47` polish review reveal and overachieved status UI
 - `51f7d21` make add card primary home action
 - `3f4d303` polish AI example font and relax crave validation
 - `b7d3f56` refine AI reference fill behavior
@@ -41,6 +42,31 @@ Phase 8C-first-mini 已完成：首页仅调整添加/复习按钮主次，添�
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8C-ui-hotfix：复习页 UI 降噪（本次）
+
+- **A. 查看理解按钮降级**（`pages/review/review.wxss`）
+  - `.reveal-btn`：白底 + 绿色描边 + 绿色文字，去掉绿色渐变实心背景和大阴影
+  - 保持宽度 86%、高度 92rpx、圆角 999rpx 不变
+  - 新增 `.reveal-btn:active` 浅绿背景反馈
+- **B. 卡片展开去内部滚动条**（`pages/review/review.wxml` + `review.wxss`）
+  - WXML：将展开区 3 个 `scroll-view` 替换为普通 `view`（task-answer-scroll / task-answer-limited / task-notes-limited）
+  - WXSS：`.task-card-open` 由 `height: 690rpx` 改为 `height: auto; overflow: visible`；`.task-answer-slot` 改为 `flex: none`（展开态）；`.task-answer-scroll` 去掉 `height: 100%`
+  - 卡片展开后自然撑高，由页面整体滚动；不再产生内部灰色滚动条
+- **C. 超额完成状态文案层级**（`pages/today_review_status/today_review_status.js`）
+  - `overachieved` 分支：`stateLabel` 改为 `"今天完成了 N 张"`（突出真实完成数）
+  - `stateSub` 改为 `"目标 5 / 5 · 已超额完成"`（目标进度降为副信息）
+  - 🎉 emoji 由 WXML 模板固定，不变
+  - `all_done` 分支（恰好达标）保持不变
+- **未改**：review session / feedback / dailyGoal 逻辑、接口、数据结构、历史页
+
+**验收步骤：**
+1. 复习页未展开：查看理解为白底绿描边次级按钮，非绿色实心
+2. 点击查看理解：理解和备注正常展开，右侧无灰色滚动条，页面可整体滚动
+3. 反馈按钮（想不起来/不太稳/基本掌握/很熟了）样式逻辑不变
+4. 超额完成时（如完成 8 张，目标 5 张）：主标题"今天完成了 8 张"，副信息"目标 5 / 5 · 已超额完成"
+5. 恰好完成（5/5）：主标题"今日完成 5 / 5"不受影响
+6. in_progress / not_started 状态展示不受影响
 
 ## Phase 8C-first-mini：首页按钮主次调整（本次）
 
