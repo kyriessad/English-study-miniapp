@@ -665,7 +665,20 @@ Page({
     if (!cacheKey || !result || result.ok === false) {
       return;
     }
-  
+
+    // Don't cache word/phrase results that have no example sentence.
+    // A temporary Hunyuan failure would otherwise seal an empty-example result
+    // for the full 30-day TTL, hiding successfully-generated examples after recovery.
+    var backendCategory = String((result.backend && result.backend.category) || '');
+    var frontendCategory = String(result.category || '');
+    var isWordOrPhrase = (
+      backendCategory === 'word' || backendCategory === 'phrase' ||
+      frontendCategory === '单词' || frontendCategory === '短语'
+    );
+    if (isWordOrPhrase && !normalizePlainText(result.exampleSentence || '')) {
+      return;
+    }
+
     try {
       const cache = this.getAnalyzeCache();
   
