@@ -538,43 +538,71 @@
   vertical-align: middle;
 }
 
-/* Phase 8B-hotfix: AI 真实例句展示 + 采用到备注 */
-.ai-example-block {
+/* Phase 8B-hotfix-6: unified reference area */
+.reference-box {
+  padding: 22rpx 24rpx;
+  border: 1rpx solid #dcebd8;
+  border-radius: 24rpx;
+  background: #f1f8ef;
+  box-shadow: 0 8rpx 20rpx rgba(86, 126, 82, 0.05);
+}
+
+.reference-box-loading {
+  opacity: 0.88;
+}
+
+.reference-header {
+  margin-bottom: 12rpx;
+}
+
+.reference-title {
+  font-size: 24rpx;
+  font-weight: 800;
+  color: #3f7449;
+}
+
+.reference-loading-text {
+  font-size: 26rpx;
+  color: #8a9689;
+}
+
+.reference-row {
+  margin-bottom: 10rpx;
+}
+
+.reference-label {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #5f8f72;
+  margin-bottom: 4rpx;
+}
+
+.reference-value {
+  font-size: 27rpx;
+  color: #344036;
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.reference-example {
+  font-style: italic;
+}
+
+.reference-translation {
+  color: #6f7f71;
+}
+
+.reference-fill-row {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 16rpx;
   padding-top: 14rpx;
   border-top: 1rpx solid #dcebd8;
 }
 
-.ai-example-label {
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #5f8f72;
-  margin-bottom: 8rpx;
-}
-
-.ai-example-sentence {
-  font-size: 27rpx;
-  color: #263128;
-  line-height: 1.65;
-  word-break: break-word;
-}
-
-.ai-example-translation {
-  font-size: 25rpx;
-  color: #6f7f71;
-  line-height: 1.6;
-  margin-top: 6rpx;
-}
-
-.adopt-note-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14rpx;
-}
-
-.adopt-note-btn {
+.reference-fill-btn {
   flex-shrink: 0;
-  padding: 10rpx 18rpx;
+  padding: 10rpx 22rpx;
   border-radius: 999rpx;
   font-size: 24rpx;
   line-height: 1.2;
@@ -582,4 +610,10 @@
   color: #3f7449;
   background: #ffffff;
   border: 1rpx solid #dcebd8;
+}
+
+.reference-fill-btn-applied {
+  color: #8a9689;
+  background: #f7faf5;
+  border-color: #e7eee4;
 }

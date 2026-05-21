@@ -42,26 +42,44 @@
 </view>
 
       <view
-        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && showSuggestion && (suggestionText || translating)}}"
-        class="form-item suggestion-box {{translating ? 'suggestion-box-loading' : ''}}"
+        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && !translating && (suggestionText || aiExampleSentence)}}"
+        class="form-item reference-box"
       >
-      <view class="suggestion-header">
-        <view class="suggestion-title">参考理解</view>
-        <view wx:if="{{suggestionText}}" class="accept-btn" bindtap="adoptUnderstandingReference">
-          采纳建议
-        </view>
+      <view class="reference-header">
+        <view class="reference-title">参考</view>
       </view>
-      <view class="suggestion-content">
-        {{translating ? '正在生成参考理解...' : suggestionText}}
+
+      <view wx:if="{{suggestionText}}" class="reference-row">
+        <view class="reference-label">理解</view>
+        <view class="reference-value">{{suggestionText}}</view>
       </view>
-      <view wx:if="{{aiExampleSentence && !translating}}" class="ai-example-block">
-        <view class="ai-example-label">AI 例句</view>
-        <view class="ai-example-sentence">{{aiExampleSentence}}</view>
-        <view wx:if="{{aiExampleTranslation}}" class="ai-example-translation">{{aiExampleTranslation}}</view>
-        <view class="adopt-note-row">
-          <view class="adopt-note-btn" bindtap="adoptNoteExample">采用到备注</view>
-        </view>
+
+      <view wx:if="{{aiExampleSentence}}" class="reference-row">
+        <view class="reference-label">例句</view>
+        <view class="reference-value reference-example">{{aiExampleSentence}}</view>
       </view>
+
+      <view wx:if="{{aiExampleTranslation}}" class="reference-row">
+        <view class="reference-label">翻译</view>
+        <view class="reference-value reference-translation">{{aiExampleTranslation}}</view>
+      </view>
+
+      <view class="reference-fill-row">
+        <view
+          class="reference-fill-btn {{referenceApplied ? 'reference-fill-btn-applied' : ''}}"
+          bindtap="adoptAllReference"
+        >{{referenceApplied ? '已填入' : '全部填入'}}</view>
+      </view>
+    </view>
+
+    <view
+      wx:elif="{{deferNonCriticalReady && !isReadonlyDetailMode && translating}}"
+      class="form-item reference-box reference-box-loading"
+    >
+      <view class="reference-header">
+        <view class="reference-title">参考</view>
+      </view>
+      <view class="reference-loading-text">正在分析...</view>
     </view>
 
     <view class="form-item">

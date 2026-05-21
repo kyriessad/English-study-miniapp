@@ -429,7 +429,8 @@ Page({
     isSaving: false,
     recentSources: [],
     aiExampleSentence: '',
-    aiExampleTranslation: ''
+    aiExampleTranslation: '',
+    referenceApplied: false
 
 
 
@@ -956,7 +957,8 @@ Page({
       suggestLoading: false,
       validationResult: null,
       aiExampleSentence: '',
-      aiExampleTranslation: ''
+      aiExampleTranslation: '',
+      referenceApplied: false
     });
   },
 
@@ -990,7 +992,8 @@ Page({
       suggestLoading: false,
       latestEnglishForSuggest: '',
       aiExampleSentence: '',
-      aiExampleTranslation: ''
+      aiExampleTranslation: '',
+      referenceApplied: false
     });
   },
 
@@ -1216,6 +1219,11 @@ Page({
       understandingVisible: analysis.shouldShowSuggestion,
       aiExampleSentence: analysis.aiExampleSentence || '',
       aiExampleTranslation: analysis.aiExampleTranslation || '',
+      referenceApplied: this.computeReferenceApplied(
+        analysis.shouldShowSuggestion ? analysis.suggestion : '',
+        analysis.aiExampleSentence || '',
+        analysis.aiExampleTranslation || ''
+      ),
       translating: false,
       isValidatingEnglish: false,
       validateLoading: false,
@@ -1452,6 +1460,7 @@ Page({
     this.setData({
       'form.myUnderstanding': event.detail.value
     });
+    this.refreshReferenceApplied();
   },
 
   onUnderstandingFocus() {},
@@ -1463,38 +1472,66 @@ Page({
     });
   },
 
-  adoptUnderstandingReference() {
-    if (this.data.isReadonlyDetailMode) return;
-    const suggestionText = normalizeEnglishText(
-      this.data.understandingSuggestion || this.data.suggestionText
-    )
+  computeReferenceApplied(suggestionOverride, exampleSentenceOverride, exampleTranslationOverride) {
+    const understanding = normalizeEnglishText(
+      arguments.length >= 1 ? (suggestionOverride || '') : (this.data.understandingSuggestion || this.data.suggestionText)
+    );
+    const exampleSentence = normalizePlainText(
+      arguments.length >= 2 ? (exampleSentenceOverride || '') : this.data.aiExampleSentence
+    );
 
-    if (!suggestionText || this.data.translating) {
-      return
+    const currentUnderstanding = normalizeEnglishText(this.data.form.myUnderstanding || '');
+    const currentNotes = this.data.form.notes || '';
+
+    const understandingOk = !understanding || currentUnderstanding === understanding;
+
+    let exampleOk = true;
+    if (exampleSentence) {
+      exampleOk = currentNotes.includes(exampleSentence);
     }
 
-    this.setData({
-      'form.myUnderstanding': suggestionText,
-      showSuggestion: false,
-      understandingVisible: false
-    })
+    return understandingOk && exampleOk;
   },
 
-  adoptNoteExample() {
+  refreshReferenceApplied() {
+    this.setData({ referenceApplied: this.computeReferenceApplied() });
+  },
+
+  adoptAllReference() {
     if (this.data.isReadonlyDetailMode) return;
+    if (this.data.translating) return;
+
+    const understanding = normalizeEnglishText(this.data.understandingSuggestion || this.data.suggestionText);
     const exampleSentence = normalizePlainText(this.data.aiExampleSentence);
     const exampleTranslation = normalizePlainText(this.data.aiExampleTranslation);
-    if (!exampleSentence || this.data.translating) return;
 
-    const noteEntry = exampleTranslation
-      ? `AI例句：${exampleSentence}\n参考理解：${exampleTranslation}`
-      : `AI例句：${exampleSentence}`;
-
+    const currentUnderstanding = normalizeEnglishText(this.data.form.myUnderstanding || '');
     const currentNotes = this.data.form.notes || '';
-    if (currentNotes.includes(`AI例句：${exampleSentence}`)) return;
 
-    const newNotes = currentNotes ? `${currentNotes}\n\n${noteEntry}` : noteEntry;
-    this.setData({ 'form.notes': newNotes });
+    const nextData = {};
+
+    // Fill understanding if not already set
+    if (understanding && currentUnderstanding !== understanding) {
+      nextData['form.myUnderstanding'] = understanding;
+    }
+
+    // Fill note with example (no labels)
+    if (exampleSentence && !currentNotes.includes(exampleSentence)) {
+      const exampleNote = exampleTranslation
+        ? `${exampleSentence}\n${exampleTranslation}`
+        : exampleSentence;
+      const newNotes = currentNotes ? `${currentNotes}\n\n${exampleNote}` : exampleNote;
+      nextData['form.notes'] = newNotes;
+    }
+
+    // Only setData if there's something to fill
+    if (Object.keys(nextData).length > 0) {
+      this.setData(nextData, () => {
+        this.refreshReferenceApplied();
+      });
+    } else {
+      this.refreshReferenceApplied();
+    }
   },
 
 
@@ -1503,6 +1540,7 @@ Page({
     this.setData({
       'form.notes': event.detail.value
     });
+    this.refreshReferenceApplied();
   },
 
   onWhereEncounteredInput(event) {
