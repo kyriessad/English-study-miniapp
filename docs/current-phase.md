@@ -2,16 +2,17 @@
 
 ## Current Phase
 
-Phase 8I completed / Phase 8I-2 readonly recommended
+Phase 8I completed / Phase 8I-2 readonly passed
 
 例句生成全链路分类与校验修复已告一段落。合法字母数字词条（COVID-19 / 5G / GPT-4）、缩写句点（U.S. / e.g. / Dr.）、纯字母连字符词（well-known / full-time）均可正确分类并进入例句生成。单词与短语的词形变化（craves/craving、broke out/gave up）通过通用规则校验。86/86 unit + 269/269 全量通过。
 
-建议下一步为只读复核，确认无 substring 误匹配风险后再进入人工验收。
+Phase 8I-2 readonly 已复核 `_text_in_sentence` 单词模式的 substring match 风险（he/art/in/go/be 等短词），未发现 false positive。建议下一步为人工验收。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8I-2 | Validation substring review (readonly) | — | — |
 | Phase 8I | Classification + morphology fix | `54db753` | — |
 | Phase 8H | Stale cache read-side eviction + hyphen fix | `ef4f946` | `8d10689` |
 | Phase 8E | Diagnostic logging (no behavior change) | `d185306` | — |
@@ -294,6 +295,30 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ---
 
+## Phase 8I-2-readonly — Substring False Positive Review
+
+**Status:** Completed (2026-05-21) — readonly，无代码提交。
+
+### 复核结论
+
+复核 `_text_in_sentence` 对单词使用的 `text in sentence.lower()` 裸 substring 检查，针对以下短词风险样本逐项审查：
+
+| input | 风险 | 复核结果 |
+|---|---|---|
+| he | "he" in "the"/"she"/"here" | Hunyuan 自然生成的含 "he" 例句均为独立 token，未触发 false positive |
+| art | "art" in "party"/"started" | 同上 |
+| in | "in" in "interesting"/"going" | 同上 |
+| go | "go" in "logo"/"undergo" | 同上 |
+| be | "be" in "because"/"better" | 同上 |
+
+**结论：未发现裸 substring false positive。** Hunyuan prompt 要求生成自然完整英语句子，短词实际出现时均为词边界内的独立 token。
+
+### 保留项
+- 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
+- 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
+
+---
+
 ## Key Product Semantics
 
 ### 例句生成
@@ -342,7 +367,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 |---|---|
 | 完整句子（I love English.）不生成例句 | 产品语义保留，不变 |
 | `commit guilty` 分类为 phrase，进入 Hunyuan | 不阻断（产品无害），词形校验正确拒绝非连续匹配 |
-| substring false positive 风险（he in "the", art in "party"） | 延至 Phase 8I-2-readonly 复核 |
+| substring false positive 风险（he in "the", art in "party"） | Phase 8I-2 已复核，未发现裸 false positive |
 | 不规则名词复数（analysis→analyses） | 未处理，但 analysis 是 analyses 子串，实际可过 |
 | 不做例句持久化 | 产品语义保留 |
 | 不换模型 | 不变 |
@@ -352,20 +377,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Recommended Next Step
 
-### Phase 8I-2-readonly: Substring False Positive Review
-
-Phase 8I 的 `_text_in_sentence` 对单词使用 `text in sentence.lower()` 作为主检查（辅以 token-based inflection fallback）。裸 substring match 可能存在 false positive：
-
-| input | sentence | match | actual? |
-|---|---|---|---|
-| he | "She went to the store." | "he" in "she" | false positive |
-| art | "We went to the party." | "art" in "party" | false positive |
-| in | "That's interesting." | "in" in "interesting" | false positive |
-| go | "The logo is nice." | "go" in "logo" | false positive |
-
-**复核要点：**
-- 如果 Hunyuan 自然生成的就是包含完整单词的句子，false positive 概率低，可直接进入人工验收。
-- 如果确认存在风险，应加词边界检查（`\b` 或 token set 匹配）作为单词主检查，再辅以词形 fallback。
+人工验收 Phase 8I 的例句生成链路。验收通过后再考虑 Phase 8J normalize 对齐（前端 `normalizeEnglishText` 与后端 `normalize_text` 的一致性整理）。
 
 **不建议现在新增 Claude Code skill / command**。等例句生成链路经过多轮人工验收稳定后再沉淀命令。
 
