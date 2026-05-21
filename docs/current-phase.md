@@ -2,11 +2,12 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-7 已完成：AI 例句英文取消斜体、crave 优先原词+词形变化兜底。
+Phase 8C-first-mini 已完成：首页仅调整添加/复习按钮主次，添加卡片成为主按钮。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `51f7d21` make add card primary home action
 - `3f4d303` polish AI example font and relax crave validation
 - `b7d3f56` refine AI reference fill behavior
 - `51dab96` prefer backend analyze over cloud function
@@ -40,6 +41,24 @@ Phase 8B-hotfix-7 已完成：AI 例句英文取消斜体、crave 优先原词+�
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8C-first-mini：首页按钮主次调整（本次）
+
+- **首页仅调整添加/复习按钮主次**：
+  - `pages/index/index.wxml`：goal_blocked 块交换两按钮 class（fix 历史反用）；更新注释
+  - `pages/index/index.wxss`：`.add-main-btn` 改为 flex:2 + 绿色主按钮样式；`.review-main-btn` 改为 flex:1 + 白色次按钮样式
+  - 按钮比例：添加 ≈66%，复习 ≈34%
+- **添加卡片成为主按钮**（绑定 `goToAddPage`，绿色渐变，视觉权重高）
+- **复习入口降为次按钮**（绑定 `goToReview`，白色，视觉权重低）；disabled 态保持原有 `!important` 样式
+- **未改**：dailyGoal、状态卡、今日完成统计、review session 逻辑、后端、数据库
+
+**人工验收：**
+1. 首页打开：添加卡片为绿色宽按钮（约 2/3 宽）
+2. 开始复习/继续复习为白色窄按钮（约 1/3 宽）
+3. 点击添加卡片正常进入添加页
+4. 点击复习正常进入复习流程
+5. 今日完成卡片、进度条、搜索、筛选、卡片列表不受影响
+6. Console 无 JS 报错
 
 ## Phase 8B-hotfix-7：AI 例句字体与 crave 词形变化兜底（本次）
 
