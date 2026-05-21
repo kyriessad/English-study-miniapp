@@ -7,13 +7,13 @@
   </view>
 
   <!-- ===== Status Overview Card: 今日完成 M / N ===== -->
-  <view wx:if="{{totalCardCount > 0}}" class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
+  <view wx:if="{{totalCardCount > 0}}" class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="{{actualCompletedToday > 0 ? 'status-overview-card--hover' : ''}}">
     <view class="status-overview-row">
       <view class="status-overview-progress">
         <text class="status-overview-label">今日目标</text>
         <text class="status-overview-num">{{displayCompleted}} / {{displayTotal}}</text>
       </view>
-      <text class="status-overview-arrow">›</text>
+      <text wx:if="{{actualCompletedToday > 0}}" class="status-overview-arrow">›</text>
     </view>
     <view class="status-overview-bar">
       <view class="status-overview-bar-fill" style="width: {{progressPercent}}%;"></view>
