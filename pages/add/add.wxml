@@ -54,8 +54,13 @@
       <view class="suggestion-content">
         {{translating ? '正在生成参考理解...' : suggestionText}}
       </view>
-      <view wx:if="{{suggestionText && !translating}}" class="adopt-note-row">
-        <view class="adopt-note-btn" bindtap="adoptNoteExample">采用到备注</view>
+      <view wx:if="{{aiExampleSentence && !translating}}" class="ai-example-block">
+        <view class="ai-example-label">AI 例句</view>
+        <view class="ai-example-sentence">{{aiExampleSentence}}</view>
+        <view wx:if="{{aiExampleTranslation}}" class="ai-example-translation">{{aiExampleTranslation}}</view>
+        <view class="adopt-note-row">
+          <view class="adopt-note-btn" bindtap="adoptNoteExample">采用到备注</view>
+        </view>
       </view>
     </view>
 

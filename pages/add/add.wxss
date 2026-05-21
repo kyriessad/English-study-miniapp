@@ -538,7 +538,34 @@
   vertical-align: middle;
 }
 
-/* Phase 8B: AI 例句采用到备注 */
+/* Phase 8B-hotfix: AI 真实例句展示 + 采用到备注 */
+.ai-example-block {
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid #dcebd8;
+}
+
+.ai-example-label {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #5f8f72;
+  margin-bottom: 8rpx;
+}
+
+.ai-example-sentence {
+  font-size: 27rpx;
+  color: #263128;
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.ai-example-translation {
+  font-size: 25rpx;
+  color: #6f7f71;
+  line-height: 1.6;
+  margin-top: 6rpx;
+}
+
 .adopt-note-row {
   display: flex;
   justify-content: flex-end;

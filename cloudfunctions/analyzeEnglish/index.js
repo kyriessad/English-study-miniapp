@@ -143,19 +143,19 @@ function adaptPythonResultToMiniappShape(pythonResult, event) {
 
     return {
       ok: pythonResult.ok !== false,
-    
+
       // 兼容旧字段
       text,
-    
+
       // 新增：直接透传给小程序 add.js 使用
       normalizedText: text,
-    
+
       category,
       analysisStatus: pythonResult.level === 'failed' ? 'failed' : 'done',
       validation: {
         errors,
         warnings,
-    
+
         // 新增：也放一份到 validation 里，兼容 add.js 的第二读取路径
         normalizedText: text
       },
@@ -171,7 +171,9 @@ function adaptPythonResultToMiniappShape(pythonResult, event) {
       provider: pythonResult.provider || '',
       translation: pythonResult.translation || '',
       understanding: pythonResult.understanding || ''
-    }
+    },
+    exampleSentence: normalizeText(pythonResult.exampleSentence || ''),
+    exampleTranslation: normalizeText(pythonResult.exampleTranslation || '')
   }
 }
 

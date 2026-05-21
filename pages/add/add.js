@@ -427,7 +427,9 @@ Page({
     hasUserChangedCategory: false,
     isLeavingPage: false,
     isSaving: false,
-    recentSources: []
+    recentSources: [],
+    aiExampleSentence: '',
+    aiExampleTranslation: ''
 
 
 
@@ -883,7 +885,9 @@ Page({
       understandingSuggestion: '',
       understandingVisible: false,
       suggestLoading: false,
-      validationResult: null
+      validationResult: null,
+      aiExampleSentence: '',
+      aiExampleTranslation: ''
     });
   },
 
@@ -915,7 +919,9 @@ Page({
       understandingVisible: false,
       validateLoading: false,
       suggestLoading: false,
-      latestEnglishForSuggest: ''
+      latestEnglishForSuggest: '',
+      aiExampleSentence: '',
+      aiExampleTranslation: ''
     });
   },
 
@@ -1002,6 +1008,8 @@ Page({
     let onlineValidationUnavailable = false
     let suggestion = ''
     let backendNormalizedText = normalizedText
+    let aiExampleSentence = ''
+    let aiExampleTranslation = ''
 
     if ((needCloudValidation || needSuggestion) && localErrors.length === 0) {
       const analyzeResult = await this.callAnalyzeEnglish(normalizedText, category)
@@ -1035,6 +1043,9 @@ Page({
       )
 
       onlineValidationUnavailable = analyzeResult.ok === false
+
+      aiExampleSentence = normalizePlainText(analyzeResult.exampleSentence || '')
+      aiExampleTranslation = normalizePlainText(analyzeResult.exampleTranslation || '')
     }
 
     const hasDictionaryWarning = cloudWarnings.some((item) => {
@@ -1086,6 +1097,8 @@ Page({
       shouldShowSuggestion,
       canSave,
       onlineValidationUnavailable,
+      aiExampleSentence,
+      aiExampleTranslation,
       displayMessage: displayState.displayMessage,
       displayMessageType: displayState.displayMessageType
     }
@@ -1132,6 +1145,8 @@ Page({
       showSuggestion: analysis.shouldShowSuggestion,
       understandingSuggestion: analysis.shouldShowSuggestion ? analysis.suggestion : '',
       understandingVisible: analysis.shouldShowSuggestion,
+      aiExampleSentence: analysis.aiExampleSentence || '',
+      aiExampleTranslation: analysis.aiExampleTranslation || '',
       translating: false,
       isValidatingEnglish: false,
       validateLoading: false,
@@ -1398,16 +1413,16 @@ Page({
 
   adoptNoteExample() {
     if (this.data.isReadonlyDetailMode) return;
-    const englishText = normalizePlainText(this.data.form.englishText);
-    const suggestionText = normalizePlainText(
-      this.data.understandingSuggestion || this.data.suggestionText
-    );
-    if (!englishText || !suggestionText || this.data.translating) return;
+    const exampleSentence = normalizePlainText(this.data.aiExampleSentence);
+    const exampleTranslation = normalizePlainText(this.data.aiExampleTranslation);
+    if (!exampleSentence || this.data.translating) return;
 
-    const noteEntry = `AI例句：${englishText}\n参考理解：${suggestionText}`;
+    const noteEntry = exampleTranslation
+      ? `AI例句：${exampleSentence}\n参考理解：${exampleTranslation}`
+      : `AI例句：${exampleSentence}`;
+
     const currentNotes = this.data.form.notes || '';
-
-    if (currentNotes.includes(`AI例句：${englishText}`)) return;
+    if (currentNotes.includes(`AI例句：${exampleSentence}`)) return;
 
     const newNotes = currentNotes ? `${currentNotes}\n\n${noteEntry}` : noteEntry;
     this.setData({ 'form.notes': newNotes });
