@@ -2,15 +2,18 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-4 已完成：Hunyuan 例句生成迁移到 TokenHub OpenAI-compatible API，TMT 兜底保留。
+Phase 8B-hotfix-5 已完成：添加页 AI 分析优先直连 FastAPI 后端，云函数只作为兜底，修复 AI 例句不显示问题。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `51dab96` prefer backend analyze over cloud function
+- `eb58175` document TokenHub Hunyuan migration
 - `60b2d3d` fix AI example generation for note adoption
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `187799b` add exampleSentence/Translation to AnalyzeResponse
 - `8eac605` migrate Hunyuan example generation to TokenHub
 - `29f9779` add Hunyuan example sentence generation
 - `88062e1` fix AI generated example sentences
@@ -31,6 +34,18 @@ Phase 8B-hotfix-4 已完成：Hunyuan 例句生成迁移到 TokenHub OpenAI-comp
 - **TMT fallback 保留**：Hunyuan 失败 → TMT → None 链路不变
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
+- **测试**：183 passed
+
+## Phase 8B-hotfix-5：添加页 AI 分析优先直连后端（本次）
+
+- **问题**：添加页 AI 分析链路经过 `cloud.callFunction('analyzeEnglish')`，云函数默认 3 秒超时，导致 TokenHub 返回结果无法到达前端，AI 例句区块不显示
+- **修复**：
+  1. 后端 `AnalyzeResponse` 补上 `exampleSentence` / `exampleTranslation` 字段（之前被 Pydantic response_model 过滤）
+  2. 前端 `apiClient.js` 新增 `analyzeEnglishDirect()` 直连 FastAPI
+  3. 前端 `add.js` 新增 `callBackendAnalyzeDirect()` 方法，优先直连后端 → 云函数兜底
+- **链路优先级**：直连后端（15s timeout）→ `cloud.callFunction('analyzeEnglish')`（兜底）→ 离线返回
+- **不改**：云函数（保留不删）、数据库、保存流程、卡片 schema
+- **TokenHub 例句字段**仍通过 `exampleSentence` / `exampleTranslation` 返回
 - **测试**：183 passed
 
 ## Phase 8B-hotfix-3：Hunyuan 例句生成（已完成）
