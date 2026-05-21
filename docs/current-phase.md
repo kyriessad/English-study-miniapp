@@ -2,11 +2,12 @@
 
 ## 当前阶段
 
-Phase 8C-ui-hotfix 已完成：复习页查看理解按钮降级、卡片展开去内部滚动条、超额完成状态文案层级优化。
+Phase 8D-hotfix 已完成：修复部分单词/短语例句长期无法生成的两个根因。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `365fe20` fix example generation cache and translation gate
 - `731ca47` polish review reveal and overachieved status UI
 - `51f7d21` make add card primary home action
 - `3f4d303` polish AI example font and relax crave validation
@@ -14,17 +15,26 @@ Phase 8C-ui-hotfix 已完成：复习页查看理解按钮降级、卡片展开�
 - `51dab96` prefer backend analyze over cloud function
 - `eb58175` document TokenHub Hunyuan migration
 - `60b2d3d` fix AI example generation for note adoption
-- `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `211d57e` fix example generation cache and translation gate
+- `2d7ef6f` relax crave validation — exact word first, inflection fallback
 - `018fc36` tighten Hunyuan strict retry prompt
 - `b1c96d8` retry Hunyuan example generation on validation failure
 - `637fad2` fix TokenHub example generation diagnostics
 - `187799b` add exampleSentence/Translation to AnalyzeResponse
 - `8eac605` migrate Hunyuan example generation to TokenHub
 - `29f9779` add Hunyuan example sentence generation
-- `88062e1` fix AI generated example sentences
-- `f6db7d5` fix AI example generation for note adoption
+
+## Phase 8D-hotfix：例句生成缓存与 translation 门槛修复（本次）
+
+- **问题 1（前端）**：`setAnalyzeCacheItem` 会把 `exampleSentence` 为空的 word/phrase 分析结果写入 30 天缓存。Hunyuan 暂时故障时，用户的某个词会被封印"无例句"状态长达 30 天，服务恢复后也看不到例句。
+- **问题 2（后端）**：`analyzer.py` 中 `if category in ("word", "phrase") and translation:` 这个门槛在 translation 失败时会跳过 Hunyuan 调用，而 Hunyuan 的 `chinese_meaning` 参数本为可选，不依赖 translation 也能工作。
+- **前端修复**（`pages/add/add.js`）：`setAnalyzeCacheItem` 在写入前检查：若 category 为 word/phrase 且 `exampleSentence` 为空，直接 return，不写入本地缓存。sentence/paragraph 类型缓存行为不变。
+- **后端修复**（`app/services/analyzer.py`）：将条件改为 `if category in ("word", "phrase")`，允许 Hunyuan 在 translation=None 时尝试生成例句。TMT fallback 仍用 `elif translation` 保护（TMT 需要中文翻译构建模板句）。
+- **新增测试**（`tests/test_analyzer_unit.py`）：9 个单元测试，覆盖 translation 有无时 Hunyuan/TMT 调用行为、sentence 排除、Hunyuan 结果透传。
+- **验证**：`python -m pytest -q` → 192 passed；`node --check pages/add/add.js` → OK；`git diff --check` → OK。
+- **未改**：数据库、卡片 schema、例句持久化、UI 大结构、sentence/paragraph 不生成例句的产品语义、TMT fallback 模板。
 
 ## Phase 8B-hotfix-4：Hunyuan 迁移到 TokenHub（本次）
 
