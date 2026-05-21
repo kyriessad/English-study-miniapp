@@ -2,16 +2,13 @@
 
 ## Current Phase
 
-Phase 8K completed — 复习页进度展示、首页进度语义、今日复习内容筛选 UI 优化。
-
-例句生成全链路分类与校验修复已告一段落。合法字母数字词条（COVID-19 / 5G / GPT-4）、缩写句点（U.S. / e.g. / Dr.）、纯字母连字符词（well-known / full-time）均可正确分类并进入例句生成。单词与短语的词形变化（craves/craving、broke out/gave up）通过通用规则校验。86/86 unit + 269/269 全量通过。
-
-Phase 8I-2 readonly 已复核 `_text_in_sentence` 单词模式的 substring match 风险（he/art/in/go/be 等短词），未发现 false positive。建议下一步为人工验收。
+Phase 8L-hotfix completed — 首页"今日目标"板块点击行为调整。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8L-hotfix | Home goal card routing to today reviewed | — | `4e41639` |
 | Phase 8K | Polish: review progress, home labels, today reviewed filters | — | `af338dc` |
 | Phase 8I-2 | Validation substring review (readonly) | — | — |
 | Phase 8I | Classification + morphology fix | `54db753` | — |
@@ -317,6 +314,44 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 ### 保留项
 - 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
 - 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
+
+---
+
+## Phase 8L-hotfix — Home Goal Card Routing to Today Reviewed
+
+**提交：** frontend `4e41639` route home goal card to today reviewed content
+
+### 变更内容
+
+- 首页"今日目标"板块点击行为改为：
+  - `actualCompletedToday > 0`（今日已复习卡片数 > 0）：跳转到 `today_reviewed`（今日复习内容页）
+  - `actualCompletedToday == 0`：不跳转，无 toast
+- 右侧绿色小箭头：仅在 `actualCompletedToday > 0` 时显示（`wx:if`），0 时隐藏
+- hover 效果：仅在 `actualCompletedToday > 0` 时有 hover 态
+- 首页"今日目标"板块不再跳转 `today_review_status`
+
+### 判断字段
+
+- `actualCompletedToday`（= `gp.completed_unique_today` from backend `goal_progress`）
+- 该字段基于当天 distinct card_id 计数，是今日真实已复习卡片数
+
+### 状态行为
+
+| 状态 | 箭头 | 点击行为 |
+|---|---|---|
+| 0/5（未复习任何卡片） | 隐藏 | 无跳转 |
+| 2/5（已复习 2 张） | 显示 | 跳转今日复习内容页 |
+| 5/5（恰好完成） | 显示 | 跳转今日复习内容页 |
+| 超额完成 | 显示 | 跳转今日复习内容页 |
+
+### 未改
+
+- 后端、数据库 schema 不变
+- review session / feedback 核心逻辑不变
+- dailyGoal / goal_progress 计算不变
+- today_review_status 页面保留，未删除
+- 复习完成后 redirect 到 today_review_status 链路（review.js line 462、754-759）保留
+- 历史页未改
 
 ---
 
