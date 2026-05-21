@@ -9,7 +9,7 @@
 
   <!-- ===== Progress Bar ===== -->
   <view wx:if="{{currentCard && !allDone && totalCount > 0}}" class="review-progress-section">
-    <view class="review-progress-text">今日进度 {{displayCurrentNo}} / {{displayTotal}}</view>
+    <view class="review-progress-text">当前进度 {{displayCurrentNo}} / {{displayTotal}}</view>
     <view class="review-progress-bar">
       <view class="review-progress-fill" style="width: {{totalCount > 0 ? finishedCount / totalCount * 100 : 0}}%;"></view>
     </view>
@@ -48,9 +48,6 @@
           {{currentCard.category || '单词'}}
         </view>
 
-        <view class="task-progress">
-          {{displayCurrentNo}} / {{displayTotal}}
-        </view>
       </view>
 
       <view class="task-main {{currentCard.category === '句子' ? 'task-main-sentence' : ''}}">

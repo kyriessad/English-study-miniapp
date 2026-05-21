@@ -12,7 +12,7 @@
 - 用户**自己记录**在生活、工作、学习中遇到的英语词、短语或句子；
 - 可以补充"我的理解""补充备注""在哪里遇到"等上下文信息；
 - 系统辅助生成中文翻译、理解建议和 AI 例句；
-- 用户通过**低压力卡片式复习**进行巩固，每次反馈如实记录；
+- 用户通过**针对性****卡片式复习**进行巩固，每次反馈如实记录；
 - 不追求刷词量，不设强制记忆曲线，重点是**记住语境和当初为什么记这个词**。
 
 ---
@@ -21,41 +21,41 @@
 
 ### 卡片 Card
 
-| 字段 | 说明 |
-|---|---|
-| `id` | 后端 UUID 主键 |
-| `local_temp_id` | 离线创建时的本地临时 ID，同步后幂等去重 |
-| `content` | 原始英文内容（用户输入） |
-| `content_normalized` | Unicode NFKC 标准化后的英文内容 |
-| `card_type` | 分类：`word` / `phrase` / `sentence` |
-| `understanding` | 我的理解（用户或 AI 生成） |
-| `note` | 补充备注 |
-| `where_encountered` | 在哪里遇到（可选） |
-| `translation` | 中文翻译（AI 生成） |
-| `analysis_status` | 分析状态：`pending` / `done` / `failed` |
-| `review_state` | 复习状态：`new` / `reviewing` / `strengthening` / `mastered` |
-| `mastery_score` | 掌握程度 0-5 |
-| `recovery_stage` | 回炉深度 0-2 |
-| `review_count` | 累计复习次数 |
-| `last_review_result` | 最近一次复习反馈结果 |
-| `next_review_at` | 计划下次复习时间 |
-| `status` | 生命周期：`active` / `archived` / `deleted` |
-| `exam_scene` | 考试场景标签（历史字段，保留但前端已不展示） |
-| `exam_module` | 考试模块标签（历史字段，保留但前端已不展示） |
+| 字段                   | 说明                                                                 |
+| ---------------------- | -------------------------------------------------------------------- |
+| `id`                 | 后端 UUID 主键                                                       |
+| `local_temp_id`      | 离线创建时的本地临时 ID，同步后幂等去重                              |
+| `content`            | 原始英文内容（用户输入）                                             |
+| `content_normalized` | Unicode NFKC 标准化后的英文内容                                      |
+| `card_type`          | 分类：`word` / `phrase` / `sentence`                           |
+| `understanding`      | 我的理解（用户或 AI 生成）                                           |
+| `note`               | 补充备注                                                             |
+| `where_encountered`  | 在哪里遇到（可选）                                                   |
+| `translation`        | 中文翻译（AI 生成）                                                  |
+| `analysis_status`    | 分析状态：`pending` / `done` / `failed`                        |
+| `review_state`       | 复习状态：`new` / `reviewing` / `strengthening` / `mastered` |
+| `mastery_score`      | 掌握程度 0-5                                                         |
+| `recovery_stage`     | 回炉深度 0-2                                                         |
+| `review_count`       | 累计复习次数                                                         |
+| `last_review_result` | 最近一次复习反馈结果                                                 |
+| `next_review_at`     | 计划下次复习时间                                                     |
+| `status`             | 生命周期：`active` / `archived` / `deleted`                    |
+| `exam_scene`         | 考试场景标签（历史字段，保留但前端已不展示）                         |
+| `exam_module`        | 考试模块标签（历史字段，保留但前端已不展示）                         |
 
 ### 复习日志 ReviewLog
 
-| 字段 | 说明 |
-|---|---|
-| `id` | UUID 主键 |
-| `card_id` | 关联卡片 |
-| `result` | 反馈结果：`forgot` / `shaky` / `got_it` / `fluent` |
-| `session_type` | 会话类型：`daily_suggested` / `new_only` / `free_review` |
-| `reviewed_at` | 复习时间 |
-| `card_snapshot` | 复习时的卡片快照（JSON） |
-| `review_state_before` / `review_state_after` | 复习前后状态 |
-| `mastery_score_before` / `mastery_score_after` | 复习前后掌握分 |
-| `next_review_at_before` / `next_review_at_after` | 复习前后计划时间 |
+| 字段                                                 | 说明                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| `id`                                               | UUID 主键                                                      |
+| `card_id`                                          | 关联卡片                                                       |
+| `result`                                           | 反馈结果：`forgot` / `shaky` / `got_it` / `fluent`     |
+| `session_type`                                     | 会话类型：`daily_suggested` / `new_only` / `free_review` |
+| `reviewed_at`                                      | 复习时间                                                       |
+| `card_snapshot`                                    | 复习时的卡片快照（JSON）                                       |
+| `review_state_before` / `review_state_after`     | 复习前后状态                                                   |
+| `mastery_score_before` / `mastery_score_after`   | 复习前后掌握分                                                 |
+| `next_review_at_before` / `next_review_at_after` | 复习前后计划时间                                               |
 
 ### 今日复习数据
 
@@ -235,13 +235,13 @@
 
 ### 2. 已支持输入类型
 
-| 类型 | 示例 | 例句 |
-|---|---|---|
-| 普通单词 | clutch, crave, avoid | Y |
-| 常见短语 | break a leg, pick up, give up | Y |
-| 连字符词 | well-known, full-time, follow-up, e-mail, co-worker | Y |
-| 字母数字词条 | COVID-19, 5G, B2B, GPT-4 | Y |
-| 缩写句点 | U.S., e.g., i.e., Dr. | Y |
+| 类型         | 示例                                                | 例句 |
+| ------------ | --------------------------------------------------- | ---- |
+| 普通单词     | clutch, crave, avoid                                | Y    |
+| 常见短语     | break a leg, pick up, give up                       | Y    |
+| 连字符词     | well-known, full-time, follow-up, e-mail, co-worker | Y    |
+| 字母数字词条 | COVID-19, 5G, B2B, GPT-4                            | Y    |
+| 缩写句点     | U.S., e.g., i.e., Dr.                               | Y    |
 
 ### 3. 词形校验
 
@@ -260,17 +260,17 @@
 
 Hunyuan / TMT 路径有结构化诊断日志，使用 `[hunyuan][diag]` / `[tmt][diag]` 前缀和 `key=value` 格式，可区分：
 
-| fail_reason | 含义 |
-|---|---|
-| `model_api_error` | 非 200 HTTP、无 API key、异常 |
-| `model_timeout` | 请求超时（15s） |
-| `empty_response` | 无 choices 或 content 为空 |
-| `json_parse_failed` | 无 `{}` 或 JSON 解析失败 |
-| `missing_example_sentence` | 例句/翻译字段为空 |
-| `exact_match_failed` | strict 模式原词不在句中 |
-| `too_few_words` | 句子 < 3 词 |
-| `loose_match_failed` | loose 模式词形不在句中 |
-| `tmt_fallback_failed` | 所有 TMT 模板翻译均失败 |
+| fail_reason                  | 含义                          |
+| ---------------------------- | ----------------------------- |
+| `model_api_error`          | 非 200 HTTP、无 API key、异常 |
+| `model_timeout`            | 请求超时（15s）               |
+| `empty_response`           | 无 choices 或 content 为空    |
+| `json_parse_failed`        | 无 `{}` 或 JSON 解析失败    |
+| `missing_example_sentence` | 例句/翻译字段为空             |
+| `exact_match_failed`       | strict 模式原词不在句中       |
+| `too_few_words`            | 句子 < 3 词                   |
+| `loose_match_failed`       | loose 模式词形不在句中        |
+| `tmt_fallback_failed`      | 所有 TMT 模板翻译均失败       |
 
 ### 6. API 链路
 
@@ -357,18 +357,18 @@ Hunyuan / TMT 路径有结构化诊断日志，使用 `[hunyuan][diag]` / `[tmt]
 
 ## 九、当前明确不做 / 未完成
 
-| 边界 | 说明 |
-|---|---|
-| AI 例句不持久化到 card | 例句仅在 Add/Edit 页实时展示，不存入数据库 |
-| 不对完整句子生成额外例句 | sentence/paragraph 不进入例句生成链路 |
-| 不对不自然表达自动改写 | 如 `commit guilty` 不重写为正确英语 |
-| 不做语义纠错替换 | 不接受纯同义替换冒充原词用法 |
-| 不保证所有输入都有例句 | 部分输入 Hunyuan 和 TMT 均无法生成时静默返回 None |
-| 不把 History 当成编辑入口 | 历史详情页纯只读，不可编辑 |
-| 不删除后端旧字段 | `exam_scene` / `exam_module` 保留在后端，前端当前不展示 |
-| 暂不新增 Claude Code skill / command | 等例句链路经多轮人工验收稳定后再考虑 |
-| 不做 Sentence 例句生成 | 产品语义保留 |
-| 不保证不规则名词复数 | 如 analysis→analyses 未单独处理（但 analysis 是 analyses 子串，实际可过） |
+| 边界                                 | 说明                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| AI 例句不持久化到 card               | 例句仅在 Add/Edit 页实时展示，不存入数据库                                 |
+| 不对完整句子生成额外例句             | sentence/paragraph 不进入例句生成链路                                      |
+| 不对不自然表达自动改写               | 如 `commit guilty` 不重写为正确英语                                      |
+| 不做语义纠错替换                     | 不接受纯同义替换冒充原词用法                                               |
+| 不保证所有输入都有例句               | 部分输入 Hunyuan 和 TMT 均无法生成时静默返回 None                          |
+| 不把 History 当成编辑入口            | 历史详情页纯只读，不可编辑                                                 |
+| 不删除后端旧字段                     | `exam_scene` / `exam_module` 保留在后端，前端当前不展示                |
+| 暂不新增 Claude Code skill / command | 等例句链路经多轮人工验收稳定后再考虑                                       |
+| 不做 Sentence 例句生成               | 产品语义保留                                                               |
+| 不保证不规则名词复数                 | 如 analysis→analyses 未单独处理（但 analysis 是 analyses 子串，实际可过） |
 
 ---
 

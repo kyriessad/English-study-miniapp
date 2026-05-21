@@ -23,8 +23,27 @@
   </view>
 
   <view wx:else class="today-list">
+    <!-- Result Filter Pills -->
+    <view class="today-filter-row">
+      <view
+        wx:for="{{resultFilterOptions}}"
+        wx:key="key"
+        class="today-filter-pill {{resultFilter === item.key ? 'today-filter-pill--active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="onResultFilterTap"
+      >
+        <text>{{item.label}}</text>
+        <text class="today-filter-pill__count">{{item.count}}</text>
+      </view>
+    </view>
+
+    <!-- Empty state for filtered results -->
+    <view wx:if="{{filteredItems.length === 0}}" class="today-filter-empty">
+      今天还没有这类复习内容
+    </view>
+
     <view
-      wx:for="{{items}}"
+      wx:for="{{filteredItems}}"
       wx:key="cardId"
       class="today-card"
       data-id="{{item.cardId}}"

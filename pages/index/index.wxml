@@ -10,7 +10,7 @@
   <view wx:if="{{totalCardCount > 0}}" class="status-overview-card" bindtap="onStatusOverviewTap" hover-class="status-overview-card--hover">
     <view class="status-overview-row">
       <view class="status-overview-progress">
-        <text class="status-overview-label">今日完成</text>
+        <text class="status-overview-label">今日目标</text>
         <text class="status-overview-num">{{displayCompleted}} / {{displayTotal}}</text>
       </view>
       <text class="status-overview-arrow">›</text>

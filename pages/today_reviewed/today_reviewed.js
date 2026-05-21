@@ -15,13 +15,45 @@ const RESULT_LABELS = {
   fluent: '很熟了'
 };
 
+const RESULT_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'weak', label: '待加强' },
+  { key: 'mastered', label: '已掌握' }
+];
+
+function isWeakResult(r) { return r === 'forgot' || r === 'shaky'; }
+function isMasteredResult(r) { return r === 'got_it' || r === 'fluent'; }
+
+function applyResultFilter(items, filterKey) {
+  if (filterKey === 'all' || !filterKey) return items;
+  if (filterKey === 'weak') return items.filter(function (item) { return isWeakResult(item.lastResult); });
+  if (filterKey === 'mastered') return items.filter(function (item) { return isMasteredResult(item.lastResult); });
+  return items;
+}
+
+function computeResultFilterCounts(items) {
+  var allCount = 0;
+  var weakCount = 0;
+  var masteredCount = 0;
+  for (var i = 0; i < items.length; i++) {
+    var r = items[i].lastResult;
+    allCount++;
+    if (isWeakResult(r)) weakCount++;
+    else if (isMasteredResult(r)) masteredCount++;
+  }
+  return { all: allCount, weak: weakCount, mastered: masteredCount };
+}
+
 Page({
   data: {
     items: [],
+    filteredItems: [],
     loading: true,
     empty: false,
     offline: false,
-    loadFailed: false
+    loadFailed: false,
+    resultFilter: 'all',
+    resultFilterOptions: RESULT_FILTERS.map(function (f) { return { key: f.key, label: f.label, count: 0 }; })
   },
 
   onLoad() {
@@ -36,6 +68,27 @@ Page({
       wx.removeStorageSync('todayReviewedNeedsRefresh');
       this._fetch();
     }
+  },
+
+  _applyResultFilter() {
+    var items = this.data.items || [];
+    var filterKey = this.data.resultFilter || 'all';
+    var filtered = applyResultFilter(items, filterKey);
+    var counts = computeResultFilterCounts(items);
+    var options = RESULT_FILTERS.map(function (f) {
+      return { key: f.key, label: f.label, count: counts[f.key] || 0 };
+    });
+    this.setData({
+      filteredItems: filtered,
+      resultFilterOptions: options
+    });
+  },
+
+  onResultFilterTap(e) {
+    var key = e.currentTarget.dataset.key;
+    if (!key || key === this.data.resultFilter) return;
+    this.setData({ resultFilter: key });
+    this._applyResultFilter();
   },
 
   async _fetch() {
@@ -64,6 +117,7 @@ Page({
         loadFailed: false
       });
 
+      this._applyResultFilter();
       wx.setStorageSync(TODAY_REVIEWED_CACHE_KEY, mapped);
       this._initialLoadDone = true;
     } catch (_) {
@@ -77,6 +131,8 @@ Page({
         offline: hasCache,
         loadFailed: !hasCache
       });
+
+      if (hasCache) this._applyResultFilter();
       this._initialLoadDone = true;
     }
   },

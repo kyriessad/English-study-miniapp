@@ -2688,7 +2688,8 @@
 .library-tab-count {
   font-size: 22rpx;
   font-weight: 800;
-  opacity: 0.8;
+  color: #5e8f6e;
+  opacity: 1;
   margin-left: 2rpx;
 }
 
@@ -2748,12 +2749,12 @@
   box-shadow: none !important;
 }
 
-/* ===== Phase 4B: 弱化 Tab 数字 ===== */
+/* ===== Phase 4B: Tab 数字可读性修复 ===== */
 
 .library-tab-count {
-  opacity: 0.45 !important;
+  opacity: 1 !important;
   font-weight: 700 !important;
-  color: #9aaa9e !important;
+  color: #4a7358 !important;
 }
 
 /* ===== Phase 4B: 卡片状态标签（覆盖 reviewState，更高优先级） ===== */
