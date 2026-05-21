@@ -3086,19 +3086,19 @@
 }
 
 .add-main-btn {
+  flex: 2;
+  color: #ffffff;
+  background: linear-gradient(135deg, #78bd73 0%, #5eaa64 100%);
+  border: none;
+  box-shadow: 0 14rpx 28rpx rgba(86, 126, 82, 0.18);
+}
+
+.review-main-btn {
   flex: 1;
   color: #3f7449;
   background: rgba(255, 255, 255, 0.96);
   border: 1rpx solid #dcebd8;
   box-shadow: 0 10rpx 24rpx rgba(86, 126, 82, 0.07);
-}
-
-.review-main-btn {
-  flex: 3;
-  color: #ffffff;
-  background: linear-gradient(135deg, #78bd73 0%, #5eaa64 100%);
-  border: none;
-  box-shadow: 0 14rpx 28rpx rgba(86, 126, 82, 0.18);
 }
 
 .review-main-btn[disabled] {
