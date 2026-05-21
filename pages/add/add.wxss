@@ -584,10 +584,6 @@
   word-break: break-word;
 }
 
-.reference-example {
-  font-style: italic;
-}
-
 .reference-translation {
   color: #6f7f71;
 }
