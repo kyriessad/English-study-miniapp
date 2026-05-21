@@ -52,10 +52,22 @@
   padding: 32rpx 28rpx;
 }
 
+.status-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
 .status-page-title {
   font-size: 28rpx;
   color: #7f8d82;
-  margin-bottom: 24rpx;
+}
+
+.status-history-top-link {
+  font-size: 24rpx;
+  color: #8a9a8e;
+  font-weight: 400;
 }
 
 /* hero */

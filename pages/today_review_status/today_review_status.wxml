@@ -16,7 +16,10 @@
 
   <!-- content -->
   <view wx:else class="status-body">
-    <view class="status-page-title">今日复习情况</view>
+    <view class="status-page-header">
+      <view class="status-page-title">今日复习情况</view>
+      <view wx:if="{{state === 'not_started'}}" class="status-history-top-link" bindtap="onHistoryTap">历史复习内容 ›</view>
+    </view>
 
     <!-- ========== empty ========== -->
     <block wx:if="{{state === 'empty'}}">
@@ -52,17 +55,6 @@
 
       <view class="status-main-btn-wrap">
         <button class="status-main-btn" disabled="{{false}}" bindtap="onMainButtonTap">{{mainButtonLabel}}</button>
-      </view>
-
-      <view class="status-secondary">
-        <view class="status-entry status-entry--disabled">
-          <text class="status-entry__label">{{todayReviewedLabel}}</text>
-          <text class="status-entry__arrow">›</text>
-        </view>
-        <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">查看历史复习内容</text>
-          <text class="status-entry__arrow">›</text>
-        </view>
       </view>
     </block>
 
