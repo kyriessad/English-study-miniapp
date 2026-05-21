@@ -2,7 +2,7 @@
   <view class="today-hero">
     <view class="today-hero__icon">●</view>
     <view class="today-hero__title">今日复习内容</view>
-    <view class="today-hero__sub" wx:if="{{!loading}}">共 {{items.length}} 张卡片</view>
+    <view class="today-hero__history-link" bindtap="onHistoryLinkTap">历史复习内容 ›</view>
   </view>
 
   <view wx:if="{{offline}}" class="today-offline-banner">

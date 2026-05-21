@@ -147,5 +147,9 @@ Page({
     wx.navigateTo({
       url: `/pages/add/add?id=${cardId}&from=today_reviewed`
     });
+  },
+
+  onHistoryLinkTap() {
+    wx.navigateTo({ url: '/pages/history_reviewed/history_index' });
   }
 });

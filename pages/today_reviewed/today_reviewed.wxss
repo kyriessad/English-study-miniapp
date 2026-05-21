@@ -23,9 +23,10 @@
   flex: 1;
 }
 
-.today-hero__sub {
-  font-size: 26rpx;
-  color: #7f8d82;
+.today-hero__history-link {
+  font-size: 24rpx;
+  color: #8a9a8e;
+  font-weight: 400;
 }
 
 .today-offline-banner {

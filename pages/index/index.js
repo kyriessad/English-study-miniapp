@@ -1464,8 +1464,11 @@ Page({
 
   onStatusOverviewTap() {
     if (this.data.isManageMode) return;
-    if (this.data.actualCompletedToday <= 0) return;
-    wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' });
+    if (this.data.actualCompletedToday > 0) {
+      wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' });
+    } else {
+      wx.navigateTo({ url: '/pages/today_review_status/today_review_status' });
+    }
   },
 
   goToSettings() {
