@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8L-3-hotfix completed — today_review_status 0 复习状态精简为"今天还没开始"引导页。
+Phase 8L-3-hotfix completed — today_review_status 0 复习状态精简为"今天还没开始"引导页，首页今日目标入口双路由已完成。
 
 ## Recently Completed
 
@@ -365,9 +365,19 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 #### 首页今日目标板块
 
 - `actualCompletedToday > 0`（今日已复习卡片数 > 0）：跳转到 `today_reviewed`（今日复习内容页）
-- `actualCompletedToday == 0`：跳转到 `today_review_status`（今日复习情况页），用户看到 `not_started` 引导态 + "查看历史复习内容"入口
-- 右侧绿色小箭头在所有状态下均显示（0/5、2/5、5/5、超额均显示）
+- `actualCompletedToday == 0`：跳转到 `today_review_status`（今日复习情况页），用户看到 `not_started` 引导态（页面精简版见 Phase 8L-3-hotfix）
+- 右侧箭头 `›` 在所有状态下均显示（0/5、2/5、5/5、超额均显示）
 - hover-class 在所有状态下均生效
+- 判断依据：`actualCompletedToday`（= `goal_progress.completed_unique_today`，当天 distinct card_id 计数），与 dailyGoal 是否完成无关
+
+**最终状态行为（含 Phase 8L-3-hotfix 后）：**
+
+| 首页状态 | 箭头 | 点击跳转 |
+|---|---|---|
+| 0/5 — 今日未复习任何卡片 | 显示 | today_review_status（not_started 引导态） |
+| 2/5 — 已复习部分 | 显示 | today_reviewed（今日复习内容页） |
+| 5/5 — 恰好完成 | 显示 | today_reviewed |
+| 超额完成 | 显示 | today_reviewed |
 
 #### 今日复习内容页右上角入口
 
@@ -388,7 +398,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 - 后端、数据库 schema、review session / feedback 核心逻辑不变
 - dailyGoal / goal_progress 计算不变
-- today_review_status 页面保留，未改内部结构
+- today_review_status 页面保留；not_started 内部 UI 由 Phase 8L-3-hotfix 进一步精简
 - 复习完成后 redirect 到 today_review_status 链路（review.js）保留
 - 历史页内部逻辑未改
 
@@ -555,7 +565,16 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Recommended Next Step
 
-人工验收 Phase 8I 的例句生成链路。验收通过后再考虑 Phase 8J normalize 对齐（前端 `normalizeEnglishText` 与后端 `normalize_text` 的一致性整理）。
+人工验收 Phase 8L-2 / 8L-3 的首页今日目标入口与 today_review_status not_started 状态：
+
+- 0/5 首页点击今日目标 → today_review_status not_started 引导页（"今日完成 0/N"，"还没开始，今天先复习一点"，"开始复习"按钮，右上角"历史复习内容 ›"，底部每日目标入口）；
+- >0 已复习首页点击今日目标 → today_reviewed 今日复习内容页；
+- today_reviewed 右上角"历史复习内容 ›"可进入历史页；
+- today_reviewed 结果筛选（全部 / 待加强 / 已掌握）正常；
+- 复习完成后仍 redirect 到 today_review_status；
+- not_started 页面不显示"暂无复习内容"卡片入口，不显示大号"查看历史复习内容"按钮。
+
+验收通过后，再考虑 Phase 8J normalize 对齐或 today_review_status 非 0 状态复盘化重构。Phase 8I 例句生成链路也可在此次一并验收。
 
 **不建议现在新增 Claude Code skill / command**。等例句生成链路经过多轮人工验收稳定后再沉淀命令。
 
