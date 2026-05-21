@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-5 已完成：添加页 AI 分析优先直连 FastAPI 后端，云函数只作为兜底，修复 AI 例句不显示问题。
+Phase 8B-hotfix-5c 已完成：后端 TokenHub 例句生成增加诊断日志，定位到 TokenHub API key 被 api.hunyuan.cloud.tencent.com 返回 401。
 
 ## 最新提交
 
@@ -13,6 +13,7 @@ Phase 8B-hotfix-5 已完成：添加页 AI 分析优先直连 FastAPI 后端，�
 - `5137767` implement review source prominence and AI example note adoption
 
 后端（English-analyzer-backend）：
+- `637fad2` fix TokenHub example generation diagnostics
 - `187799b` add exampleSentence/Translation to AnalyzeResponse
 - `8eac605` migrate Hunyuan example generation to TokenHub
 - `29f9779` add Hunyuan example sentence generation
@@ -35,6 +36,18 @@ Phase 8B-hotfix-5 已完成：添加页 AI 分析优先直连 FastAPI 后端，�
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8B-hotfix-5c：TokenHub 例句生成诊断日志（本次）
+
+- **问题**：direct backend 已生效，但 `exampleSentence received: false`。根因：TokenHub API key 被 `api.hunyuan.cloud.tencent.com` 返回 HTTP 401（Incorrect API key）
+- **诊断日志新增**：
+  - `hunyuan_example.py`：API key 是否配置、base_url / model、HTTP status 和错误信息、choices 是否存在、content 是否为空、JSON 解析是否成功、validation 失败的具体原因
+  - `analyzer.py`：Hunyuan 成功/失败、TMT fallback 触发/成功/失败
+  - 所有日志均不打印 API Key
+- **当前状态**：日志已就绪，等待用户确认正确的 TokenHub OpenAI-compatible base URL
+- **不改**：前端、云函数、数据库
+- **测试**：183 passed
+- **下一步**：用户从 TokenHub 控制台确认正确的 base URL，更新 `.env` 中 `HUNYUAN_BASE_URL`
 
 ## Phase 8B-hotfix-5：添加页 AI 分析优先直连后端（本次）
 
