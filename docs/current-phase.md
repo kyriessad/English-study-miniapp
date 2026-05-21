@@ -2,11 +2,12 @@
 
 ## 当前阶段
 
-Phase 8B-hotfix-6 已完成：参考区 UI 统一、按钮合并、备注格式去标签、strict prompt 加强。
+Phase 8B-hotfix-7 已完成：AI 例句英文取消斜体、crave 优先原词+词形变化兜底。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `3f4d303` polish AI example font and relax crave validation
 - `b7d3f56` refine AI reference fill behavior
 - `51dab96` prefer backend analyze over cloud function
 - `eb58175` document TokenHub Hunyuan migration
@@ -39,6 +40,29 @@ Phase 8B-hotfix-6 已完成：参考区 UI 统一、按钮合并、备注格式�
 - **不改前端、云函数、数据库**
 - **例句仍只展示在添加页**，并通过"采用到备注"追加到 note
 - **测试**：183 passed
+
+## Phase 8B-hotfix-7：AI 例句字体与 crave 词形变化兜底（本次）
+
+- **AI 例句英文取消斜体**：
+  - 删除 `pages/add/add.wxss` 中 `.reference-example { font-style: italic; }` 块
+  - 例句字体恢复为正常，保持现有字号、颜色、间距不变
+- **crave 优先原词 + 词形变化兜底**：
+  - 交换 prompt 顺序：第一次优先要求 exact word（strict prompt）→ 第二次允许 inflection
+  - 新增 `_text_in_sentence()` 校验函数：非 strict 模式下接受常见规则变形（+s/+es/+d/+ed/+ing/去e+ing/去e+ed 等）
+  - strict 模式仍只要 exact substring match
+  - 保持 max 1 retry + TMT fallback
+- **不改**：数据库、云函数、保存逻辑、前端按钮/填入逻辑
+- **测试**：182 passed（1 pre-existing failure unrelated）
+
+**人工验收：**
+1. 重启后端
+2. 微信开发者工具重新编译
+3. 输入 penetrate / pertinence / eager → 确认英文例句不再斜体（正常字体）
+4. 输入 crave → 优先看是否生成含 "crave" 的句子
+5. 若未用原词，允许出现 craving / craved / craves
+6. 不接受不相关同义词句子
+7. "全部填入 / 已填入"逻辑不受影响
+8. 保存并返回、保存并继续新增正常
 
 ## Phase 8B-hotfix-6：参考区 UI 与备注格式优化（本次）
 
