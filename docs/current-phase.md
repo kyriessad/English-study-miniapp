@@ -2,12 +2,16 @@
 
 ## 当前阶段
 
-Phase 8A/8B 已完成：复习页来源上移 + 添加页 AI 例句最小接入。
+Phase 8B-hotfix 已完成：修复 AI 例句真实生成。
 
 ## 最新提交
 
 前端（English-study-miniapp）：
+- `60b2d3d` fix AI example generation for note adoption
 - `5137767` implement review source prominence and AI example note adoption
+
+后端（English-analyzer-backend）：
+- `f6db7d5` fix AI example generation for note adoption
 
 ## Phase 8A：复习页来源上移（已完成）
 
@@ -17,14 +21,21 @@ Phase 8A/8B 已完成：复习页来源上移 + 添加页 AI 例句最小接入�
 - **保留**：原来 answer panel 内的来源展示不动
 - **未改变**：feedback 四个按钮、review session 创建/完成/跳转逻辑、状态机、进度条
 
-## Phase 8B：添加页 AI 例句最小接入（已完成）
+## Phase 8B-hotfix：AI 例句真实生成（已完成）
 
-- **AI 例句来源**：复用现有 `suggestionText`（来自 `analyzeEnglish` 云函数，中文理解建议）
-- **英文例句**：用户正在录入的 `form.englishText`（即遇到的英文内容本身）
-- **改动**：在现有"参考理解"建议框底部增加"采用到备注"按钮
-- **采纳格式**：`AI例句：[englishText]\n参考理解：[suggestionText]`，追加到 `form.notes`
-- **保护**：重复检测（已含同一 `AI例句：[text]` 则不追加）；`translating` 时禁用；`isReadonlyDetailMode` 时禁用
-- **未改变**：现有"采纳建议"按钮（→ 我的理解）逻辑、保存流程、离线保存、pending sync、编辑旧卡
+- **问题**：Phase 8B 把 `form.englishText`（用户输入本身）当成 AI 例句，输入 crave 备注变成 `AI例句：crave`，不是真实例句
+- **修复**：后端调用 Free Dictionary API 获取真实英文例句（无需 API key），再用现有 Tencent TMT 翻译例句到中文
+- **例句来源**：`api.dictionaryapi.dev`（免费词典，仅对 word/phrase 类型生效）
+- **改动文件**：`analyzer.py`（后端）、`analyzeEnglish/index.js`（云函数）、`add.js`、`add.wxml`、`add.wxss`（前端）
+- **前端 state**：新增 `aiExampleSentence` / `aiExampleTranslation`；`adoptNoteExample()` 只使用这两个字段
+- **展示**：suggestion-box 内新增 `ai-example-block`，仅在 `aiExampleSentence` 非空时显示；`采用到备注` 按钮也在此块内
+- **采纳格式**：`AI例句：[real example sentence]\n参考理解：[translated example]`
+- **保护**：重复检测；`translating` 时禁用；`isReadonlyDetailMode` 时禁用；词典查询失败静默降级（按钮不出现）
+- **未改变**：现有"采纳建议"按钮（→ 我的理解）、保存流程、离线保存、pending sync、编辑旧卡、数据库 schema
+
+## Phase 8B：添加页 AI 例句（初版，已被 hotfix 取代）
+
+- 初版错误地把 `form.englishText` 作为例句，已由 8B-hotfix 修正
 
 ## 本次未改变
 
