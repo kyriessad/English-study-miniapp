@@ -651,13 +651,28 @@ Page({
     }
   
     const isExpired = Date.now() - Number(item.savedAt || 0) > ANALYZE_CACHE_MAX_AGE;
-  
+
     if (isExpired) {
       delete cache[cacheKey];
       wx.setStorageSync(ANALYZE_CACHE_STORAGE_KEY, cache);
       return null;
     }
-  
+
+    // Discard stale word/phrase entries that have no example sentence.
+    // These were written before the Phase 8D-hotfix and would permanently hide
+    // examples that have since started generating successfully.
+    var backendCategory = String((item.backend && item.backend.category) || '');
+    var frontendCategory = String(item.category || '');
+    var itemIsWordOrPhrase = (
+      backendCategory === 'word' || backendCategory === 'phrase' ||
+      frontendCategory === '单词' || frontendCategory === '短语'
+    );
+    if (itemIsWordOrPhrase && !normalizePlainText(item.exampleSentence || '')) {
+      delete cache[cacheKey];
+      wx.setStorageSync(ANALYZE_CACHE_STORAGE_KEY, cache);
+      return null;
+    }
+
     return item;
   },
   
