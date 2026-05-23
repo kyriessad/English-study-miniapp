@@ -4,7 +4,7 @@
     <view class="title">英语知识卡片本</view>
     <view class="subtitle-home">{{dailyStatusMessage}}</view>
     <view wx:if="{{totalCardCount > 0 && actualCompletedToday > 0}}" class="today-review-entry" bindtap="onTodayReviewedTap" hover-class="today-review-entry--hover">今天看过 {{actualCompletedToday}} 张 · 查看 ›</view>
-    <view wx:if="{{totalCardCount > 0 && actualCompletedToday === 0}}" class="today-review-entry today-review-entry--zero">今天还没复习</view>
+    <view wx:if="{{totalCardCount > 0 && actualCompletedToday === 0}}" class="today-review-entry today-review-entry--zero">今天还没看过卡片</view>
     <view class="header-settings" bindtap="goToSettings" hover-class="header-settings--hover">设置</view>
   </view>
 
@@ -12,13 +12,13 @@
   <!-- ===== Main Buttons ===== -->
   <!-- goal_blocked && not goal_met: 复习一下 35% (secondary) + 添加卡片继续 65% (primary) -->
   <view wx:if="{{totalCardCount > 0 && isGoalBlocked && !isGoalMet}}" class="main-actions">
-    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">复习一下</button>
+    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
     <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片继续</button>
   </view>
   <!-- normal / goal-met / goal-overachieved: 添加卡片 65% (primary) + 进入复习页 35% (secondary) -->
   <view wx:if="{{totalCardCount > 0 && !(isGoalBlocked && !isGoalMet)}}" class="main-actions">
     <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
-    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">复习一下</button>
+    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
   </view>
 
   <!-- ===== Weak Sync Hint ===== -->

@@ -14,9 +14,8 @@ const RANGE_OPTIONS = [
 
 const QUICK_FILTER_OPTIONS = [
   { key: 'all', label: '全部' },
-  { key: 'again', label: '想不起来' },
-  { key: 'hard', label: '不太稳' },
-  { key: 'good', label: '已掌握' }
+  { key: 'weak', label: '有点忘了' },
+  { key: 'good', label: '记得' }
 ];
 
 // Legacy fallback only: maps old local reviewRecords labels to tagType
@@ -155,10 +154,11 @@ function searchHistoryCards(cards = [], keyword = '') {
 }
 
 function buildQuickFilterOptionsWithCounts(allSummaries = []) {
+  const weakCount = filterHistoryCardSummariesByResult(allSummaries, 'again').length
+    + filterHistoryCardSummariesByResult(allSummaries, 'hard').length;
   const countMap = {
     all: allSummaries.length,
-    again: filterHistoryCardSummariesByResult(allSummaries, 'again').length,
-    hard: filterHistoryCardSummariesByResult(allSummaries, 'hard').length,
+    weak: weakCount,
     good: filterHistoryCardSummariesByResult(allSummaries, 'good').length
   };
 
@@ -218,15 +218,13 @@ function mapBackendHistoryItem(item) {
 
 function buildBackendQuickFilterOptions(cards = []) {
   const total = cards.length;
-  const againCount = cards.filter((c) => c._rawResult === 'forgot').length;
-  const hardCount = cards.filter((c) => c._rawResult === 'shaky').length;
+  const weakCount = cards.filter((c) => c._rawResult === 'forgot' || c._rawResult === 'shaky').length;
   const goodCount = cards.filter((c) => c._rawResult === 'got_it' || c._rawResult === 'fluent').length;
 
   return QUICK_FILTER_OPTIONS.map((opt) => {
     let cnt;
     if (opt.key === 'all') cnt = total;
-    else if (opt.key === 'again') cnt = againCount;
-    else if (opt.key === 'hard') cnt = hardCount;
+    else if (opt.key === 'weak') cnt = weakCount;
     else cnt = goodCount;
     return { ...opt, count: cnt, displayLabel: `${opt.label}（${cnt}）` };
   });
@@ -255,10 +253,8 @@ function buildBackendHistoryParams(rangeKey, resultKey, activeSearchKeyword, lim
     params.search = trimmedSearch;
   }
 
-  if (resultKey === 'again') {
-    params.result = ['forgot'];
-  } else if (resultKey === 'hard') {
-    params.result = ['shaky'];
+  if (resultKey === 'weak') {
+    params.result = ['forgot', 'shaky'];
   } else if (resultKey === 'good') {
     params.result = ['got_it', 'fluent'];
   }
@@ -287,10 +283,8 @@ function normalizeBackendHistorySummary(summary) {
     let cnt;
     if (opt.key === 'all') {
       cnt = totalCards;
-    } else if (opt.key === 'again') {
-      cnt = counts.forgot || 0;
-    } else if (opt.key === 'hard') {
-      cnt = counts.shaky || 0;
+    } else if (opt.key === 'weak') {
+      cnt = (counts.forgot || 0) + (counts.shaky || 0);
     } else {
       cnt = (counts.got_it || 0) + (counts.fluent || 0);
     }
@@ -318,6 +312,7 @@ Page({
     searchKeyword: '',
     activeSearchKeyword: '',
 
+    statsDisplayText: '',
     stats: {
       totalReviewsInRange: 0,
       totalCardsInRange: 0
@@ -467,10 +462,15 @@ Page({
       }
 
       const hasMore = loadedCount < total;
+      const statsLabel = this.data.selectedRangeLabel || '';
+      const statsDisplayText = (stats && typeof stats.totalCardsInRange === 'number')
+        ? statsLabel + '看过 ' + stats.totalCardsInRange + ' 张·共 ' + stats.totalReviewsInRange + ' 次'
+        : '';
       this.setData({
         quickFilterOptions,
         allSummaries: allMapped,
         stats,
+        statsDisplayText,
         usingBackendHistory: true,
         summaryLoadFailed,
         backendHistoryTotal: total,
@@ -567,10 +567,21 @@ Page({
     const allSummaries = getHistoryCardSummaries(selectedRange).map(function(item) {
       return Object.assign({}, item, { logId: item.logId || item.cardId || '' });
     });
-    const statusFilteredSummaries = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
+    let statusFilteredSummaries;
+    if (selectedQuickFilter === 'weak') {
+      const againItems = filterHistoryCardSummariesByResult(allSummaries, 'again');
+      const hardItems = filterHistoryCardSummariesByResult(allSummaries, 'hard');
+      statusFilteredSummaries = againItems.concat(hardItems);
+    } else {
+      statusFilteredSummaries = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
+    }
     const searchedSummaries = searchHistoryCards(statusFilteredSummaries, activeSearchKeyword);
     const decoratedCards = decorateHistoryCards(searchedSummaries);
     const stats = getHistorySummaryStats(selectedRange);
+    const statsLabel = this.data.selectedRangeLabel || '';
+    const statsDisplayText = (stats && typeof stats.totalCardsInRange === 'number')
+      ? statsLabel + '看过 ' + stats.totalCardsInRange + ' 张·共 ' + stats.totalReviewsInRange + ' 次'
+      : '';
 
     this.setData({
       quickFilterOptions: buildQuickFilterOptionsWithCounts(allSummaries),
@@ -582,6 +593,7 @@ Page({
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
       stats,
+      statsDisplayText,
       usingBackendHistory: false
     });
   },
@@ -589,6 +601,8 @@ Page({
   // 后端成功返回空列表不等于后端不可用，空状态渲染不能切换数据源模式
   _renderEmpty() {
     const defaultStats = { totalReviewsInRange: 0, totalCardsInRange: 0 };
+    const statsLabel = this.data.selectedRangeLabel || '';
+    const statsDisplayText = statsLabel + '看过 0 张·共 0 次';
 
     this.setData({
       quickFilterOptions: QUICK_FILTER_OPTIONS.map((opt) => ({
@@ -603,7 +617,8 @@ Page({
       historyFastScrollThumbTop: 0,
       historyFastScrollThumbStyle: 'top: 0%;',
       historyPageScrollTop: 0,
-      stats: defaultStats
+      stats: defaultStats,
+      statsDisplayText
     });
   },
 
@@ -643,15 +658,19 @@ Page({
     let resultFiltered = allSummaries;
     if (selectedQuickFilter !== 'all') {
       if (isBackendData) {
-        if (selectedQuickFilter === 'again') {
-          resultFiltered = allSummaries.filter((item) => item._rawResult === 'forgot');
-        } else if (selectedQuickFilter === 'hard') {
-          resultFiltered = allSummaries.filter((item) => item._rawResult === 'shaky');
+        if (selectedQuickFilter === 'weak') {
+          resultFiltered = allSummaries.filter((item) => item._rawResult === 'forgot' || item._rawResult === 'shaky');
         } else if (selectedQuickFilter === 'good') {
           resultFiltered = allSummaries.filter((item) => item._rawResult === 'got_it' || item._rawResult === 'fluent');
         }
       } else {
-        resultFiltered = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
+        if (selectedQuickFilter === 'weak') {
+          const againItems = filterHistoryCardSummariesByResult(allSummaries, 'again');
+          const hardItems = filterHistoryCardSummariesByResult(allSummaries, 'hard');
+          resultFiltered = againItems.concat(hardItems);
+        } else {
+          resultFiltered = filterHistoryCardSummariesByResult(allSummaries, selectedQuickFilter);
+        }
       }
     }
 

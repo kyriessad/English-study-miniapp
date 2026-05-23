@@ -489,12 +489,12 @@ function computeDailyStatusCopy(totalToday, completedToday) {
   var c = Number(completedToday) || 0;
 
   if (t > 0 && c >= t) {
-    return { dailyStatusMessage: '今天的任务都完成了', reviewButtonLabel: '继续复习' };
+    return { dailyStatusMessage: '今天的任务都完成了', reviewButtonLabel: '继续看' };
   }
   if (c > 0 && c < t) {
-    return { dailyStatusMessage: '正在学习中，继续加油', reviewButtonLabel: '继续复习' };
+    return { dailyStatusMessage: '正在学习中，继续加油', reviewButtonLabel: '继续看' };
   }
-  return { dailyStatusMessage: '新的一天，开始学习吧', reviewButtonLabel: '开始复习' };
+  return { dailyStatusMessage: '新的一天，开始学习吧', reviewButtonLabel: '看一看' };
 }
 
 Page({
@@ -572,7 +572,7 @@ Page({
 
     // Phase 6O-2: daily status copy
     dailyStatusMessage: '新的一天，开始学习吧',
-    reviewButtonLabel: '开始复习',
+    reviewButtonLabel: '看一看',
 
     // Phase 6O-2A: hide new-study entry card when task is in progress
     hideNewStudyEntry: false,
@@ -825,23 +825,23 @@ Page({
       // Goal-aware status message
       if (displayTotal === 0) {
         dailyStatusMessage = '新的一天，开始学习吧';
-        reviewButtonLabel = '开始复习';
+        reviewButtonLabel = '看一看';
       } else if (isGoalMet && isGoalOverachieved) {
         dailyStatusMessage = '今天复习了不少，继续加油';
-        reviewButtonLabel = '继续复习';
+        reviewButtonLabel = '继续看';
       } else if (isGoalMet) {
         dailyStatusMessage = '今天的复习完成了';
-        reviewButtonLabel = '继续复习';
+        reviewButtonLabel = '继续看';
       } else if (isGoalBlocked) {
         var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
         dailyStatusMessage = localCardCount > 0 ? '当前可学内容已完成，可以添加卡片继续' : '新的一天，开始学习吧';
-        reviewButtonLabel = '继续复习';
+        reviewButtonLabel = '继续看';
       } else if (displayCompleted > 0 && displayCompleted < displayTotal) {
         dailyStatusMessage = '正在学习中，继续加油';
-        reviewButtonLabel = '继续复习';
+        reviewButtonLabel = '继续看';
       } else {
         dailyStatusMessage = '新的一天，开始学习吧';
-        reviewButtonLabel = '开始复习';
+        reviewButtonLabel = '看一看';
       }
     } else {
       // Fallback to old suggested / completed_suggested

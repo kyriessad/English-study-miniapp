@@ -94,7 +94,7 @@ page {
 /* 状态筛选 */
 .history-quick-filters {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 18rpx;
   margin-bottom: 22rpx;
 }
@@ -118,16 +118,10 @@ page {
   border-color: #b9e9cf;
 }
 
-.history-quick-filter--active.history-quick-filter--again {
+.history-quick-filter--active.history-quick-filter--weak {
   color: #e05262;
   background: #fff5f6;
   border-color: #f5ccd2;
-}
-
-.history-quick-filter--active.history-quick-filter--hard {
-  color: #e1971b;
-  background: #fff9e9;
-  border-color: #f4dfad;
 }
 
 .history-quick-filter--active.history-quick-filter--good {
@@ -499,16 +493,10 @@ page {
   border-color: #ccebd8;
 }
 
-.history-quick-filter--active.history-quick-filter--again {
+.history-quick-filter--active.history-quick-filter--weak {
   color: #bd6b74;
   background: #fff8f8;
   border-color: #f1d4d8;
-}
-
-.history-quick-filter--active.history-quick-filter--hard {
-  color: #a7772e;
-  background: #fffaf0;
-  border-color: #efd9ab;
 }
 
 .history-quick-filter--active.history-quick-filter--good {
@@ -708,4 +696,13 @@ page {
   text-align: center;
   font-size: 24rpx;
   color: #8a9a8a;
+}
+
+/* Phase 8B: 一行统计替换统计卡 */
+.history-stats-line {
+  font-size: 26rpx;
+  color: #5a7a65;
+  font-weight: 600;
+  margin-bottom: 18rpx;
+  padding: 0 4rpx;
 }

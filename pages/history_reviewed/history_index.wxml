@@ -6,26 +6,11 @@
     </view>
 
     <view class="history-hero__main">
-      <view class="history-hero__title">历史复习内容</view>
+      <view class="history-hero__title">历史记录</view>
     </view>
   </view>
 
-  <!-- 当前时间段统计 -->
-  <view class="history-stats-card">
-    <view class="history-stats-title">当前时间段统计</view>
-
-    <view class="history-stats-row">
-      <view class="history-stats-item">
-        <view class="history-stats-value">{{stats.totalReviewsInRange}}</view>
-        <view class="history-stats-label">总复习次数</view>
-      </view>
-
-      <view class="history-stats-item">
-        <view class="history-stats-value">{{stats.totalCardsInRange}}</view>
-        <view class="history-stats-label">涉及卡片数</view>
-      </view>
-    </view>
-  </view>
+  <view wx:if="{{statsDisplayText}}" class="history-stats-line">{{statsDisplayText}}</view>
 
 <!-- 时间范围筛选：整行可点击 -->
 <picker
@@ -65,7 +50,7 @@
       <input
         class="history-search-input"
         value="{{searchKeyword}}"
-        placeholder="搜索 {{allSummaries.length}} 张复习卡片的英文内容、释义或备注"
+        placeholder="搜索英文、释义、来源等"
         placeholder-class="history-search-placeholder"
         bindinput="onSearchInput"
         bindconfirm="onSearchConfirm"
@@ -90,8 +75,6 @@
             <view class="history-card__head">
               <view class="history-card__tags">
                 <text class="history-meta-pill">{{item.category || '单词'}}</text>
-                <text class="history-meta-pill">{{item.examScene || '未分类'}}</text>
-                <text class="history-meta-pill">{{item.examModule || '未分类'}}</text>
               </view>
 
               <view class="history-result-tag history-result-tag--{{item.resultTagType}}">
@@ -107,9 +90,7 @@
 
             <view class="history-card__meta">
               <view class="history-card__meta-left">
-                <text>{{item.reviewCountText}}</text>
-                <text class="history-card__meta-separator">|</text>
-                <text>最后复习：{{item.lastReviewDisplay}}</text>
+                <text>最后查看：{{item.lastReviewDisplay}}</text>
               </view>
               <view wx:if="{{item.whereEncountered}}" class="history-source-pill">来自：{{item.whereEncountered}}</view>
             </view>

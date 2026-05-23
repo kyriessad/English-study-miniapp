@@ -1,25 +1,4 @@
 <view class="settings-page">
-  <!-- 学习设置 -->
-  <view class="settings-section">
-    <view class="settings-section-title">学习设置</view>
-
-    <view class="settings-item">
-      <view class="settings-item-label">每日目标</view>
-      <picker
-        class="settings-item-picker"
-        mode="selector"
-        range="{{['3 张', '5 张', '10 张']}}"
-        value="{{dailyGoalIndex}}"
-        bindchange="onDailyGoalChange"
-      >
-        <view class="settings-item-value">
-          <text>{{dailyGoalLabel}}</text>
-          <text class="settings-item-arrow">›</text>
-        </view>
-      </picker>
-    </view>
-  </view>
-
   <!-- 其他 -->
   <view class="settings-section">
     <view class="settings-section-title">其他</view>

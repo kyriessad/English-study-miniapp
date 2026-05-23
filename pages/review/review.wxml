@@ -1,15 +1,15 @@
 <view class="page {{(!currentCard && !allDone) || pageState === 'completed' ? 'page-empty' : ''}}">
   <view class="header">
     <view class="title">
-      <block wx:if="{{allDone || pageState === 'completed'}}">这轮复习完成</block>
-      <block wx:else>今日复习</block>
+      <block wx:if="{{allDone || pageState === 'completed'}}">这轮看完了</block>
+      <block wx:else>看一看</block>
     </view>
     <view wx:if="{{!allDone && pageState !== 'completed' && currentCard}}" class="subtitle">先想一想，再看理解。</view>
   </view>
 
   <!-- ===== Progress Bar ===== -->
   <view wx:if="{{currentCard && !allDone && totalCount > 0}}" class="review-progress-section">
-    <view class="review-progress-text">当前进度 {{displayCurrentNo}} / {{displayTotal}}</view>
+    <view class="review-progress-text">第 {{displayCurrentNo}} / {{displayTotal}} 张</view>
     <view class="review-progress-bar">
       <view class="review-progress-fill" style="width: {{totalCount > 0 ? finishedCount / totalCount * 100 : 0}}%;"></view>
     </view>
@@ -161,14 +161,14 @@
 
   <!-- ===== COMPLETED ===== -->
   <view wx:elif="{{allDone || pageState === 'completed'}}" class="done-panel">
-    <view class="done-title done-title--plain">复习已完成</view>
-    <view class="done-text">今日复习情况已更新，可以前往查看。</view>
+    <view class="done-title done-title--plain">这轮看完了</view>
+    <view class="done-text">今天看过的卡片都在这里。</view>
     <view class="done-actions">
       <button
         class="done-action-btn done-primary-btn"
         bindtap="navigateToTodayReviewStatus"
       >
-        查看今日复习情况
+        查看今天看过的
       </button>
       <button
         class="done-action-btn done-secondary-btn"

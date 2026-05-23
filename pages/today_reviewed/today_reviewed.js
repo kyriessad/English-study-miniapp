@@ -17,8 +17,8 @@ const RESULT_LABELS = {
 
 const RESULT_FILTERS = [
   { key: 'all', label: '全部' },
-  { key: 'weak', label: '待加强' },
-  { key: 'mastered', label: '已掌握' }
+  { key: 'weak', label: '有点忘了' },
+  { key: 'mastered', label: '记得' }
 ];
 
 function isWeakResult(r) { return r === 'forgot' || r === 'shaky'; }

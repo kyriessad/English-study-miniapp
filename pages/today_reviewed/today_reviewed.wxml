@@ -1,8 +1,8 @@
 <view class="today-page">
   <view class="today-hero">
     <view class="today-hero__icon">●</view>
-    <view class="today-hero__title">今日复习内容</view>
-    <view class="today-hero__history-link" bindtap="onHistoryLinkTap">历史复习内容 ›</view>
+    <view class="today-hero__title">今天看过</view>
+    <view class="today-hero__history-link" bindtap="onHistoryLinkTap">历史记录 ›</view>
   </view>
 
   <view wx:if="{{offline}}" class="today-offline-banner">
@@ -19,7 +19,7 @@
 
   <view wx:elif="{{empty}}" class="today-empty">
     <view class="today-empty__icon">○</view>
-    <view class="today-empty__text">今天还没有复习过卡片</view>
+    <view class="today-empty__text">今天还没看过卡片</view>
   </view>
 
   <view wx:else class="today-list">
@@ -57,7 +57,6 @@
       <view class="today-card__understanding" wx:if="{{item.understanding}}">{{item.understanding}}</view>
 
       <view class="today-card__meta">
-        <view class="today-card__tag today-card__tag--count">复习 {{item.todayReviewCount}} 次</view>
         <view wx:if="{{item.whereEncountered}}" class="today-card__source-pill">来自：{{item.whereEncountered}}</view>
       </view>
     </view>

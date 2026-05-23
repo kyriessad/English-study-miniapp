@@ -753,10 +753,10 @@ Page({
 
   navigateToTodayReviewStatus() {
     wx.redirectTo({
-      url: '/pages/today_review_status/today_review_status?from=review_done_fallback',
+      url: '/pages/today_reviewed/today_reviewed?from=review_done_fallback',
       fail: () => {
         wx.navigateTo({
-          url: '/pages/today_review_status/today_review_status?from=review_done_fallback'
+          url: '/pages/today_reviewed/today_reviewed?from=review_done_fallback'
         });
       }
     });
