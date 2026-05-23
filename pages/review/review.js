@@ -459,7 +459,7 @@ Page({
       });
 
       wx.redirectTo({
-        url: '/pages/today_review_status/today_review_status?from=review_complete',
+        url: '/pages/today_reviewed/today_reviewed?from=review_complete',
         fail: () => {
           this.setData({
             progress,

@@ -3282,3 +3282,24 @@
   background: #f0faf4;
   border-color: #ccebd8;
 }
+
+/* ===== Phase 8A: 首页轻量今日复习入口 ===== */
+.today-review-entry {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #4d7c5f;
+  line-height: 1.5;
+  padding: 4rpx 0;
+}
+
+.today-review-entry--hover {
+  color: #3f7449;
+}
+
+.today-review-entry--zero {
+  color: #9aaa9e;
+  font-weight: 500;
+}

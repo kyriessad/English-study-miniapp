@@ -827,10 +827,10 @@ Page({
         dailyStatusMessage = '新的一天，开始学习吧';
         reviewButtonLabel = '开始复习';
       } else if (isGoalMet && isGoalOverachieved) {
-        dailyStatusMessage = '今天已完成 ' + actualCompletedToday + ' 张，超额完成';
+        dailyStatusMessage = '今天复习了不少，继续加油';
         reviewButtonLabel = '继续复习';
       } else if (isGoalMet) {
-        dailyStatusMessage = '今日目标已完成';
+        dailyStatusMessage = '今天的复习完成了';
         reviewButtonLabel = '继续复习';
       } else if (isGoalBlocked) {
         var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
@@ -1469,6 +1469,11 @@ Page({
     } else {
       wx.navigateTo({ url: '/pages/today_review_status/today_review_status' });
     }
+  },
+
+  onTodayReviewedTap() {
+    if (this.data.isManageMode) return;
+    wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' });
   },
 
   goToSettings() {

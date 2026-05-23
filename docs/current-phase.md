@@ -2,12 +2,13 @@
 
 ## Current Phase
 
-Phase 8L-3-hotfix completed — today_review_status 0 复习状态精简为"今天还没开始"引导页，首页今日目标入口双路由已完成。
+Phase 8A-home-review-navigation-lightweight completed — 删除首页今日目标大卡片，新增轻量"今天看过 X 张 · 查看 ›"入口，复习按钮文案改为"复习一下"，复习完成后跳转改为 today_reviewed。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | pending |
 | Phase 8L-3-hotfix | Simplify not_started state in today_review_status | — | `f2ba18b` |
 | Phase 8L-2-hotfix | Home goal card dual routing + today reviewed history link | — | `9d88c8b` |
 | Phase 8L-hotfix | Home goal card routing to today reviewed | — | `4e41639` |
@@ -316,6 +317,51 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 ### 保留项
 - 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
 - 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
+
+---
+
+## Phase 8A-home-review-navigation-lightweight — Lighten Home Review Entry
+
+**提交：** frontend pending
+
+### 变更内容
+
+#### 删除首页今日目标大卡片
+
+- 移除 `status-overview-card`（展示"今日目标 X/Y"、进度条的卡片）
+- 移除 `onStatusOverviewTap` 在 WXML 中的引用（函数保留，不删除）
+
+#### 新增轻量今日复习入口
+
+- 有今日复习记录（`actualCompletedToday > 0`）：显示"今天看过 X 张 · 查看 ›"，点击进入 `today_reviewed`
+- 无今日复习记录：显示"今天还没复习"（静态，不可点击）
+- 入口位于 header 区域，subtitle 下方
+
+#### 复习按钮文案改为"复习一下"
+
+- goal_blocked 状态的"继续复习"改为"复习一下"
+- 普通状态的 `{{reviewButtonLabel}}` 改为"复习一下"
+- `goToReview` 业务逻辑（fallback chain）不变
+
+#### 简化 dailyStatusMessage（去掉目标导向文案）
+
+- 超额完成："今天已完成 N 张，超额完成" → "今天复习了不少，继续加油"
+- 恰好完成："今日目标已完成" → "今天的复习完成了"
+- 其他状态文案不变
+
+#### 复习完成后跳转改为 today_reviewed
+
+- `review.js` 中 `response.done` 时的 `wx.redirectTo` 改为 `/pages/today_reviewed/today_reviewed?from=review_complete`
+- `navigateToTodayReviewStatus()` 函数未被调用，保留但不修改
+
+### 未改
+
+- 后端、数据库 schema 不变
+- review session / feedback / 4档反馈逻辑不变
+- daily_suggested / new_only / free_review 复习调度规则不变
+- today_review_status 页面代码保留，未删除
+- 历史页内部逻辑不变
+- 不新增底部导航栏
 
 ---
 
