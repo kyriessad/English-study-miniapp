@@ -492,16 +492,11 @@ function decorateCards(cards, selectedCardIds) {
  * Pure function — no side effects.
  */
 function computeDailyStatusCopy(totalToday, completedToday) {
-  var t = Number(totalToday) || 0;
   var c = Number(completedToday) || 0;
-
-  if (t > 0 && c >= t) {
-    return { dailyStatusMessage: '今天的任务都完成了', reviewButtonLabel: '继续看' };
+  if (c > 0) {
+    return { dailyStatusMessage: '可以继续看看卡片', reviewButtonLabel: '继续看' };
   }
-  if (c > 0 && c < t) {
-    return { dailyStatusMessage: '正在学习中，继续加油', reviewButtonLabel: '继续看' };
-  }
-  return { dailyStatusMessage: '新的一天，开始学习吧', reviewButtonLabel: '看一看' };
+  return { dailyStatusMessage: '随时可以看看卡片', reviewButtonLabel: '看一看' };
 }
 
 Page({
@@ -578,7 +573,7 @@ Page({
     creatingExampleCard: false,
 
     // Phase 6O-2: daily status copy
-    dailyStatusMessage: '新的一天，开始学习吧',
+    dailyStatusMessage: '随时可以看看卡片',
     reviewButtonLabel: '看一看',
 
     // Phase 6O-2A: hide new-study entry card when task is in progress
@@ -829,25 +824,16 @@ Page({
       isGoalOverachieved = gp.is_overachieved === true;
       isGoalBlocked = gp.is_goal_blocked === true;
 
-      // Goal-aware status message
-      if (displayTotal === 0) {
-        dailyStatusMessage = '新的一天，开始学习吧';
+      // Lightweight status hint — no task/goal framing
+      var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
+      if (localCardCount === 0) {
+        dailyStatusMessage = '先添加一张卡片';
         reviewButtonLabel = '看一看';
-      } else if (isGoalMet && isGoalOverachieved) {
-        dailyStatusMessage = '今天复习了不少，继续加油';
-        reviewButtonLabel = '继续看';
-      } else if (isGoalMet) {
-        dailyStatusMessage = '今天的复习完成了';
-        reviewButtonLabel = '继续看';
-      } else if (isGoalBlocked) {
-        var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
-        dailyStatusMessage = localCardCount > 0 ? '当前可学内容已完成，可以添加卡片继续' : '新的一天，开始学习吧';
-        reviewButtonLabel = '继续看';
-      } else if (displayCompleted > 0 && displayCompleted < displayTotal) {
-        dailyStatusMessage = '正在学习中，继续加油';
+      } else if (actualCompletedToday > 0) {
+        dailyStatusMessage = '可以继续看看卡片';
         reviewButtonLabel = '继续看';
       } else {
-        dailyStatusMessage = '新的一天，开始学习吧';
+        dailyStatusMessage = '随时可以看看卡片';
         reviewButtonLabel = '看一看';
       }
     } else {

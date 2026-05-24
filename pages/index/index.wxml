@@ -91,23 +91,6 @@
       部分卡片需要重试分析或补全内容，准备好后会进入学习任务。
     </view>
 
-    <!-- New-only study entry card (only in 未学习 tab, hidden when task in progress) -->
-    <view wx:if="{{currentLibraryTab === 'new' && !isManageMode && !hideNewStudyEntry}}" class="new-study-card">
-      <view class="new-study-card-header">
-        <text class="new-study-card-title">学习新卡</text>
-        <view class="new-study-card-dot"></view>
-      </view>
-      <text class="new-study-card-subtitle">{{newOnlyEntryState.subtitle}}</text>
-      <view class="new-study-card-action">
-        <button
-          class="new-study-btn {{newOnlyEntryState.enabled ? '' : 'new-study-btn-disabled'}}"
-          disabled="{{!newOnlyEntryState.enabled || reviewEntryLoading}}"
-          catchtap="handleStartNewOnlySession"
-        >{{newOnlyEntryState.label}}</button>
-        <view wx:if="{{newOnlyEntryState.enabled}}" class="new-study-arrow">→</view>
-      </view>
-    </view>
-
     <!-- Category Type Filter Pills -->
     <view class="category-filter-pills">
       <view

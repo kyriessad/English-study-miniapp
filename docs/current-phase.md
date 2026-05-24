@@ -2,12 +2,13 @@
 
 ## Current Phase
 
-Phase 8C-status-icons-and-session-size-copy completed — 卡片状态 pill 改为颜色+图标（无文字），首页状态筛选改为轻量文案+图标+颜色（新卡/熟悉中/有点忘/记得），设置页"每日目标"改为"每次看几张"。
+Phase 8D-home-lightweight — 删除首页"学习新卡"推荐模块，弱化首页任务感。首页 subtitle 改为轻提示（随时可以看看卡片 / 可以继续看看卡片 / 先添加一张卡片）。底层新卡调度能力（new_only session type、new_only fallback chain）保持不变，新卡仍可通过"看一看 / 继续看"按钮调度。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
 | Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | pending |
 | Phase 8B-review-copy-and-record-pages-lightweight | Lighten review copy and record pages | — | `c2efcd7` |
 | Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | `9143346` |
