@@ -181,7 +181,7 @@ const REVIEW_RESULT_TAG_TYPES = {
   forgot: 'again',
   shaky: 'hard',
   got_it: 'good',
-  fluent: 'good'
+  fluent: 'fluent'
 };
 
 const CARD_TYPE_MAP = {

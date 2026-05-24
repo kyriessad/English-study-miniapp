@@ -143,8 +143,33 @@
 }
 
 .today-card__tag--result {
-  background: #f0faf4;
-  color: #3f8b61;
+  background: #f3f6f8;
+  color: #5f768d;
+}
+
+/* 反馈结果颜色与"看一看"页四个反馈按钮语义对齐 */
+/* forgot / 想不起来 */
+.today-card__tag--result-forgot {
+  background: rgba(240, 98, 98, 0.10);
+  color: #d95555;
+}
+
+/* shaky / 不太稳 */
+.today-card__tag--result-shaky {
+  background: rgba(246, 162, 58, 0.13);
+  color: #c98422;
+}
+
+/* got_it / 基本掌握 */
+.today-card__tag--result-got_it {
+  background: rgba(53, 183, 121, 0.12);
+  color: #2f9d69;
+}
+
+/* fluent / 很熟了 */
+.today-card__tag--result-fluent {
+  background: rgba(79, 120, 168, 0.10);
+  color: #4f78a8;
 }
 
 .today-card__tag--type {

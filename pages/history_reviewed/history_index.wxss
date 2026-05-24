@@ -242,6 +242,10 @@ page {
   background: #31c47a;
 }
 
+.history-card--fluent::before {
+  background: #4f78a8;
+}
+
 .history-card__content {
   padding: 24rpx 26rpx 24rpx 30rpx;
 }
@@ -295,6 +299,12 @@ page {
   color: #229e61;
   background: #ecfaf2;
   border: 1rpx solid #bdebd1;
+}
+
+.history-result-tag--fluent {
+  color: #4f78a8;
+  background: #eef3fa;
+  border: 1rpx solid #c8d6e9;
 }
 
 .history-result-tag--default {
@@ -533,6 +543,10 @@ page {
   background: #66af6a;
 }
 
+.history-card--fluent::before {
+  background: #5e87b4;
+}
+
 .history-card__content {
   padding: 24rpx 26rpx 24rpx 32rpx;
 }
@@ -559,6 +573,12 @@ page {
   color: #3f8b61;
   background: #f0faf4;
   border-color: #ccebd8;
+}
+
+.history-result-tag--fluent {
+  color: #4f78a8;
+  background: #eef3fa;
+  border-color: #c8d6e9;
 }
 
 .history-card__title {

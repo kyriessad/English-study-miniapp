@@ -51,7 +51,7 @@
     >
       <view class="today-card__top-row">
         <view class="today-card__tag today-card__tag--type">{{item.cardType}}</view>
-        <view class="today-card__tag today-card__tag--result">{{item.lastResultLabel}}</view>
+        <view class="today-card__tag today-card__tag--result today-card__tag--result-{{item.lastResult || 'default'}}">{{item.lastResultLabel}}</view>
       </view>
       <view class="today-card__content">{{item.content}}</view>
       <view class="today-card__understanding" wx:if="{{item.understanding}}">{{item.understanding}}</view>
