@@ -553,12 +553,6 @@ Page({
     // Review entry
     reviewEntryLoading: false,
 
-    // Phase 4B: computed review actions
-    reviewActions: {
-      daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
-      newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
-      strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
-    },
     showEmptyTaskTip: false,
     showLibraryPreparationTip: false,
     newOnlyEntryState: { enabled: false, label: '暂不可学', subtitle: '暂无未学习卡片' },
@@ -789,7 +783,6 @@ Page({
     var activeSession = normalized.activeSession;
 
     var isAllDone = normalized.isAllDone || false;
-    var reviewActions = this.buildReviewActions(normalized, isAllDone);
     var allZero = totalToday === 0 && toNew === 0 && toReview === 0 && strengtheningInReview === 0 && !activeSession;
 
     var completedToday = 0;
@@ -872,7 +865,6 @@ Page({
       hasActiveSession: !!activeSession,
       activeSessionId: activeSession ? (activeSession.id || activeSession.session_id || '') : '',
       activeSessionType: activeSession ? (activeSession.session_type || '') : '',
-      reviewActions: reviewActions,
       showEmptyTaskTip: allZero,
       completedToday: completedToday,
       dailyStatusMessage: dailyStatusMessage,
@@ -888,54 +880,6 @@ Page({
     });
   },
 
-  buildReviewActions(normalized, isAllDone) {
-    if (!normalized) {
-      return {
-        daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
-        newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
-        strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
-      };
-    }
-    var totalToday = normalized.totalToday || 0;
-    var toNew = normalized.toNew || 0;
-    var strengtheningInReview = normalized.strengtheningInReview || 0;
-    var activeSession = normalized.activeSession || null;
-    var raw = normalized.raw || {};
-
-    // Phase 6L-hotfix-4: isAllDone 优先控制每日复习按钮，避免 totalToday > 0
-    // 但所有卡片已完成时按钮仍显示"开始今日复习"。
-    var daily;
-    if (activeSession) {
-      daily = { enabled: true, label: '继续复习', sessionType: 'daily_suggested' };
-    } else if (isAllDone) {
-      daily = { enabled: false, label: '今日已完成', sessionType: 'daily_suggested', disabledReason: '今天任务已全部完成' };
-    } else if (totalToday > 0) {
-      daily = { enabled: true, label: '开始今日复习', sessionType: 'daily_suggested' };
-    } else {
-      daily = { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' };
-    }
-
-    // New cards button
-    var newAvailable = toNew > 0 || Number(raw.new_available_count || 0) > 0 || Number(normalized.extraToday.newOnlyCount || 0) > 0;
-    var newOnly;
-    if (newAvailable) {
-      newOnly = { enabled: true, label: '学习新卡', sessionType: 'new_only' };
-    } else {
-      newOnly = { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' };
-    }
-
-    // Strengthening button
-    var strengtheningAvailable = strengtheningInReview > 0 || Number(raw.strengthening_available_count || 0) > 0 || Number(normalized.extraToday.freeReviewCount || 0) > 0;
-    var strengthening;
-    if (strengtheningAvailable) {
-      strengthening = { enabled: true, label: '复习需加强', sessionType: 'free_review' };
-    } else {
-      strengthening = { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' };
-    }
-
-    return { daily: daily, newOnly: newOnly, strengthening: strengthening };
-  },
-
   async loadReviewOverview() {
     var seq = ++this._overviewReqSeq;
     try {
@@ -948,12 +892,7 @@ Page({
       console.warn('[index] review overview fetch failed', error);
       if (seq !== this._overviewReqSeq) return;
       this.setData({
-        reviewOverviewError: true,
-        reviewActions: {
-          daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今日任务暂不可用，请稍后再试' },
-          newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '今日任务暂不可用，请稍后再试' },
-          strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '今日任务暂不可用，请稍后再试' }
-        }
+        reviewOverviewError: true
       });
     }
   },
@@ -1237,40 +1176,6 @@ Page({
 
   // ========== Review Entry ==========
 
-  handleReviewActionTap(e) {
-    const key = e.currentTarget.dataset.key;
-    const action = this.data.reviewActions && this.data.reviewActions[key];
-    if (!action) return;
-    if (this.data.isManageMode) return;
-
-    // Disabled action: show toast, no POST, no navigation
-    if (!action.enabled) {
-      wx.showToast({
-        title: action.disabledReason || '当前暂不可用',
-        icon: 'none'
-      });
-      return;
-    }
-
-    var targetSessionType = action.sessionType;
-    var activeSession = this._getActiveSession();
-
-    // If active session matches target type, reuse it — no POST needed
-    if (activeSession && this.data.activeSessionId) {
-      var activeType = activeSession.session_type || activeSession.sessionType || '';
-      if (activeType === targetSessionType) {
-        wx.navigateTo({
-          url: '/pages/review/review?session_id=' + this.data.activeSessionId +
-              '&session_type=' + targetSessionType
-        });
-        return;
-      }
-    }
-
-    // Otherwise create a new session (handleStartReview decides restart)
-    this.handleStartReview(targetSessionType);
-  },
-
   async handleStartReview(sessionType, opts) {
     if (this.data.reviewEntryLoading) return;
 
@@ -1452,15 +1357,6 @@ Page({
       wx.hideLoading();
       this.setData({ reviewEntryLoading: false });
       wx.showToast({ title: '暂时无法开始学习，请稍后再试', icon: 'none' });
-    }
-  },
-
-  onStatusOverviewTap() {
-    if (this.data.isManageMode) return;
-    if (this.data.actualCompletedToday > 0) {
-      wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' });
-    } else {
-      wx.navigateTo({ url: '/pages/today_review_status/today_review_status' });
     }
   },
 
@@ -1915,11 +1811,6 @@ Page({
           activeSessionId: '',
           activeSessionType: '',
           completedToday: 0,
-          reviewActions: {
-            daily: { enabled: false, label: '暂无今日复习', sessionType: 'daily_suggested', disabledReason: '今天暂无推荐复习任务' },
-            newOnly: { enabled: false, label: '暂无新卡可学', sessionType: 'new_only', disabledReason: '暂无可学习的新卡' },
-            strengthening: { enabled: false, label: '暂无需加强卡片', sessionType: 'free_review', disabledReason: '暂无需加强卡片' }
-          },
           showEmptyTaskTip: false
         });
         this.applyFilters();

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8D-hotfix-feedback-result-colors — 修复"今天看过"和"历史记录"页反馈结果标签颜色与"看一看"页四个反馈按钮语义不一致的问题。`forgot` 红、`shaky` 橙/琥珀、`got_it` 绿、`fluent` 蓝；之前 `today_reviewed` 四种结果共用绿色，`history_reviewed` 中 `fluent` 与 `got_it` 共用绿色。底层 4 档反馈逻辑、`review_state`、ReviewSession、复习调度、后端、数据库 schema 均未改。
+Phase 8E-cleanup-dead-home-and-history-code — 清理首页和历史记录页已确认不再使用的死代码和死样式。删除 `buildReviewActions` 函数及所有 `reviewActions` setData 调用（旧"学习新卡 / 复习需加强"推荐模块数据残留）、`handleReviewActionTap` 死处理函数、`onStatusOverviewTap` 死函数；删除 `index.wxss` 中旧今日目标大卡片 `.status-overview-card*` 样式块；删除历史页 `.history-stats-card*` 旧大统计卡 CSS；删除历史页 `decorateHistoryCards` 中不再渲染的 `reviewCountText` 字段。`today_review_status` 页面代码保留、未删除。底层复习规则、后端、数据库 schema 均未改。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,7 +10,8 @@ Phase 8D-hotfix-feedback-result-colors — 修复"今天看过"和"历史记录"
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8D-hotfix-feedback-result-colors | Fix feedback result pill colors on today_reviewed / history_reviewed | — | pending |
+| Phase 8E-cleanup-dead-home-and-history-code | Clean up dead reviewActions, status-overview-card CSS, history-stats-card CSS | — | pending |
+| Phase 8D-hotfix-feedback-result-colors | Fix feedback result pill colors on today_reviewed / history_reviewed | — | `1742603` |
 | Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
 | hotfix-bulk-action-position | Move bulk action toolbar below filters, above card list | — | pending |
 | Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | `8d8a2af` |

@@ -79,7 +79,6 @@ function decorateHistoryCards(cards = []) {
       item.lastReviewDateInRange,
       item.lastReviewTimeInRange
     ),
-    reviewCountText: `本时段复习 ${Number(item.reviewCountInRange || 0)} 次`,
     resultTagType: item._rawResult
       ? (REVIEW_RESULT_TAG_TYPES[item._rawResult] || 'default')
       : getResultTagType(item.lastResultInRange)
