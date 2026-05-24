@@ -11,6 +11,7 @@ Phase 8D-home-lightweight — 删除首页"学习新卡"推荐模块，弱化首
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
 | Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
+| hotfix-bulk-action-position | Move bulk action toolbar below filters, above card list | — | pending |
 | Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | `8d8a2af` |
 | Phase 8B-review-copy-and-record-pages-lightweight | Lighten review copy and record pages | — | `c2efcd7` |
 | Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | `9143346` |
@@ -118,6 +119,33 @@ review session / feedback / dailyGoal 业务逻辑、接口、数据结构、历
 
 - 添加卡片升级为绿色渐变主按钮（flex:2，≈66% 宽）。
 - 复习入口降为白色次按钮（flex:1，≈34% 宽）。
+
+---
+
+## hotfix-bulk-action-position — 批量管理操作区位置调整
+
+**提交：** frontend pending
+
+### 变更内容
+
+#### 批量管理操作区从页面顶部移动到筛选区下方、卡片列表上方
+
+**根因：** `.manage-toolbar-fixed` 使用 `position: fixed; top: 0rpx`，导致长按进入批量管理后工具栏固定在屏幕顶部。
+
+**修复（仅 WXSS）：**
+- 移除 `position: fixed`、`left`、`right`、`top`、`z-index` 属性。
+- 改为 `margin-top: 16rpx` 内联布局，自然流入在筛选 tabs 下方、卡片列表上方。
+- `.manage-toolbar-spacer` 从 `height: 252rpx` 改为 `height: 0`（不再需要为 fixed 占位）。
+
+**WXML 不变：** 工具栏的 DOM 位置原本已在类型筛选后、卡片列表前，无需移动。
+
+### 未改
+
+- 批量选择逻辑（`onCardLongPress`、`selectAllCards`、`isManageMode`）不变。
+- 批量删除逻辑（`handleBatchDelete`）不变。
+- 退出管理逻辑（`exitManageMode`）不变。
+- 卡片点击、筛选、搜索逻辑不变。
+- 后端、数据库、复习规则不变。
 
 ---
 
