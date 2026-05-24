@@ -3303,3 +3303,47 @@
   color: #9aaa9e;
   font-weight: 500;
 }
+
+/* ===== Phase 8C: 状态 Tab 图标 + 颜色 ===== */
+
+.library-tab-icon {
+  font-size: 20rpx;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.library-tab--new.library-tab-active {
+  color: #6B7280;
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.library-tab--reviewing.library-tab-active {
+  color: #2563EB;
+  background: #DBEAFE;
+  border-color: #BFDBFE;
+}
+
+.library-tab--strengthening.library-tab-active {
+  color: #D97706;
+  background: #FEF3C7;
+  border-color: #FDE68A;
+}
+
+.library-tab--mastered.library-tab-active {
+  color: #059669;
+  background: #D1FAE5;
+  border-color: #A7F3D0;
+}
+
+/* Phase 8C: 状态 pill 图标显示收口 */
+.card-status-pill.state-new,
+.card-status-pill.state-reviewing,
+.card-status-pill.state-strengthening,
+.card-status-pill.state-mastered {
+  padding: 4rpx 12rpx;
+  font-size: 20rpx;
+  line-height: 1.6;
+  text-align: center;
+  min-width: 0;
+}

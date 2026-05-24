@@ -42,10 +42,10 @@ const retryingAnalysisCardIds = new Set();
 
 const LIBRARY_TABS = [
   { key: 'all', label: '全部' },
-  { key: 'new', label: '待学习' },
-  { key: 'reviewing', label: '复习中' },
-  { key: 'strengthening', label: '待加强' },
-  { key: 'mastered', label: '已掌握' }
+  { key: 'new', label: '新卡', icon: '○' },
+  { key: 'reviewing', label: '熟悉中', icon: '◑' },
+  { key: 'strengthening', label: '有点忘', icon: '!' },
+  { key: 'mastered', label: '记得', icon: '✓' }
 ];
 
 const STATE_LABELS = {
@@ -53,6 +53,13 @@ const STATE_LABELS = {
   reviewing: '复习中',
   strengthening: '待加强',
   mastered: '已掌握'
+};
+
+const STATE_ICONS = {
+  new: '○',
+  reviewing: '◑',
+  strengthening: '!',
+  mastered: '✓'
 };
 const VALID_REVIEW_STATES = new Set(['new', 'reviewing', 'strengthening', 'mastered']);
 
@@ -84,9 +91,9 @@ function getCardTimestampMs(card) {
  * Phase 6G: Show review state only — no technical status labels.
  */
 function getCardDisplayStatus(card) {
-  if (!card) return { label: '待学习', className: 'state-new' };
+  if (!card) return { label: STATE_ICONS.new, className: 'state-new' };
   var stateV2 = card.reviewStateV2 || 'new';
-  return { label: STATE_LABELS[stateV2] || '待学习', className: 'state-' + stateV2 };
+  return { label: STATE_ICONS[stateV2] || STATE_ICONS.new, className: 'state-' + stateV2 };
 }
 
 /**

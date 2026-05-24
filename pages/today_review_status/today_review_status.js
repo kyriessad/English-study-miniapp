@@ -153,7 +153,7 @@ Page({
       todayReviewedEnabled = false;
     } else if (offline) {
       state = 'offline_cached';
-      stateLabel = '今日目标：' + displayTotal + ' 张';
+      stateLabel = '共 ' + displayTotal + ' 张';
       if (displayCompleted >= displayTotal && displayTotal > 0) {
         stateSub = '今日已完成 ' + actualCompletedToday + ' 张';
         mainButtonLabel = '继续复习';
@@ -175,7 +175,7 @@ Page({
     } else if (isGoalMet) {
       state = 'all_done';
       stateLabel = '今日完成 ' + displayTotal + ' / ' + displayTotal;
-      stateSub = '今日目标已完成';
+      stateSub = '今天的复习完成了';
       mainButtonLabel = '继续复习';
       mainButtonDisabled = false;
       this._fetchResultBreakdown();

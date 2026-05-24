@@ -2,13 +2,15 @@
 
 ## Current Phase
 
-Phase 8A-home-review-navigation-lightweight completed — 删除首页今日目标大卡片，新增轻量"今天看过 X 张 · 查看 ›"入口，复习按钮文案改为"复习一下"，复习完成后跳转改为 today_reviewed。
+Phase 8C-status-icons-and-session-size-copy completed — 卡片状态 pill 改为颜色+图标（无文字），首页状态筛选改为轻量文案+图标+颜色（新卡/熟悉中/有点忘/记得），设置页"每日目标"改为"每次看几张"。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | pending |
+| Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | pending |
+| Phase 8B-review-copy-and-record-pages-lightweight | Lighten review copy and record pages | — | `c2efcd7` |
+| Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | `9143346` |
 | Phase 8L-3-hotfix | Simplify not_started state in today_review_status | — | `f2ba18b` |
 | Phase 8L-2-hotfix | Home goal card dual routing + today reviewed history link | — | `9d88c8b` |
 | Phase 8L-hotfix | Home goal card routing to today reviewed | — | `4e41639` |

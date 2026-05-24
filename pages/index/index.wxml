@@ -73,10 +73,11 @@
           <view
             wx:for="{{libraryTabs}}"
             wx:key="key"
-            class="library-tab {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
+            class="library-tab library-tab--{{item.key}} {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
             data-key="{{item.key}}"
             bindtap="onLibraryTabTap"
           >
+            <text wx:if="{{item.icon}}" class="library-tab-icon">{{item.icon}}</text>
             <text>{{item.label}}</text>
             <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
           </view>

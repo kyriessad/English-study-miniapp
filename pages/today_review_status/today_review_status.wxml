@@ -73,7 +73,7 @@
       <view class="status-stats">
         <view class="status-stat">
           <view class="status-stat__value">{{displayTotal}} 张</view>
-          <view class="status-stat__label">今日目标</view>
+          <view class="status-stat__label">本次</view>
         </view>
         <view class="status-stat">
           <view class="status-stat__value">{{displayCompleted}} 张</view>
@@ -209,7 +209,7 @@
 
     <!-- daily goal hint — all states -->
     <view class="status-goal" bindtap="goToSettings">
-      <text class="status-goal__label">每日目标 {{dailyGoal}} 张</text>
+      <text class="status-goal__label">每次看 {{dailyGoal}} 张</text>
       <text class="status-goal__arrow">调整 ›</text>
     </view>
   </view>
