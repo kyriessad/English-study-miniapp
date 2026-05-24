@@ -4,12 +4,14 @@
 
 Phase 8D-home-lightweight — 删除首页"学习新卡"推荐模块，弱化首页任务感。首页 subtitle 改为轻提示（随时可以看看卡片 / 可以继续看看卡片 / 先添加一张卡片）。底层新卡调度能力（new_only session type、new_only fallback chain）保持不变，新卡仍可通过"看一看 / 继续看"按钮调度。
 
+**整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
+
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
 | Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
-| Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | pending |
+| Phase 8C-status-icons-and-session-size-copy | Status pill icons, tab labels, session size copy | — | `8d8a2af` |
 | Phase 8B-review-copy-and-record-pages-lightweight | Lighten review copy and record pages | — | `c2efcd7` |
 | Phase 8A-home-review-navigation-lightweight | Lighten home review entry, remove goal card | — | `9143346` |
 | Phase 8L-3-hotfix | Simplify not_started state in today_review_status | — | `f2ba18b` |
@@ -116,6 +118,57 @@ review session / feedback / dailyGoal 业务逻辑、接口、数据结构、历
 
 - 添加卡片升级为绿色渐变主按钮（flex:2，≈66% 宽）。
 - 复习入口降为白色次按钮（flex:1，≈34% 宽）。
+
+---
+
+## Phase 8C-status-icons-and-session-size-copy — 状态图标与"每次看几张"文案
+
+**提交：** frontend `8d8a2af` adjust status icons and session size copy
+
+### 修改文件
+
+- `pages/index/index.js`
+- `pages/index/index.wxml`
+- `pages/index/index.wxss`
+- `pages/settings/index.wxml`
+- `pages/today_review_status/today_review_status.wxml`
+- `pages/today_review_status/today_review_status.js`
+- `docs/current-phase.md`
+
+### A. 卡片右上角状态 pill 改为图标
+
+- 卡片右上角状态 pill 不再显示文字，改为"颜色 + 小图标"弱提示：
+  - `new` / 待学习：灰色 + `○`
+  - `reviewing` / 复习中：蓝色 + `◑`
+  - `strengthening` / 待加强：琥珀色 + `!`
+  - `mastered` / 已掌握：绿色 + `✓`
+- 这只是用户可见展示调整，未改 `review_state` 枚举和筛选逻辑。
+
+### B. 首页状态筛选保留文字 + 图标 + 颜色
+
+- 首页状态筛选 pill 保留轻量文字，不做纯颜色块：
+  - 全部
+  - ○ 新卡
+  - ◑ 熟悉中
+  - ! 有点忘
+  - ✓ 记得
+
+### C. "每日目标"用户可见文案改为"每次看几张"
+
+- 设置页 picker 文案从"每日目标"改为"每次看几张"。
+- `today_review_status` 遗留文案调整：
+  - "今日目标" → "本次"
+  - "每日目标 X 张" → "每次看 X 张"
+  - `offline_cached` 标题"今日目标：X 张" → "共 X 张"
+  - `all_done` 子标题"今日目标已完成" → "今天的复习完成了"
+- 底层 `dailyGoal` key、变量名、存储逻辑未改，避免大重构。
+
+### 未改
+
+- 后端、数据库 schema 不变。
+- `review_state` 枚举和筛选逻辑不变。
+- review session / feedback / dailyGoal 业务逻辑不变。
+- 复习调度规则（daily_suggested / new_only / free_review）不变。
 
 ---
 
@@ -614,18 +667,23 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Recommended Next Step
 
-人工验收 Phase 8L-2 / 8L-3 的首页今日目标入口与 today_review_status not_started 状态：
+**Phase 8D：继续清理首页和记录页的任务化残留文案**
 
-- 0/5 首页点击今日目标 → today_review_status not_started 引导页（"今日完成 0/N"，"还没开始，今天先复习一点"，"开始复习"按钮，右上角"历史复习内容 ›"，底部每日目标入口）；
-- >0 已复习首页点击今日目标 → today_reviewed 今日复习内容页；
-- today_reviewed 右上角"历史复习内容 ›"可进入历史页；
-- today_reviewed 结果筛选（全部 / 待加强 / 已掌握）正常；
-- 复习完成后仍 redirect 到 today_review_status；
-- not_started 页面不显示"暂无复习内容"卡片入口，不显示大号"查看历史复习内容"按钮。
+重点包括：
 
-验收通过后，再考虑 Phase 8J normalize 对齐或 today_review_status 非 0 状态复盘化重构。Phase 8I 例句生成链路也可在此次一并验收。
+- 删除首页"学习新卡"模块（不再展示"还有 X 张新卡可以开始学习"/"学习 X 张新卡"）
+- 删除首页额外动态激励文案，只保留"今天还没看过卡片 / 今天看过 X 张 · 查看 ›"
+- 复习页"今日复习"标题改为"看一看"
+- 今日复习内容页改为"今天看过"（顶部导航标题、页面大标题）
+- 历史复习内容页改为"历史记录"（顶部导航标题、页面大标题）
+- 历史页右上角"历史复习内容 ›" → "历史记录 ›"
+- 删除"复习 X 次 / 本时段复习 X 次 / 未分类"等强统计或调试感展示
+- 今天看过页：筛选从"待加强 / 已掌握"改为"有点忘了 / 记得"
+- 历史页：筛选从"全部 / 想不起来 / 不太稳 / 已掌握"改为"全部 / 有点忘了 / 记得"
 
-**不建议现在新增 Claude Code skill / command**。等例句生成链路经过多轮人工验收稳定后再沉淀命令。
+新卡仍由"看一看 / 继续看"内部调度，不改 `new_only` 能力。底层算法和 session 逻辑不变。
+
+**不建议现在新增 Claude Code skill / command**。等产品调整稳定后再沉淀命令。
 
 ---
 
