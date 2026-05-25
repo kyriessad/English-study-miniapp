@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8H-small-hotfix — 增强前端 `normalizeEnglishText`（10 条低风险格式规范化规则），停止后端 `normalizedText` 自动回写英文输入框，确保保存结果不依赖后端返回时机。新增 50 个规范化测试用例（共 159 个，全部通过）。
+Phase 8H-hotfix — 分析前应用本地 `normalizeEnglishText` 到英文输入框，恢复自动类别识别（缩写句点修复），确保用户手动类别选择不被自动覆盖。新增 34 个测试用例（共 193 个，全部通过）。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Phase 8H-small-hotfix — 增强前端 `normalizeEnglishText`（10 条低风险�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8H-hotfix | Local normalize before analysis + auto-category restore | — | pending |
 | Phase 8H-small-hotfix | English content normalization stabilization | — | pending |
 | Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | pending |
 | Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | pending |
@@ -804,6 +805,70 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 - `review_state` / `ReviewSession` / 4 档反馈逻辑不变
 - Phase 8G 的 6 条 error 规则不变
 - 保存成功 toast `已保存` / `已更新` 不变
+- UI / WXML / WXSS 不变
+
+---
+
+## Phase 8H-hotfix — Local Normalize Before Analysis & Auto-Category Restore
+
+**提交：** frontend pending
+**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix 更新版）
+**测试：** `scripts/test-add-input-validation-cases.js`，193 用例全部通过（原 159 + 新增 34）
+
+### 问题 1：输入框不显示规范化后的英文
+
+`runInputAnalysis` 虽然用 `normalizedText` 做分析，但从不更新 `form.englishText`。导致输入 `he 's` 后，生成参考时英文框仍显示 `he 's` 而非 `he's`。
+
+**修复：** `runInputAnalysis` 入口处计算 `normalizedText`，若与当前 `form.englishText` 的规范化结果不同，则通过 `setData` 更新 `form.englishText`。这样分析触发前英文框即显示规范化后的内容。
+
+### 问题 2：缩写句点误判为句子
+
+`detectEnglishCategory` 中 `/[.!?]$/.test(normalizedText)` 直接返回 `句子`，导致 `U.S.` / `e.g.` / `Dr.` 等缩写被误判。
+
+**修复：** 末尾 `.` `!` `?` 检查增加一步：去掉末尾标点后若无空格 → 视为单词/缩写，返回 `单词`；有空格 → 返回 `句子`。
+
+### 修改文件
+
+- `pages/add/add.js` — `runInputAnalysis` 增加分析前 normalize；`detectEnglishCategory` 修复缩写句点误判
+- `scripts/test-add-input-validation-cases.js` — 新增 34 个测试（24 自动类别 + 7 分析前 normalize + 3 后端不回写）
+- `docs/add-input-validation-product-rules.md` — 新增"分析前规范化"和"自动类别识别"章节
+- `docs/current-phase.md` — 记录 Phase 8H-hotfix
+
+### 测试
+
+**原有测试：** 159（Phase 8G 109 + Phase 8H 50）
+**新增测试：** 34
+**总测试数：** 193
+**结果：** 全部通过
+
+| 类别 | 数量 | 说明 |
+|---|---|---|
+| 自动类别识别 | 24 | C1-C24：单词/短语/句子/normalize 后识别 |
+| 分析前 normalize | 7 | P1-P7：normalizeEnglishText 纯函数验证 |
+| 后端不回写 | 3 | B1-B3：applyAnalysisToPage 不修改 form.englishText |
+
+### 人工验收项
+
+1. Add 页输入 `he 's`，等待生成参考前，英文框应变为 `he's`
+2. Add 页输入 `good   morning`，英文框应变为 `good morning`
+3. Add 页输入 `hello\nworld`，英文框应变为 `hello world`
+4. Add 页输入 `hello world`，未手动选类别时应自动变成"短语"
+5. Add 页输入 `I am happy.`，未手动选类别时应自动变成"句子"
+6. 手动选"单词"后输入 `hello world`，应保持"单词"并提示"单词类别请只填一个词"
+7. 输入 `cluch`，不应自动变 `clutch`，只能 hint
+8. 输入 `HELLO`，不应自动变小写
+9. 输入 `good job 👍`，emoji 保留
+10. 后端返回 `normalizedText` 时，不应再覆盖英文框
+
+### 未改内容
+
+- 后端 `validator.py` / `analyzer.py` 不变
+- 后端数据库 schema 不变
+- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
+- Phase 8G 的 6 条 error 规则不变
+- Phase 8H 已定的 normalize 规则边界不变
+- 保存 toast `已保存` / `已更新` 不变
+- 后端 `normalizedText` 不回写英文输入框（Phase 8H 规则保持）
 - UI / WXML / WXSS 不变
 
 ---

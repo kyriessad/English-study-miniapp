@@ -261,11 +261,17 @@ function detectEnglishCategory(text) {
     return '';
   }
 
-  const words = getNormalizedWordList(normalizedText);
-
   if (/[.!?]$/.test(normalizedText)) {
+    // 末尾标点可能是句末标点，也可能是缩写句点（U.S. / e.g. / Dr.）
+    // 去掉末尾标点后如果无空格 → 单词/缩写，否则 → 句子
+    var withoutEnding = normalizedText.replace(/[.!?]+$/, '');
+    if (withoutEnding && withoutEnding.indexOf(' ') === -1) {
+      return '单词';
+    }
     return '句子';
   }
+
+  const words = getNormalizedWordList(normalizedText);
 
   if (words.length >= 6) {
     return '句子';
@@ -1343,12 +1349,19 @@ Page({
   async runInputAnalysis(englishText, category) {
     const normalizedText = normalizeEnglishText(englishText)
 
-    this.setData({
+    var patch = {
       latestEnglishForSuggest: normalizedText,
       translating: !!normalizedText,
       isValidatingEnglish: !!normalizedText,
       suggestLoading: !!normalizedText
-    })
+    }
+
+    // 分析前应用本地 normalizeEnglishText，让用户在生成参考时看到规范化后的英文
+    if (normalizeEnglishText(this.data.form.englishText) !== normalizedText) {
+      patch['form.englishText'] = normalizedText
+    }
+
+    this.setData(patch)
 
     if (!normalizedText) {
       this.clearSuggestion()

@@ -539,6 +539,237 @@ failed += normalizationFailed;
 failDetails = failDetails.concat(normalizationFailDetails);
 
 // ─────────────────────────────────────────────
+// Phase 8H-hotfix 新增：detectEnglishCategory 纯函数
+// ─────────────────────────────────────────────
+
+function detectEnglishCategory(text) {
+  var normalizedText = normalizeEnglishText(text);
+  if (!normalizedText) return '';
+  if (/[.!?]$/.test(normalizedText)) {
+    // 末尾标点可能是句末标点，也可能是缩写句点（U.S. / e.g. / Dr.）
+    // 去掉末尾标点后如果无空格 → 单词/缩写，否则 → 句子
+    var withoutEnding = normalizedText.replace(/[.!?]+$/, '');
+    if (withoutEnding && withoutEnding.indexOf(' ') === -1) {
+      return '单词';
+    }
+    return '句子';
+  }
+  var words = getNormalizedWordList(normalizedText);
+  if (words.length >= 6) return '句子';
+  if (words.length <= 1) return '单词';
+  return '短语';
+}
+
+// ─────────────────────────────────────────────
+// Phase 8H-hotfix 新增：自动类别识别测试
+// ─────────────────────────────────────────────
+
+var autoCategoryPassed = 0;
+var autoCategoryFailed = 0;
+var autoCategoryFailDetails = [];
+
+function runAutoCategoryCase(id, input, expectedCategory, note) {
+  var result = detectEnglishCategory(input);
+  var ok = result === expectedCategory;
+
+  if (ok) {
+    autoCategoryPassed++;
+  } else {
+    autoCategoryFailed++;
+    autoCategoryFailDetails.push(
+      'FAIL auto#' + id + ' [' + note + ']: got "' + result + '", want "' + expectedCategory + '"'
+    );
+  }
+}
+
+// ── A. 单词 → 自动 category=单词 ──────────────────────────────────
+
+runAutoCategoryCase('C1',  'hello',        '单词', 'C1: hello → 单词');
+runAutoCategoryCase('C2',  'clutch',       '单词', 'C2: clutch → 单词');
+runAutoCategoryCase('C3',  'go',           '单词', 'C3: go → 单词');
+runAutoCategoryCase('C4',  'well-known',   '单词', 'C4: well-known → 单词');
+runAutoCategoryCase('C5',  'GPT-4',        '单词', 'C5: GPT-4 → 单词');
+runAutoCategoryCase('C6',  'U.S.',         '单词', 'C6: U.S. → 单词（句点 split 后1词）');
+
+// ── B. 短语 → 自动 category=短语 ──────────────────────────────────
+
+runAutoCategoryCase('C7',  'hello world',      '短语', 'C7: hello world → 短语');
+runAutoCategoryCase('C8',  'break a leg',      '短语', 'C8: break a leg → 短语');
+runAutoCategoryCase('C9',  'pick up',          '短语', 'C9: pick up → 短语');
+runAutoCategoryCase('C10', 'good morning',     '短语', 'C10: good morning → 短语');
+runAutoCategoryCase('C11', 'make sense',       '短语', 'C11: make sense → 短语');
+runAutoCategoryCase('C12', 'in terms of',      '短语', 'C12: in terms of → 短语');
+runAutoCategoryCase('C13', 'look forward to',  '短语', 'C13: look forward to → 短语');
+
+// ── C. 句子 → 自动 category=句子 ──────────────────────────────────
+
+runAutoCategoryCase('C14', 'I am happy.',       '句子', 'C14: . 结尾 → 句子');
+runAutoCategoryCase('C15', 'How are you?',      '句子', 'C15: ? 结尾 → 句子');
+runAutoCategoryCase('C16', 'I love English!',   '句子', 'C16: ! 结尾 → 句子');
+runAutoCategoryCase('C17', 'I think therefore I am. This is a classic philosophical statement.', '句子', 'C17: 多句 → 句子');
+
+// ── D. normalize 后自动类别识别 ───────────────────────────────────
+
+// he 's → 先 normalize → he's → 1 词 → 单词
+runAutoCategoryCase('C18', "he 's",        '单词', 'C18: he \'s normalize后 he\'s → 单词');
+runAutoCategoryCase('C19', "he ' s",       '单词', 'C19: he \' s normalize后 he\'s → 单词');
+// good   morning → normalize → good morning → 2 词 → 短语
+runAutoCategoryCase('C20', 'good   morning', '短语', 'C20: good   morning normalize后 → 短语');
+// hello\nworld → normalize → hello world → 2 词 → 短语
+runAutoCategoryCase('C21', 'hello\nworld',   '短语', 'C21: hello\\nworld normalize后 → 短语');
+
+// ── E. 不应自动改写的保留 ─────────────────────────────────────────
+
+runAutoCategoryCase('C22', 'HELLO',        '单词', 'C22: HELLO 大写保留 → 单词');
+runAutoCategoryCase('C23', 'cluch',        '单词', 'C23: cluch 拼写不纠错 → 单词');
+runAutoCategoryCase('C24', 'good job 👍', '短语', 'C24: emoji保留 → 短语');
+
+// 合并自动类别测试结果
+passed += autoCategoryPassed;
+failed += autoCategoryFailed;
+failDetails = failDetails.concat(autoCategoryFailDetails);
+
+// ─────────────────────────────────────────────
+// Phase 8H-hotfix 新增：分析前 local normalize 纯函数验证
+// ─────────────────────────────────────────────
+
+var preNormalizePassed = 0;
+var preNormalizeFailed = 0;
+var preNormalizeFailDetails = [];
+
+function runPreNormalizeCase(id, rawInput, expectedNormalized, note) {
+  var result = normalizeEnglishText(rawInput);
+  var ok = result === expectedNormalized;
+
+  if (ok) {
+    preNormalizePassed++;
+  } else {
+    preNormalizeFailed++;
+    preNormalizeFailDetails.push(
+      'FAIL preNorm#' + id + ' [' + note + ']: got "' + result + '", want "' + expectedNormalized + '"'
+    );
+  }
+}
+
+// ── A. 分析前应被 normalize 的输入 ────────────────────────────────
+
+runPreNormalizeCase('P1', "he 's",          "he's",          'P1: he \'s → he\'s');
+runPreNormalizeCase('P2', 'good   morning', 'good morning',  'P2: 多空格 → 单空格');
+runPreNormalizeCase('P3', 'hello\nworld',   'hello world',   'P3: 换行 → 空格');
+runPreNormalizeCase('P4', 'hello，world',   'hello,world',   'P4: 中文逗号 → 英文逗号');
+
+// ── B. 不应被 normalize 的内容 ────────────────────────────────────
+
+runPreNormalizeCase('P5', 'HELLO',          'HELLO',         'P5: 大写保留');
+runPreNormalizeCase('P6', 'cluch',          'cluch',         'P6: 拼写不纠错');
+runPreNormalizeCase('P7', 'good job 👍', 'good job 👍', 'P7: emoji保留');
+
+// 合并分析前 normaize 测试结果
+passed += preNormalizePassed;
+failed += preNormalizeFailed;
+failDetails = failDetails.concat(preNormalizeFailDetails);
+
+// ─────────────────────────────────────────────
+// Phase 8H-hotfix 新增：backend normalizedText 不回写验证
+// ─────────────────────────────────────────────
+
+var backendNoOverwritePassed = 0;
+var backendNoOverwriteFailed = 0;
+var backendNoOverwriteFailDetails = [];
+
+// 模拟 applyAnalysisToPage 行为：nextData 中不应包含 form.englishText
+// 验证函数逻辑：无论 sourceText / analysis.suggestion 是什么，
+// applyAnalysisToPage 都不应修改 form.englishText
+function simulateApplyAnalysisToPage(sourceText, analysis) {
+  var normalizedText = normalizeEnglishText(sourceText);
+
+  var nextData = {
+    validationResult: {
+      localErrors: analysis.localErrors || [],
+      localWarnings: analysis.localWarnings || [],
+      localInfo: analysis.localInfo || [],
+      cloudErrors: analysis.cloudErrors || [],
+      cloudWarnings: analysis.cloudWarnings || [],
+      cloudInfo: analysis.cloudInfo || [],
+      canSave: analysis.canSave !== false
+    },
+    englishValidationMessage: analysis.displayMessage || '',
+    englishValidationType: analysis.displayMessageType || 'hint',
+    suggestionText: analysis.shouldShowSuggestion ? (analysis.suggestion || '') : '',
+    suggestionSourceText: normalizedText,
+    showSuggestion: !!analysis.shouldShowSuggestion,
+    understandingSuggestion: analysis.shouldShowSuggestion ? (analysis.suggestion || '') : '',
+    understandingVisible: !!analysis.shouldShowSuggestion,
+    aiExampleSentence: analysis.aiExampleSentence || '',
+    aiExampleTranslation: analysis.aiExampleTranslation || '',
+    translating: false,
+    isValidatingEnglish: false,
+    validateLoading: false,
+    suggestLoading: false
+  };
+
+  // 核心断言：nextData 不应包含 form.englishText
+  return !('form.englishText' in nextData);
+}
+
+function runBackendNoOverwriteCase(id, sourceText, analysis, note) {
+  var ok = simulateApplyAnalysisToPage(sourceText, analysis);
+
+  if (ok) {
+    backendNoOverwritePassed++;
+  } else {
+    backendNoOverwriteFailed++;
+    backendNoOverwriteFailDetails.push(
+      'FAIL backendNoOverwrite#' + id + ' [' + note + ']: applyAnalysisToPage would overwrite form.englishText'
+    );
+  }
+}
+
+// 用例 1：cluch → 后端返回 clutch → 不应覆盖
+runBackendNoOverwriteCase('B1', 'cluch', {
+  localErrors: [],
+  cloudWarnings: ['拼写疑似有误：cluch。你是不是想写 "clutch"？'],
+  canSave: true,
+  displayMessage: '也可能是：clutch。确认原词没问题的话，可以继续保存',
+  displayMessageType: 'hint',
+  suggestion: '',
+  shouldShowSuggestion: false,
+  aiExampleSentence: '',
+  aiExampleTranslation: ''
+}, 'B1: cluch 后端返回 clutch，不覆盖');
+
+// 用例 2：he 's → 后端返回 he's → 不应覆盖（form.englishText 应保持原始或前端 normalize）
+runBackendNoOverwriteCase('B2', "he 's", {
+  localErrors: [],
+  cloudWarnings: [],
+  canSave: true,
+  displayMessage: '检查通过',
+  displayMessageType: 'success',
+  suggestion: '他是',
+  shouldShowSuggestion: true,
+  aiExampleSentence: "He's a good student.",
+  aiExampleTranslation: '他是一个好学生。'
+}, 'B2: he \'s 后端 normalize 不覆盖');
+
+// 用例 3：good   morning → 后端分析成功 → 不应覆盖
+runBackendNoOverwriteCase('B3', 'good   morning', {
+  localErrors: [],
+  cloudWarnings: [],
+  canSave: true,
+  displayMessage: '检查通过',
+  displayMessageType: 'success',
+  suggestion: '早上好',
+  shouldShowSuggestion: true,
+  aiExampleSentence: 'Good morning, everyone.',
+  aiExampleTranslation: '大家早上好。'
+}, 'B3: good   morning 后端不覆盖');
+
+// 合并 backend 不回写测试结果
+passed += backendNoOverwritePassed;
+failed += backendNoOverwriteFailed;
+failDetails = failDetails.concat(backendNoOverwriteFailDetails);
+
+// ─────────────────────────────────────────────
 // 输出结果
 // ─────────────────────────────────────────────
 
@@ -551,14 +782,26 @@ if (failDetails.length > 0) {
   failDetails.forEach(function(d) { console.log('  ' + d); });
 }
 
-var totalOriginalTests = 109;  // Phase 8G
-var newRunCaseTests = 5;       // N40-N44 (Phase 8G error rules, use runCase)
-var newNormalizeTests = normalizationPassed + normalizationFailed;
-var totalNewTests = newRunCaseTests + newNormalizeTests;
-console.log('\n原有测试数：' + totalOriginalTests);
-console.log('新增测试数：' + totalNewTests + ' (含 ' + newRunCaseTests + ' 个 error 规则 + ' + newNormalizeTests + ' 个规范化)');
-console.log('总测试数：' + (totalOriginalTests + totalNewTests));
-console.log('通过：' + passed + '，失败：' + failed);
+var totalOriginalTests = 109;           // Phase 8G: 100 runCase + 4 spell + 5 extra
+var newRunCaseTests = 5;                // N40-N44 (Phase 8H error rules)
+var newNormalizeTests = normalizationPassed + normalizationFailed;  // N1-N50
+var newAutoCategoryTests = autoCategoryPassed + autoCategoryFailed;
+var newPreNormalizeTests = preNormalizePassed + preNormalizeFailed;
+var newBackendNoOverwriteTests = backendNoOverwritePassed + backendNoOverwriteFailed;
+var newPhase8HHotfixTests = newAutoCategoryTests + newPreNormalizeTests + newBackendNoOverwriteTests;
+var totalNewTests = newRunCaseTests + newNormalizeTests + newPhase8HHotfixTests;
+var totalTests = passed + failed;
+
+console.log('\n测试明细：');
+console.log('  Phase 8G 原有：' + totalOriginalTests);
+console.log('  Phase 8H error 规则：' + newRunCaseTests);
+console.log('  Phase 8H 规范化：' + newNormalizeTests);
+console.log('  Phase 8H-hotfix 自动类别：' + newAutoCategoryTests);
+console.log('  Phase 8H-hotfix 分析前 normalize：' + newPreNormalizeTests);
+console.log('  Phase 8H-hotfix 后端不回写：' + newBackendNoOverwriteTests);
+console.log('  本次新增：' + totalNewTests);
+console.log('  总测试数：' + totalTests);
+console.log('  通过：' + passed + '，失败：' + failed);
 
 if (failed > 0) {
   console.log('❌ 有失败用例，请修复后再提交。');

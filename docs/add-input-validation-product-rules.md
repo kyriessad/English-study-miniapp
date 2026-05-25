@@ -221,19 +221,63 @@ MAX_ENGLISH_CHARS = 500  // 字符数 > 500 → error
 - 从 review 页进入编辑再保存
 - 从 today_reviewed 页进入编辑再保存
 
+### 分析前规范化（Phase 8H-hotfix 新增）
+
+> 新增于：Phase 8H-hotfix（2026-05-25）
+
+输入英文后，在触发后端分析/生成参考内容之前，前端会先用 `normalizeEnglishText` 对 `form.englishText` 做本地规范化：
+
+- `runInputAnalysis` 入口处计算 `normalizedText`，若与当前 `form.englishText` 的规范化结果不同，则更新 `form.englishText`
+- 用户输入 `he 's`，分析触发前英文框自动变为 `he's`
+- 用户输入 `good   morning`，分析触发前英文框自动变为 `good morning`
+- 后端 `normalizedText` 仍然不回写英文输入框（Phase 8H 规则保持不变）
+
 ---
 
-## 附录：关键函数位置速查（Phase 8H 修订版）
+## 十一、自动类别识别（Phase 8H-hotfix 新增）
+
+> 新增于：Phase 8H-hotfix（2026-05-25）
+
+### 规则
+
+1. **新增卡片、用户未手动选择类别时**：输入内容变化后，根据 `normalizeEnglishText` 后的内容自动判断类别：
+   - 单词：一个 token（hello、well-known、GPT-4、don't、U.S.、e.g.）
+   - 短语：多个词但不像完整句子（hello world、break a leg、pick up）
+   - 句子：明显句子或带句末标点（I am happy.、How are you?）
+   - 末尾 `.` `!` `?` 会检查：去掉末尾标点后无空格 → 视为单词/缩写（U.S. / e.g. / Dr.），有空格 → 句子
+
+2. **用户手动选择类别后**：不再自动覆盖 category（`hasUserChangedCategory = true`），但仍执行本地校验（单词类别多词 error、短语类别单词 error）
+
+3. **编辑已有卡片时**：不自动改已有 category（`isEdit = true` 时跳过自动识别）
+
+4. **连续新增（保存并继续新增）时**：`hasUserChangedCategory` 重置为 `false`，下一张卡片可再次自动识别
+
+### 实现位置
+
+- `detectEnglishCategory(text)` — 纯函数，根据规范化后的英文内容返回类别
+- `getAutoCategoryForEnglishText(text)` — Page 方法，调用 `detectEnglishCategory` 并验证结果在 `CARD_CATEGORIES` 中
+- `onEnglishInput` — 输入时检查 `shouldAutoUpdateCategory`，条件满足时自动更新类别
+- `onCategoryChange` — 用户手动选择类别时设置 `hasUserChangedCategory: true`
+
+### 测试覆盖
+
+24 个自动类别识别测试（C1-C24），覆盖单词/短语/句子/缩写/normalize 后识别。
+
+---
+
+## 附录：关键函数位置速查（Phase 8H-hotfix 修订版）
 
 | 函数 / 常量 | 文件 | 说明 |
 |---|---|---|
 | `MAX_ENGLISH_CHARS` | add.js | 最大字符数（500） |
 | `hasChineseChar` | add.js | 检查是否包含 CJK 表意文字 |
-| `normalizeEnglishText` | add.js | **Phase 8H 增强**：10 步低风险格式规范化 |
+| `normalizeEnglishText` | add.js | 10 步低风险格式规范化（保存前 + **分析前**均执行） |
+| `detectEnglishCategory` | add.js | **Phase 8H-hotfix 新增**：自动类别识别纯函数 |
 | `transformSpellingWarning` | add.js | 拼写提示转换（有correction→hint；无→null） |
 | `getLocalValidationResult` | add.js | 前端本地校验（6 条规则，全部 error） |
 | `buildDisplayState` | add.js | 决定展示哪种级别提示（含降级逻辑） |
 | `analyzeEnglishInput` | add.js | 整合本地 + 后端分析，拼写 hint 在此分离 |
-| `applyAnalysisToPage` | add.js | **Phase 8H 修改**：不再回写 backend normalizedText 到英文输入框 |
+| `applyAnalysisToPage` | add.js | 不再回写 backend normalizedText 到英文输入框 |
+| `runInputAnalysis` | add.js | **Phase 8H-hotfix 修改**：分析前应用本地 normalize 到英文输入框 |
 | `runBackgroundEnglishCheck` | add.js | 保存后后台分析（analysisWarnings 已清空用户文案） |
 | `submitCard` | add.js | 保存入口，始终使用 `localResult.normalizedText` |
