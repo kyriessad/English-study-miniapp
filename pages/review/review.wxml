@@ -138,22 +138,22 @@
     <view wx:if="{{answerVisible}}" class="task-actions feedback-actions">
       <button class="action-btn action-again" bindtap="submitReview" data-result="forgot" disabled="{{submittingFeedback}}">
         <text class="action-icon">×</text>
-        <text>想不起来</text>
+        <text>没想起</text>
       </button>
 
       <button class="action-btn action-hard" bindtap="submitReview" data-result="shaky" disabled="{{submittingFeedback}}">
         <text class="action-icon">?</text>
-        <text>不太稳</text>
+        <text>有点模糊</text>
       </button>
 
       <button class="action-btn action-good" bindtap="submitReview" data-result="got_it" disabled="{{submittingFeedback}}">
         <text class="action-icon">✓</text>
-        <text>基本掌握</text>
+        <text>记得</text>
       </button>
 
       <button class="action-btn action-easy" bindtap="submitReview" data-result="fluent" disabled="{{submittingFeedback}}">
         <text class="action-icon">★</text>
-        <text>很熟了</text>
+        <text>很熟</text>
       </button>
     </view>
 

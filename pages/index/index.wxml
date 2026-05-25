@@ -13,7 +13,7 @@
   <!-- goal_blocked && not goal_met: 复习一下 35% (secondary) + 添加卡片继续 65% (primary) -->
   <view wx:if="{{totalCardCount > 0 && isGoalBlocked && !isGoalMet}}" class="main-actions">
     <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
-    <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片继续</button>
+    <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
   </view>
   <!-- normal / goal-met / goal-overachieved: 添加卡片 65% (primary) + 进入复习页 35% (secondary) -->
   <view wx:if="{{totalCardCount > 0 && !(isGoalBlocked && !isGoalMet)}}" class="main-actions">

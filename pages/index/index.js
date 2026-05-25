@@ -494,7 +494,7 @@ function decorateCards(cards, selectedCardIds) {
 function computeDailyStatusCopy(totalToday, completedToday) {
   var c = Number(completedToday) || 0;
   if (c > 0) {
-    return { dailyStatusMessage: '可以继续看看卡片', reviewButtonLabel: '继续看' };
+    return { dailyStatusMessage: '可以继续看看卡片', reviewButtonLabel: '继续查看' };
   }
   return { dailyStatusMessage: '随时可以看看卡片', reviewButtonLabel: '看一看' };
 }
@@ -824,7 +824,7 @@ Page({
         reviewButtonLabel = '看一看';
       } else if (actualCompletedToday > 0) {
         dailyStatusMessage = '可以继续看看卡片';
-        reviewButtonLabel = '继续看';
+        reviewButtonLabel = '继续查看';
       } else {
         dailyStatusMessage = '随时可以看看卡片';
         reviewButtonLabel = '看一看';
