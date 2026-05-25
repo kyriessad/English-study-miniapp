@@ -501,6 +501,14 @@
   padding-bottom: 0;
 }
 
+.label-subtitle {
+  margin-top: -4rpx;
+  margin-bottom: 14rpx;
+  font-size: 22rpx;
+  color: #a0a8a2;
+  line-height: 1.4;
+}
+
 /* ===== Phase 7J-1: 最近用过来源快捷标签 ===== */
 .recent-sources {
   display: flex;

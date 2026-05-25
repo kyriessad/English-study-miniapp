@@ -83,11 +83,12 @@
     </view>
 
     <view class="form-item">
-      <view class="label">在哪里遇到（可选）</view>
+      <view class="label">这次是在哪里看到的？</view>
+      <view class="label-subtitle">写下场景，以后复习时更容易想起来</view>
       <input
         class="textarea input-source {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
         disabled="{{isReadonlyDetailMode}}"
-        placeholder="例如 美剧、电影、抖音、B站等"
+        placeholder="例如：NBA 解说、老友记 S1E2、B站评论区"
         value="{{form.whereEncountered}}"
         maxlength="100"
         bindinput="onWhereEncounteredInput"

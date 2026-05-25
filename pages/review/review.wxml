@@ -50,6 +50,10 @@
 
       </view>
 
+      <view wx:if="{{currentCard.whereEncountered && !answerVisible}}" class="task-front-source">
+        场景：{{currentCard.whereEncountered}}
+      </view>
+
       <view class="task-main {{currentCard.category === '句子' ? 'task-main-sentence' : ''}}">
         <scroll-view
           wx:if="{{currentCard.category === '句子'}}"
@@ -64,10 +68,6 @@
         <view wx:else class="task-english">
           {{currentCard.englishText}}
         </view>
-      </view>
-
-      <view wx:if="{{currentCard.whereEncountered && !answerVisible}}" class="task-front-source">
-        来自：{{currentCard.whereEncountered}}
       </view>
 
       <view class="task-answer-slot">
@@ -107,7 +107,7 @@
 
               <view wx:if="{{currentCard.whereEncountered}}" class="task-source">
                 <view class="task-notes-divider"></view>
-                <text class="task-source-text">来自：{{currentCard.whereEncountered}}</text>
+                <text class="task-source-text">场景：{{currentCard.whereEncountered}}</text>
               </view>
             </view>
           </view>

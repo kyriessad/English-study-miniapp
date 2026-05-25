@@ -796,12 +796,16 @@
   transition: width 0.35s ease;
 }
 
-/* 复习卡正面：英文下方来源行，仅未翻牌时显示 */
+/* 复习卡正面：英文上方场景 pill，仅未翻牌时显示 */
 .task-front-source {
+  align-self: center;
   flex-shrink: 0;
-  text-align: center;
   font-size: 24rpx;
-  color: #9ba8a0;
-  line-height: 1.5;
-  padding: 10rpx 8rpx 2rpx;
+  font-weight: 500;
+  color: #4f7f5b;
+  background: #eef8f0;
+  line-height: 1.4;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  margin-bottom: 12rpx;
 }
