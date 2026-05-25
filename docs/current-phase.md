@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8E-cleanup-dead-home-and-history-code — 清理首页和历史记录页已确认不再使用的死代码和死样式。删除 `buildReviewActions` 函数及所有 `reviewActions` setData 调用（旧"学习新卡 / 复习需加强"推荐模块数据残留）、`handleReviewActionTap` 死处理函数、`onStatusOverviewTap` 死函数；删除 `index.wxss` 中旧今日目标大卡片 `.status-overview-card*` 样式块；删除历史页 `.history-stats-card*` 旧大统计卡 CSS；删除历史页 `decorateHistoryCards` 中不再渲染的 `reviewCountText` 字段。`today_review_status` 页面代码保留、未删除。底层复习规则、后端、数据库 schema 均未改。
+Phase 8F-hotfix-and-add-input-validation-audit — 两部分：(A) 复习页场景 pill 可读性 hotfix：将 `.task-front-source` 从纯文本改为真正的浅绿 pill（添加 align-self: center 收缩至内容宽、background: #eef8f0、border-radius: 999rpx、color: #4f7f5b、font-weight: 500）；(B) 完整只读审查添加页英文输入校验规则，输出 `docs/add-english-input-validation-audit.md`，梳理触发时机、分类规则、warning/error/hint/success 展示逻辑、保存行为、AI 分析展示、例句生成边界和产品定位评估。未改任何校验逻辑或后端代码。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,8 @@ Phase 8E-cleanup-dead-home-and-history-code — 清理首页和历史记录页�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | pending |
+| Phase 8F-scene-memory-copy-polish | Strengthen scene memory copy in add/review pages | — | pending |
 | Phase 8E-cleanup-dead-home-and-history-code | Clean up dead reviewActions, status-overview-card CSS, history-stats-card CSS | — | pending |
 | Phase 8D-hotfix-feedback-result-colors | Fix feedback result pill colors on today_reviewed / history_reviewed | — | `1742603` |
 | Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
@@ -647,8 +649,8 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 - 例句可通过"全部填入"按钮写入备注（格式：例句英文 + 换行 + 中文翻译）。
 
 ### 复习页
-- 卡片正面：英文内容 + 来自：xxx（有来源才显示，未翻面时展示）。
-- 卡片背面：我的理解 + 补充备注 + 来自：xxx。
+- 卡片正面：场景：xxx（有来源才显示，英文上方）+ 英文内容（未翻面时展示）。
+- 卡片背面：我的理解 + 补充备注 + 场景：xxx。
 - 查看理解按钮：白底绿色描边次级按钮。
 - 卡片展开后页面整体滚动，无内部滚动条。
 - 顶部进度：当前进度 X / Y。卡片内不重复显示进度数字。
