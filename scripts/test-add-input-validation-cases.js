@@ -23,14 +23,54 @@ const assert = require('assert');
 // ─────────────────────────────────────────────
 
 function normalizeEnglishText(text) {
-  return String(text || '')
-    .replace(/['']/g, "'")
-    .replace(/[""]/g, '"')
-    .replace(/[‐‑‒–—―]/g, '-')
-    .replace(/ /g, ' ')
-    .trim();
-}
+  var result = String(text || '');
 
+  // 1. 弯引号 → 直引号
+  result = result.replace(/[\u2018\u2019]/g, '\'');
+  result = result.replace(/[\u201C\u201D]/g, '"');
+
+  // 2. 各种 dash → 英文连字符
+  result = result.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\-]/g, '-');
+
+  // 3. 中文标点 → 英文标点
+  result = result.replace(/\uFF0C/g, ',');
+  result = result.replace(/\u3002/g, '.');
+  result = result.replace(/\uFF01/g, '!');
+  result = result.replace(/\uFF1F/g, '?');
+  result = result.replace(/\uFF1B/g, ';');
+  result = result.replace(/\uFF1A/g, ':');
+
+  // 4. 特殊空白 → 普通空格
+  result = result.replace(/\u00A0/g, ' ');
+  result = result.replace(/\u3000/g, ' ');
+  result = result.replace(/[\t\n\r]+/g, ' ');
+
+  // 5. 合并连续空白
+  result = result.replace(/\s{2,}/g, ' ');
+
+  // 5b. 修复分裂缩写中间空格（he ' s → he 's）
+  result = result.replace(/'\s+(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
+
+  // 6. 修复分裂缩写 / 所有格（he 's → he's）
+  result = result.replace(/\s+'(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
+
+  // 7. 删除标点前多余空格
+  result = result.replace(/\s+([,.!?;:])/g, '$1');
+
+  // 8. 清理括号内侧多余空格
+  result = result.replace(/\(\s+/g, '(');
+  result = result.replace(/\s+\)/g, ')');
+  result = result.replace(/\[\s+/g, '[');
+  result = result.replace(/\s+\]/g, ']');
+
+  // 9. 再次合并连续空白
+  result = result.replace(/\s{2,}/g, ' ');
+
+  // 10. 去除前后空格
+  result = result.trim();
+
+  return result;
+}
 function getLatinLetterPattern() {
   return 'A-Za-zÀ-ÖØ-öø-ÿ';
 }
@@ -392,6 +432,113 @@ runCase('E4', str501b, '句子', 'error', '内容较长', false, 'Extra: 501字�
 runCase('E5', 'well-known', '单词', 'success', '', true, 'Extra: well-known 单词类别 1词');
 
 // ─────────────────────────────────────────────
+// Phase 8H 新增：英文内容规范化测试
+// ─────────────────────────────────────────────
+
+var normalizationPassed = 0;
+var normalizationFailed = 0;
+var normalizationFailDetails = [];
+
+function runNormalizeCase(id, input, expected, note) {
+  var result = normalizeEnglishText(input);
+  var ok = result === expected;
+
+  if (ok) {
+    normalizationPassed++;
+  } else {
+    normalizationFailed++;
+    normalizationFailDetails.push(
+      'FAIL norm#' + id + ' [' + note + ']: got "' + result + '", want "' + expected + '"'
+    );
+  }
+}
+
+// ── A. 空白规范化 ──────────────────────────────────────────────────
+
+runNormalizeCase('N1',  ' hello ',              'hello',             'A1: 前后空格');
+runNormalizeCase('N2',  'good   morning',       'good morning',      'A2: 多空格合并');
+runNormalizeCase('N3',  'hello\nworld',         'hello world',       'A3: 换行→空格');
+runNormalizeCase('N4',  'hello\tworld',         'hello world',       'A4: tab→空格');
+runNormalizeCase('N5',  'hello\r\nworld',       'hello world',       'A5: CRLF→空格');
+runNormalizeCase('N6',  'hello world',     'hello world',       'A6: NBSP→空格');
+
+// ── B. 缩写 / 所有格 ──────────────────────────────────────────────
+
+runNormalizeCase('N7',  "he 's",               "he's",              'B7: he \'s → he\'s');
+runNormalizeCase('N8',  "he ' s",              "he's",              'B8: he \' s → he\'s');
+runNormalizeCase('N9',  "I 'm",                "I'm",               'B9: I \'m → I\'m');
+runNormalizeCase('N10', "don 't",              "don't",             'B10: don \'t → don\'t');
+runNormalizeCase('N11', "John 's book",        "John's book",       'B11: John \'s book → John\'s book');
+runNormalizeCase('N12', "they 've",            "they've",           'B12: they \'ve → they\'ve');
+runNormalizeCase('N13', "we 'll",              "we'll",             'B13: we \'ll → we\'ll');
+
+// ── C. 引号 / dash ────────────────────────────────────────────────
+
+runNormalizeCase('N14', 'I’m happy',       "I'm happy",         'C14: 弯单引号→直');
+runNormalizeCase('N15', '“hello”',    '"hello"',           'C15: 弯双引号→直');
+runNormalizeCase('N16', 'long—term',       'long-term',         'C16: em dash→hyphen');
+runNormalizeCase('N17', 'well–known',      'well-known',        'C17: en dash→hyphen');
+
+// ── D. 标点前空格 ─────────────────────────────────────────────────
+
+runNormalizeCase('N18', 'hello , world',        'hello, world',      'D18: 逗号前空格删除');
+runNormalizeCase('N19', 'hello .',              'hello.',            'D19: 句号前空格删除');
+runNormalizeCase('N20', 'hello ?',              'hello?',            'D20: 问号前空格删除');
+
+// ── E. 中文标点 ───────────────────────────────────────────────────
+
+runNormalizeCase('N21', 'hello，world',     'hello,world',       'E21: 中文逗号→英文逗号');
+runNormalizeCase('N22', 'hello。',          'hello.',            'E22: 中文句号→英文句号');
+runNormalizeCase('N23', 'hello！',           'hello!',            'E23: 中文感叹号→英文');
+runNormalizeCase('N24', 'hello？',           'hello?',            'E24: 中文问号→英文');
+runNormalizeCase('N25', 'hello；world',     'hello;world',       'E25: 中文分号→英文');
+runNormalizeCase('N26', 'hello：world',     'hello:world',       'E26: 中文冒号→英文');
+
+// ── F. 括号空格 ───────────────────────────────────────────────────
+
+runNormalizeCase('N27', '( hello )',            '(hello)',           'F27: 圆括号内侧空格');
+runNormalizeCase('N28', '[ hello ]',            '[hello]',           'F28: 方括号内侧空格');
+
+// ── G. 不应自动改写 ──────────────────────────────────────────────
+
+runNormalizeCase('N29', 'HELLO',            'HELLO',            'G29: 大写保留');
+runNormalizeCase('N30', 'i am happy',       'i am happy',       'G30: 小写保留');
+runNormalizeCase('N31', 'cluch',            'cluch',            'G31: 拼写不纠错');
+runNormalizeCase('N32', 'good job 👍', 'good job 👍', 'G32: emoji保留');
+runNormalizeCase('N33', 'hello!!!',         'hello!!!',         'G33: 多余标点保留');
+runNormalizeCase('N34', 'e-mail',           'e-mail',           'G34: 连字符保留');
+runNormalizeCase('N35', 'email',            'email',            'G35: 正常词不变');
+runNormalizeCase('N36', 'GPT-4',            'GPT-4',            'G36: GPT-4保留');
+runNormalizeCase('N37', '5G',               '5G',               'G37: 5G保留');
+runNormalizeCase('N38', 'C++',              'C++',              'G38: C++保留');
+runNormalizeCase('N39', 'A/B testing',      'A/B testing',      'G39: A/B保留');
+
+// ── H. Phase 8G error 规则仍然有效 ────────────────────────────────
+
+runCase('N40', 'hello 你好', '单词', 'error', '英文内容请只填写英文', false, 'N40: 含中文 error');
+runCase('N41', '你好',       '单词', 'error', '英文内容请只填写英文', false, 'N41: 纯中文 error');
+runCase('N42', '2024',               '单词', 'error', '请输入英文内容',       false, 'N42: 纯数字 error');
+runCase('N43', '!!!',                '单词', 'error', '请输入英文内容',       false, 'N43: 纯符号 error');
+var str501 = 'a'.repeat(501);
+runCase('N44', str501,               '句子', 'error', '内容较长',             false, 'N44: 501字符 error');
+
+// ── I. 保存时机一致性 ────────────────────────────────────────────
+
+// 验证同一个输入经 normalizeEnglishText 后已得到稳定的 content
+// 不需要后端 normalizedText 就能确定保存结果
+runNormalizeCase('N45', "he 's",     "he's",        'I45: 输入he \'s → 稳定he\'s');
+runNormalizeCase('N46', "he ' s",    "he's",        'I46: 输入he \' s → 稳定he\'s');
+runNormalizeCase('N47', "good   morning", "good morning", 'I47: 多空格 → 稳定单空格');
+runNormalizeCase('N48', "hello\nworld",   "hello world",  'I48: 换行 → 稳定空格');
+runNormalizeCase('N49', "hello，world", "hello,world", 'I49: 中文逗号 → 稳定');
+runNormalizeCase('N50', "HELLO",         "HELLO",       'I50: 大写稳定不变');
+
+// 合并归一化测试结果
+passed += normalizationPassed;
+failed += normalizationFailed;
+failDetails = failDetails.concat(normalizationFailDetails);
+
+// ─────────────────────────────────────────────
 // 输出结果
 // ─────────────────────────────────────────────
 
@@ -404,7 +551,14 @@ if (failDetails.length > 0) {
   failDetails.forEach(function(d) { console.log('  ' + d); });
 }
 
-console.log('\n通过：' + passed + '，失败：' + failed + '，共：' + (passed + failed));
+var totalOriginalTests = 109;  // Phase 8G
+var newRunCaseTests = 5;       // N40-N44 (Phase 8G error rules, use runCase)
+var newNormalizeTests = normalizationPassed + normalizationFailed;
+var totalNewTests = newRunCaseTests + newNormalizeTests;
+console.log('\n原有测试数：' + totalOriginalTests);
+console.log('新增测试数：' + totalNewTests + ' (含 ' + newRunCaseTests + ' 个 error 规则 + ' + newNormalizeTests + ' 个规范化)');
+console.log('总测试数：' + (totalOriginalTests + totalNewTests));
+console.log('通过：' + passed + '，失败：' + failed);
 
 if (failed > 0) {
   console.log('❌ 有失败用例，请修复后再提交。');

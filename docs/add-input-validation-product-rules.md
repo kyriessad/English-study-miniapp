@@ -162,14 +162,78 @@ MAX_ENGLISH_CHARS = 500  // 字符数 > 500 → error
 
 ---
 
-## 附录：关键函数位置速查（Phase 8G 修订版）
+## 十、英文内容规范化规则（Phase 8H — 保存前格式规范化）
+
+> 新增于：Phase 8H-small-hotfix（2026-05-25）
+> 核心原则：前端保存前做稳定、低风险的格式规范化；后端负责更细致的分析和建议；后端 normalizedText 不再悄悄回写英文输入框。
+
+### 核心原则
+
+- **前端 normalizeEnglishText**：在保存前稳定执行低风险格式规范化，无论后端返回时机如何，同一个输入总是得到同一个保存结果。
+- **后端 normalizedText**：不再自动回写英文输入框。后端可以分析和建议，但不能悄悄改写英文内容。
+- **保存结果不依赖后端返回时机**：后端返回前保存、后端返回后保存、网络失败时保存，结果一致。
+
+### 允许自动规范的规则
+
+| # | 规则 | 示例 | 说明 |
+|---|---|---|---|
+| 1 | 去除前后空格 | ` hello ` → `hello` | trim |
+| 2 | NBSP / 全角空格 → 普通空格 | `hello world` → `hello world` | 非断行空格、全角空格 |
+| 3 | 合并连续空白 | `good   morning` → `good morning` | 多余空格归一 |
+| 4 | 换行 / tab / CRLF → 单空格 | `hello\nworld` → `hello world` | 所有空白统一为空格 |
+| 5 | 弯引号 → 直引号 | `I'm happy` → `I'm happy` | 弯单引号、弯双引号 |
+| 6 | dash 统一为英文连字符 | `long—term` → `long-term` | em dash、en dash、figure dash 等 |
+| 7 | 修复分裂缩写 / 所有格 | `he 's` → `he's` | 包含 `'s`, `'m`, `'t`, `'ve`, `'ll`, `'re`, `'d` |
+| 8 | 删除标点前多余空格 | `hello , world` → `hello, world` | 逗号、句号、问号、感叹号、分号、冒号 |
+| 9 | 中文标点 → 英文标点 | `hello，world` → `hello,world` | 中文逗号、句号、感叹号、问号、分号、冒号 |
+| 10 | 清理括号内侧多余空格 | `( hello )` → `(hello)` | 圆括号、方括号 |
+
+### 不做的事情
+
+- 不做"标点后自动补空格"（会误伤 URL、版本号、小数、缩写）
+- 不做 Unicode NFKC
+- 不自动修改大小写
+- 不自动拼写纠错
+- 不删除 emoji
+- 不删除感叹号 / 问号 / 多余标点
+- 不把 e-mail 和 email 互相转换
+- 不改语法
+- 不改表达
+
+### 后端 normalizedText 处理
+
+- 后端 `analyzeEnglish` 返回的 `normalizedText` **不再自动回写** `form.englishText`
+- `applyAnalysisToPage` 已删除 `shouldApplyBackendNormalizedText` 逻辑
+- 后端 `normalizedText` 可继续保存在分析结果中，供内部参考或未来 hint 使用
+- 后端 spelling correction / warnings / hint 逻辑保持不变
+- AI 参考理解、例句、翻译逻辑保持不变
+- "全部填入"仍然只填入我的理解 / 备注，不改英文内容
+
+### 保存时机一致性
+
+以下场景保存的 content 完全一致（仅经前端 `normalizeEnglishText` 处理）：
+
+- 后端返回前保存
+- 后端返回后保存
+- 网络失败 / 后端不可用时保存
+- 新增保存
+- 编辑保存
+- 从 review 页进入编辑再保存
+- 从 today_reviewed 页进入编辑再保存
+
+---
+
+## 附录：关键函数位置速查（Phase 8H 修订版）
 
 | 函数 / 常量 | 文件 | 说明 |
 |---|---|---|
 | `MAX_ENGLISH_CHARS` | add.js | 最大字符数（500） |
 | `hasChineseChar` | add.js | 检查是否包含 CJK 表意文字 |
+| `normalizeEnglishText` | add.js | **Phase 8H 增强**：10 步低风险格式规范化 |
 | `transformSpellingWarning` | add.js | 拼写提示转换（有correction→hint；无→null） |
 | `getLocalValidationResult` | add.js | 前端本地校验（6 条规则，全部 error） |
 | `buildDisplayState` | add.js | 决定展示哪种级别提示（含降级逻辑） |
 | `analyzeEnglishInput` | add.js | 整合本地 + 后端分析，拼写 hint 在此分离 |
+| `applyAnalysisToPage` | add.js | **Phase 8H 修改**：不再回写 backend normalizedText 到英文输入框 |
 | `runBackgroundEnglishCheck` | add.js | 保存后后台分析（analysisWarnings 已清空用户文案） |
+| `submitCard` | add.js | 保存入口，始终使用 `localResult.normalizedText` |

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校验规则（6 条，全部 error），统一前端错误文案，后端异步 error 不展示（不透传原文），拼写提示按有无建议词分别转 hint / 隐藏，统一网络失败文案为"网络暂时不稳，可以先保存"，清空 `analysisWarnings` 用户可见文案写入，新增 109 个本地校验测试用例，全部通过。**修订：英文内容字段不再允许任何中文，含中文即 error "英文内容请只填写英文"。后端 error 不展示。**
+Phase 8H-small-hotfix — 增强前端 `normalizeEnglishText`（10 条低风险格式规范化规则），停止后端 `normalizedText` 自动回写英文输入框，确保保存结果不依赖后端返回时机。新增 50 个规范化测试用例（共 159 个，全部通过）。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8H-small-hotfix | English content normalization stabilization | — | pending |
 | Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | pending |
 | Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | pending |
 | Phase 8F-scene-memory-copy-polish | Strengthen scene memory copy in add/review pages | — | pending |
@@ -721,6 +722,89 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 - dailyGoal 计算逻辑不变。
 - 缓存结构不变。
 - today_review_status 页面未删除、未重构。
+
+---
+
+## Phase 8H-small-hotfix — English Content Normalization Stabilization
+
+**提交：** frontend pending
+**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H 更新版）
+**测试：** `scripts/test-add-input-validation-cases.js`，159 用例全部通过（原 109 + 新增 50）
+
+### 问题背景
+
+后端 `analyzeEnglish` 返回 `normalizedText` 后，前端 `applyAnalysisToPage` 会把 `normalizedText` 回写到 `form.englishText`。这导致同一个输入的保存结果依赖后端返回时机：
+
+- 后端返回前保存：可能保存原始输入（如 `he 's`）
+- 后端返回后保存：可能保存后端规范化结果（如 `he's`）
+
+### 一、增强前端 normalizeEnglishText
+
+`pages/add/add.js` 中的 `normalizeEnglishText` 从原来 4 步增强为 10 步：
+
+| # | 规则 | 示例 |
+|---|---|---|
+| 1 | 去除前后空格 | ` hello ` → `hello` |
+| 2 | 弯引号 → 直引号 | `I'm happy` → `I'm happy` |
+| 3 | 各种 dash → 英文连字符 | `long—term` → `long-term` |
+| 4 | 中文标点 → 英文标点 | `hello，world` → `hello,world` |
+| 5 | 特殊空白 → 普通空格 | NBSP、全角空格、tab、换行、CRLF |
+| 6 | 合并连续空白 | `good   morning` → `good morning` |
+| 7 | 修复分裂缩写中间空格 | `he ' s` → `he 's`（撇号与后缀间空格） |
+| 8 | 修复分裂缩写 / 所有格 | `he 's` → `he's`（撇号前空格） |
+| 9 | 删除标点前多余空格 | `hello , world` → `hello, world` |
+| 10 | 清理括号内侧空格 | `( hello )` → `(hello)` |
+
+### 二、停止后端 normalizedText 自动回写
+
+- `applyAnalysisToPage` 中删除了 `shouldApplyBackendNormalizedText` 逻辑
+- 后端 `normalizedText` 不再写回 `form.englishText`
+- 后端 `normalizedText` 可继续保存在分析结果中，供内部参考
+- 后端 spelling correction / warnings / hint 逻辑保持不变
+- AI 参考理解、例句、翻译逻辑保持不变
+- "全部填入"仍然只填入我的理解 / 备注，不改英文内容
+
+### 三、保存结果一致性
+
+以下场景保存的 content 完全一致（仅经前端 `normalizeEnglishText` 处理）：
+- 后端返回前保存 / 后端返回后保存 / 网络失败时保存
+- 新增保存 / 编辑保存
+- 从 review 页进入编辑再保存
+- 从 today_reviewed 页进入编辑再保存
+
+### 四、不自动改写的内容
+
+- 大小写（`HELLO` 仍是 `HELLO`）
+- 拼写（`cluch` 仍是 `cluch`）
+- emoji（`good job 👍` 不变）
+- 多余标点（`hello!!!` 不变）
+- e-mail / email 互转
+- 标点后补空格
+- Unicode NFKC
+- 语法 / 表达
+
+### 五、测试
+
+**原有测试：** 109（Phase 8G）
+**新增测试：** 50（45 个规范化纯函数 + 5 个 error 规则验证）
+**总测试数：** 159
+**结果：** 全部通过
+
+### 六、修改文件
+
+- `pages/add/add.js` — 增强 `normalizeEnglishText`；删除 `applyAnalysisToPage` 中的 backend normalizedText 回写
+- `scripts/test-add-input-validation-cases.js` — 增强 `normalizeEnglishText` 副本；新增 50 个测试用例
+- `docs/add-input-validation-product-rules.md` — 新增"英文内容规范化规则"章节
+- `docs/current-phase.md` — 记录 Phase 8H
+
+### 七、未改内容
+
+- 后端 `validator.py` / `analyzer.py` 不变
+- 后端数据库 schema 不变
+- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
+- Phase 8G 的 6 条 error 规则不变
+- 保存成功 toast `已保存` / `已更新` 不变
+- UI / WXML / WXSS 不变
 
 ---
 

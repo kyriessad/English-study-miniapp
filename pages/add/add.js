@@ -38,12 +38,53 @@ const BACKEND_UNDERSTANDING_SOURCES = ['local', 'machine', 'ai', 'user'];
 
 
 function normalizeEnglishText(text) {
-  return String(text || '')
-    .replace(/[‘’]/g, '\'')
-    .replace(/[“”]/g, '"')
-    .replace(/[‐-‒–—―]/g, '-')
-    .replace(/\u00A0/g, ' ')
-    .trim();
+  var result = String(text || '');
+
+  // 1. 弯引号 → 直引号
+  result = result.replace(/[‘’]/g, '\'');
+  result = result.replace(/[“”]/g, '"');
+
+  // 2. 各种 dash → 英文连字符
+  result = result.replace(/[‐-―−–—]/g, '-');
+
+  // 3. 中文标点 → 英文标点
+  result = result.replace(/，/g, ',');
+  result = result.replace(/。/g, '.');
+  result = result.replace(/！/g, '!');
+  result = result.replace(/？/g, '?');
+  result = result.replace(/；/g, ';');
+  result = result.replace(/：/g, ':');
+
+  // 4. 特殊空白 → 普通空格
+  result = result.replace(/\u00A0/g, ' ');
+  result = result.replace(/\u3000/g, ' ');
+  result = result.replace(/[\t\n\r]+/g, ' ');
+
+  // 5. 合并连续空白
+  result = result.replace(/\s{2,}/g, ' ');
+
+  // 5b. 修复分裂缩写中间空格（he ' s → he 's）
+  result = result.replace(/'\s+(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
+
+  // 6. 修复分裂缩写 / 所有格（he 's → he's）
+  result = result.replace(/\s+'(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
+
+  // 7. 删除标点前多余空格
+  result = result.replace(/\s+([,.!?;:])/g, '$1');
+
+  // 8. 清理括号内侧多余空格
+  result = result.replace(/\(\s+/g, '(');
+  result = result.replace(/\s+\)/g, ')');
+  result = result.replace(/\[\s+/g, '[');
+  result = result.replace(/\s+\]/g, ']');
+
+  // 9. 再次合并连续空白
+  result = result.replace(/\s{2,}/g, ' ');
+
+  // 10. 去除前后空格
+  result = result.trim();
+
+  return result;
 }
 
 function normalizePlainText(text) {
@@ -1263,25 +1304,10 @@ Page({
     if (this.data.isLeavingPage) {
       return
     }
-  
-    const normalizedText = normalizeEnglishText(sourceText)
-    const currentEnglishText = String(
-      this.data.form && this.data.form.englishText
-        ? this.data.form.englishText
-        : ''
-    )
-  
-    const backendNormalizedText = normalizeEnglishText(
-      analysis.backendNormalizedText ||
-      normalizedText
-    )
-  
-    const shouldApplyBackendNormalizedText =
-      analysis.canSave &&
-      backendNormalizedText &&
-      backendNormalizedText !== currentEnglishText
-  
-    const nextData = {
+
+    var normalizedText = normalizeEnglishText(sourceText)
+
+    var nextData = {
       validationResult: {
         localErrors: analysis.localErrors,
         localWarnings: analysis.localWarnings,
@@ -1294,9 +1320,7 @@ Page({
       englishValidationMessage: analysis.displayMessage,
       englishValidationType: analysis.displayMessageType,
       suggestionText: analysis.shouldShowSuggestion ? analysis.suggestion : '',
-      suggestionSourceText: shouldApplyBackendNormalizedText
-        ? backendNormalizedText
-        : normalizedText,
+      suggestionSourceText: normalizedText,
       showSuggestion: analysis.shouldShowSuggestion,
       understandingSuggestion: analysis.shouldShowSuggestion ? analysis.suggestion : '',
       understandingVisible: analysis.shouldShowSuggestion,
@@ -1312,12 +1336,7 @@ Page({
       validateLoading: false,
       suggestLoading: false
     }
-  
-    // 后端检测完成后，把 auto-fix 后的英文写回输入框
-    if (shouldApplyBackendNormalizedText) {
-      nextData['form.englishText'] = backendNormalizedText
-    }
-  
+
     this.setData(nextData)
   },
 
