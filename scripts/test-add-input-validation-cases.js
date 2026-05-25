@@ -770,6 +770,81 @@ failed += backendNoOverwriteFailed;
 failDetails = failDetails.concat(backendNoOverwriteFailDetails);
 
 // ─────────────────────────────────────────────
+// Phase 8H-hotfix-real-validation 新增：runInputAnalysis 触发条件验证
+// ─────────────────────────────────────────────
+
+var triggerConditionPassed = 0;
+var triggerConditionFailed = 0;
+var triggerConditionFailDetails = [];
+
+// 模拟 runInputAnalysis 中分析前 normalize 的触发条件（修复版）
+// 修复：比较 raw form.englishText 与 normalizedText，而非两边都 normalize 后再比
+function simulateRunInputAnalysisTrigger(formEnglishText, englishTextParam) {
+  var normalizedText = normalizeEnglishText(englishTextParam);
+  var patch = {};
+  // 这是修复后的条件：比较 raw text 与 normalized text
+  if (formEnglishText !== normalizedText) {
+    patch['form.englishText'] = normalizedText;
+  }
+  return 'form.englishText' in patch ? patch['form.englishText'] : null;
+}
+
+function runTriggerConditionCase(id, formEnglishText, englishTextParam, expectedPatch, note) {
+  var result = simulateRunInputAnalysisTrigger(formEnglishText, englishTextParam);
+  var ok;
+  if (expectedPatch === null) {
+    ok = result === null;
+  } else {
+    ok = result === expectedPatch;
+  }
+
+  if (ok) {
+    triggerConditionPassed++;
+  } else {
+    triggerConditionFailed++;
+    triggerConditionFailDetails.push(
+      'FAIL trigger#' + id + ' [' + note + ']: got "' + (result === null ? 'null' : result) + '", want "' + (expectedPatch === null ? 'null (no patch)' : expectedPatch) + '"'
+    );
+  }
+}
+
+// ── A. 应触发 normalize 回写的输入 ──────────────────────────────────
+
+runTriggerConditionCase('T1', "he 's",          "he 's",          "he's",          'T1: he \'s → he\'s 回写触发');
+runTriggerConditionCase('T2', 'good   morning', 'good   morning', 'good morning',  'T2: 多空格 → 单空格 回写触发');
+runTriggerConditionCase('T3', 'hello\nworld',   'hello\nworld',   'hello world',   'T3: 换行 → 空格 回写触发');
+runTriggerConditionCase('T4', 'hello，world',   'hello，world',   'hello,world',   'T4: 中文逗号 → 英文逗号 回写触发');
+runTriggerConditionCase('T5', "he ' s",         "he ' s",         "he's",          'T5: he \' s → he\'s 回写触发');
+runTriggerConditionCase('T6', "don 't",         "don 't",         "don't",         'T6: don \'t → don\'t 回写触发');
+
+// ── B. 不应触发回写的输入（已规范化或不在 low-risk 规则内）──────────
+
+runTriggerConditionCase('T7', 'hello',          'hello',          null,            'T7: hello 已规范 → 不回写');
+runTriggerConditionCase('T8', 'HELLO',          'HELLO',          null,            'T8: 大写保留 → 不回写');
+runTriggerConditionCase('T9', 'cluch',          'cluch',          null,            'T9: 拼写不纠错 → 不回写');
+runTriggerConditionCase('T10', 'good job 👍', 'good job 👍', null,             'T10: emoji保留 → 不回写');
+runTriggerConditionCase('T11', 'hello world',   'hello world',    null,            'T11: 已单空格 → 不回写');
+runTriggerConditionCase('T12', "he's",          "he's",           null,            'T12: he\'s 已规范 → 不回写');
+runTriggerConditionCase('T13', "I'm fine",      "I'm fine",       null,            'T13: I\'m fine 已规范 → 不回写');
+runTriggerConditionCase('T14', 'GPT-4',         'GPT-4',          null,            'T14: GPT-4 保留 → 不回写');
+runTriggerConditionCase('T15', 'e-mail',        'e-mail',         null,            'T15: e-mail 保留 → 不回写');
+runTriggerConditionCase('T16', 'hello!!!',      'hello!!!',       null,            'T16: 多余标点保留 → 不回写');
+
+// ── C. 边界：debounce 正常调度场景 ────────────────────────────────
+// scheduleSuggestionUpdate 在每次 onEnglishInput 中 reset timer，
+// 所以 runInputAnalysis 的 englishText 参数总是最新的用户输入。
+// 不存在"旧参数 + 新 form.englishText"的 race condition。
+
+runTriggerConditionCase('T17', 'hello   world',   'hello   world', 'hello world',   'T17: 多空格输入 → 正常回写');
+// form.englishText 与 englishTextParam 相同 + 已规范化 → 不回写
+runTriggerConditionCase('T18', 'hello',          'hello',          null,            'T18: 已规范 + 参数同 → 不回写');
+
+// 合并触发条件测试结果
+passed += triggerConditionPassed;
+failed += triggerConditionFailed;
+failDetails = failDetails.concat(triggerConditionFailDetails);
+
+// ─────────────────────────────────────────────
 // 输出结果
 // ─────────────────────────────────────────────
 
@@ -788,8 +863,10 @@ var newNormalizeTests = normalizationPassed + normalizationFailed;  // N1-N50
 var newAutoCategoryTests = autoCategoryPassed + autoCategoryFailed;
 var newPreNormalizeTests = preNormalizePassed + preNormalizeFailed;
 var newBackendNoOverwriteTests = backendNoOverwritePassed + backendNoOverwriteFailed;
+var newTriggerConditionTests = triggerConditionPassed + triggerConditionFailed;
 var newPhase8HHotfixTests = newAutoCategoryTests + newPreNormalizeTests + newBackendNoOverwriteTests;
-var totalNewTests = newRunCaseTests + newNormalizeTests + newPhase8HHotfixTests;
+var newPhase8HRealValidationTests = newTriggerConditionTests;
+var totalNewTests = newRunCaseTests + newNormalizeTests + newPhase8HHotfixTests + newPhase8HRealValidationTests;
 var totalTests = passed + failed;
 
 console.log('\n测试明细：');
@@ -799,6 +876,7 @@ console.log('  Phase 8H 规范化：' + newNormalizeTests);
 console.log('  Phase 8H-hotfix 自动类别：' + newAutoCategoryTests);
 console.log('  Phase 8H-hotfix 分析前 normalize：' + newPreNormalizeTests);
 console.log('  Phase 8H-hotfix 后端不回写：' + newBackendNoOverwriteTests);
+console.log('  Phase 8H-hotfix-real-validation 触发条件：' + newTriggerConditionTests);
 console.log('  本次新增：' + totalNewTests);
 console.log('  总测试数：' + totalTests);
 console.log('  通过：' + passed + '，失败：' + failed);

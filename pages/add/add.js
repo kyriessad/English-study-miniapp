@@ -1357,7 +1357,7 @@ Page({
     }
 
     // 分析前应用本地 normalizeEnglishText，让用户在生成参考时看到规范化后的英文
-    if (normalizeEnglishText(this.data.form.englishText) !== normalizedText) {
+    if (this.data.form.englishText !== normalizedText) {
       patch['form.englishText'] = normalizedText
     }
 

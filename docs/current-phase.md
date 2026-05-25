@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8H-hotfix — 分析前应用本地 `normalizeEnglishText` 到英文输入框，恢复自动类别识别（缩写句点修复），确保用户手动类别选择不被自动覆盖。新增 34 个测试用例（共 193 个，全部通过）。
+Phase 8H-hotfix-real-validation — 修复 `runInputAnalysis` 中分析前 normalize 的触发条件。根因：写回条件比较了两边都已 normalize 的值（始终相等），导致写回从未触发。修复为比较原始 `form.englishText` 与 `normalizedText`。新增 18 个触发条件测试（共 211 个，全部通过）。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Phase 8H-hotfix — 分析前应用本地 `normalizeEnglishText` 到英文输入
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8H-hotfix-real-validation | Fix runInputAnalysis normalize trigger condition | — | pending |
 | Phase 8H-hotfix | Local normalize before analysis + auto-category restore | — | pending |
 | Phase 8H-small-hotfix | English content normalization stabilization | — | pending |
 | Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | pending |
@@ -859,6 +860,94 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 8. 输入 `HELLO`，不应自动变小写
 9. 输入 `good job 👍`，emoji 保留
 10. 后端返回 `normalizedText` 时，不应再覆盖英文框
+
+### 未改内容
+
+- 后端 `validator.py` / `analyzer.py` 不变
+- 后端数据库 schema 不变
+- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
+- Phase 8G 的 6 条 error 规则不变
+- Phase 8H 已定的 normalize 规则边界不变
+- 保存 toast `已保存` / `已更新` 不变
+- 后端 `normalizedText` 不回写英文输入框（Phase 8H 规则保持）
+- UI / WXML / WXSS 不变
+
+---
+
+## Phase 8H-hotfix-real-validation — Fix runInputAnalysis Normalize Trigger Condition
+
+**提交：** frontend pending
+**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix-real-validation 更新版）
+**测试：** `scripts/test-add-input-validation-cases.js`，211 用例全部通过（原 193 + 新增 18）
+
+### 问题复现
+
+Phase 8H-hotfix 声称已在 `runInputAnalysis` 入口做分析前 normalize 并回写英文输入框，但以下 3 个样例实际验收失败：
+
+1. 输入 `he 's` → 英文框仍显示 `he 's`（应为 `he's`）
+2. 输入 `good   morning` → 英文框仍显示 `good   morning`（应为 `good morning`）
+3. 输入 `hello\nworld` → 英文框仍显示 `hello\nworld`（应为 `hello world`）
+
+### 根因
+
+`runInputAnalysis` (add.js:1360) 中的写回条件：
+
+```javascript
+// Bug: 两边都 normalize，始终相等
+if (normalizeEnglishText(this.data.form.englishText) !== normalizedText) {
+    patch['form.englishText'] = normalizedText
+}
+```
+
+`normalizeEnglishText(this.data.form.englishText)` 和 `normalizedText`（来自 `normalizeEnglishText(englishText)`）都基于同一个原始输入值 `nextValue`，因此 normalize 后结果始终相同，条件永远为 `false`，写回从未触发。
+
+**修复：** 改为比较原始 `form.englishText` 与 `normalizedText`：
+
+```javascript
+// Fix: 比较 raw text 与 normalized text
+if (this.data.form.englishText !== normalizedText) {
+    patch['form.englishText'] = normalizedText
+}
+```
+
+### 修改文件
+
+- `pages/add/add.js` — 修复 `runInputAnalysis` 第 1360 行写回条件（1 行）
+- `scripts/test-add-input-validation-cases.js` — 新增 18 个触发条件测试（T1-T18）
+- `docs/add-input-validation-product-rules.md` — 更新"分析前规范化"章节（触发时机 + 验收样例）
+- `docs/current-phase.md` — 记录 Phase 8H-hotfix-real-validation
+
+### 测试
+
+**原有测试：** 193（Phase 8G 109 + Phase 8H 50 + Phase 8H-hotfix 34）
+**新增测试：** 18（触发条件验证 T1-T18）
+**总测试数：** 211
+**结果：** 全部通过
+
+| 类别 | 数量 | 说明 |
+|---|---|---|
+| 应触发回写 | 6 | T1-T6：he 's / good   morning / hello\nworld / hello，world / he ' s / don 't |
+| 不应触发回写 | 10 | T7-T16：已规范 / 大小写 / 拼写 / emoji / 连字符 / 多余标点 |
+| 边界 | 2 | T17-T18：正常 debounce 调度 |
+
+### 人工验收步骤
+
+在微信开发者工具中打开 Add 页，分别输入以下内容**等待 500ms debounce 后**：
+
+1. 输入 `he 's` → 等待分析触发 → 英文输入框应显示 `he's`
+   - 检查点：console 无报错；suggestionSourceText 为 `he's`；后端请求参数 content 为 `he's`
+2. 输入 `good   morning` → 等待分析触发 → 英文输入框应显示 `good morning`
+   - 检查点：多余空格已合并；suggestionSourceText 为 `good morning`
+3. 输入 `hello\nworld`（textarea 中按回车） → 等待分析触发 → 英文输入框应显示 `hello world`
+   - 检查点：换行已替换为空格；suggestionSourceText 为 `hello world`
+
+额外验证：
+4. 输入 `cluch` → 不自动变 `clutch`，仅显示 hint
+5. 输入 `HELLO` → 保持大写
+6. 输入 `good job 👍` → emoji 保留
+7. 手动选"单词"后输入 `hello world` → 类别保持"单词"并提示"单词类别请只填一个词"
+8. 新增卡片输入 `hello world`（未手动选类别） → 自动变成"短语"
+9. 新增卡片输入 `I am happy.`（未手动选类别） → 自动变成"句子"
 
 ### 未改内容
 

@@ -221,15 +221,34 @@ MAX_ENGLISH_CHARS = 500  // 字符数 > 500 → error
 - 从 review 页进入编辑再保存
 - 从 today_reviewed 页进入编辑再保存
 
-### 分析前规范化（Phase 8H-hotfix 新增）
+### 分析前规范化（Phase 8H-hotfix 新增 + Phase 8H-hotfix-real-validation 修复）
 
 > 新增于：Phase 8H-hotfix（2026-05-25）
+> 修复于：Phase 8H-hotfix-real-validation（2026-05-25）
 
-输入英文后，在触发后端分析/生成参考内容之前，前端会先用 `normalizeEnglishText` 对 `form.englishText` 做本地规范化：
+输入英文后，在触发后端分析/生成参考内容之前，前端会先用 `normalizeEnglishText` 对 `form.englishText` 做本地规范化。
 
-- `runInputAnalysis` 入口处计算 `normalizedText`，若与当前 `form.englishText` 的规范化结果不同，则更新 `form.englishText`
-- 用户输入 `he 's`，分析触发前英文框自动变为 `he's`
-- 用户输入 `good   morning`，分析触发前英文框自动变为 `good morning`
+**触发时机：** `runInputAnalysis` 被调用时（由 `onEnglishInput` 经 500ms debounce 的 `scheduleSuggestionUpdate` 调用，或由 `onEnglishBlur` 直接调用）。
+
+**修复（Phase 8H-hotfix-real-validation）：** 原始实现中，`runInputAnalysis` 的写回条件比较的是 `normalizeEnglishText(form.englishText) !== normalizedText`（两边都 normalize 后再比较），由于 `onEnglishInput` 已将同一个原始值写入 `form.englishText`，两边 normalize 结果永远相同，写回从未触发。修复为比较 `form.englishText !== normalizedText`（原始值 vs 规范化值）。
+
+**真实触发链路：**
+1. 用户在英文输入框输入：`he 's`
+2. `onEnglishInput` 触发 → 写 `form.englishText = "he 's"`（原始值）
+3. 调用 `scheduleSuggestionUpdate("he 's", category, 500)`，启动 500ms debounce
+4. 500ms 后 `runInputAnalysis("he 's", category)` 被调用
+5. `runInputAnalysis` 计算 `normalizedText = normalizeEnglishText("he 's") = "he's"`
+6. 比较：`"he 's" !== "he's"` → true → setData `form.englishText = "he's"`
+7. 英文输入框显示 `he's`
+
+**三个关键验收样例：**
+
+| 输入 | normalize 后 | 触发条件 | 输入框显示 |
+|---|---|---|---|
+| `he 's` | `he's` | `"he 's" !== "he's"` → 回写 | `he's` |
+| `good   morning` | `good morning` | `"good   morning" !== "good morning"` → 回写 | `good morning` |
+| `hello\nworld` | `hello world` | `"hello\nworld" !== "hello world"` → 回写 | `hello world` |
+
 - 后端 `normalizedText` 仍然不回写英文输入框（Phase 8H 规则保持不变）
 
 ---
