@@ -2,14 +2,15 @@
 
 ## Current Phase
 
-Phase 8I-small-hotfix-copy-P1P2 completed — Lightweight copy hotfix: home button text and review feedback button labels updated.
+Phase 8I-small-hotfix-copy-P1P2 / Phase 8J completed — Frontend copy update: home button "查看卡片 / 继续查看", review feedback labels lightened. Backend Phase 8J hotfix: cap repeat item from restoring mastered in same round.
 
-**整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
+**整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8J-backend-hotfix | Backend: cap repeat item from restoring mastered in same review round | `edc945b` | — |
 | Phase 8I-small-hotfix-copy-P1P2-b | Copy hotfix: home review button "看一看"→"查看卡片"（普通状态）；"继续查看"不变 | — | pending |
 | Phase 8I-small-hotfix-copy-P1P2 | Copy hotfix: home "添加卡片继续"→"添加卡片"，"继续看"→"继续查看"；复习页反馈按钮轻量化 | — | `81ac8f7` |
 | Phase 8H-hotfix-real-validation | Fix runInputAnalysis normalize trigger condition | — | `6adccf1` |
@@ -994,6 +995,7 @@ if (this.data.form.englishText !== normalizedText) {
 
 ### 首页
 - 添加卡片为主按钮（绿色渐变，≈66% 宽），复习为次按钮（白色，≈34% 宽）。
+- 复习次按钮文案：普通状态"查看卡片"，有进行中 session 时"继续查看"。
 - 今日任务/今日已完成采用 unique card count，不统计已删除卡片。
 
 ### whereEncountered
@@ -1082,6 +1084,7 @@ if (this.data.form.englishText !== normalizedText) {
 
 | Commit | Phase | Description |
 |---|---|---|
+| `edc945b` | 8J | cap repeat review item from restoring mastered |
 | `54db753` | 8I | fix alphanumeric classification and example morphology matching |
 | `c721ff5` | 8I | docs: record Phase 8I fixes in current-phase.md |
 | `ef4f946` | 8H | fix example generation coverage for common word patterns |
