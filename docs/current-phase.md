@@ -10,7 +10,8 @@ Phase 8I-small-hotfix-copy-P1P2 completed — Lightweight copy hotfix: home butt
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8I-small-hotfix-copy-P1P2 | Copy hotfix: home "添加卡片继续"→"添加卡片"，"继续看"→"继续查看"；复习页反馈按钮轻量化 | — | pending |
+| Phase 8I-small-hotfix-copy-P1P2-b | Copy hotfix: home review button "看一看"→"查看卡片"（普通状态）；"继续查看"不变 | — | pending |
+| Phase 8I-small-hotfix-copy-P1P2 | Copy hotfix: home "添加卡片继续"→"添加卡片"，"继续看"→"继续查看"；复习页反馈按钮轻量化 | — | `81ac8f7` |
 | Phase 8H-hotfix-real-validation | Fix runInputAnalysis normalize trigger condition | — | `6adccf1` |
 | Phase 8H-hotfix | Local normalize before analysis + auto-category restore | — | `0d5ff0c` |
 | Phase 8H-small-hotfix | English content normalization stabilization | — | `434a669` |

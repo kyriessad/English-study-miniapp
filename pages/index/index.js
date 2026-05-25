@@ -496,7 +496,7 @@ function computeDailyStatusCopy(totalToday, completedToday) {
   if (c > 0) {
     return { dailyStatusMessage: '可以继续看看卡片', reviewButtonLabel: '继续查看' };
   }
-  return { dailyStatusMessage: '随时可以看看卡片', reviewButtonLabel: '看一看' };
+  return { dailyStatusMessage: '随时可以看看卡片', reviewButtonLabel: '查看卡片' };
 }
 
 Page({
@@ -568,7 +568,7 @@ Page({
 
     // Phase 6O-2: daily status copy
     dailyStatusMessage: '随时可以看看卡片',
-    reviewButtonLabel: '看一看',
+    reviewButtonLabel: '查看卡片',
 
     // Phase 6O-2A: hide new-study entry card when task is in progress
     hideNewStudyEntry: false,
@@ -821,13 +821,13 @@ Page({
       var localCardCount = Array.isArray(this.data.cards) ? this.data.cards.length : (this.data.totalCardCount || 0);
       if (localCardCount === 0) {
         dailyStatusMessage = '先添加一张卡片';
-        reviewButtonLabel = '看一看';
+        reviewButtonLabel = '查看卡片';
       } else if (actualCompletedToday > 0) {
         dailyStatusMessage = '可以继续看看卡片';
         reviewButtonLabel = '继续查看';
       } else {
         dailyStatusMessage = '随时可以看看卡片';
-        reviewButtonLabel = '看一看';
+        reviewButtonLabel = '查看卡片';
       }
     } else {
       // Fallback to old suggested / completed_suggested
