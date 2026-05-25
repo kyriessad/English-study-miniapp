@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8F-hotfix-and-add-input-validation-audit — 两部分：(A) 复习页场景 pill 可读性 hotfix：将 `.task-front-source` 从纯文本改为真正的浅绿 pill（添加 align-self: center 收缩至内容宽、background: #eef8f0、border-radius: 999rpx、color: #4f7f5b、font-weight: 500）；(B) 完整只读审查添加页英文输入校验规则，输出 `docs/add-english-input-validation-audit.md`，梳理触发时机、分类规则、warning/error/hint/success 展示逻辑、保存行为、AI 分析展示、例句生成边界和产品定位评估。未改任何校验逻辑或后端代码。
+Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校验规则（6 条，全部 error），统一前端错误文案，降级后端异步 error 为 warning，拼写提示按有无建议词分别转 hint / 隐藏，统一网络失败文案为"网络暂时不稳，可以先保存"，清空 `analysisWarnings` 用户可见文案写入，新增 109 个本地校验测试用例，全部通过。**修订：英文内容字段不再允许任何中文，含中文即 error "英文内容请只填写英文"。**
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Phase 8F-hotfix-and-add-input-validation-audit — 两部分：(A) 复习页场�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | pending |
 | Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | pending |
 | Phase 8F-scene-memory-copy-polish | Strengthen scene memory copy in add/review pages | — | pending |
 | Phase 8E-cleanup-dead-home-and-history-code | Clean up dead reviewActions, status-overview-card CSS, history-stats-card CSS | — | pending |
@@ -31,6 +32,86 @@ Phase 8F-hotfix-and-add-input-validation-audit — 两部分：(A) 复习页场�
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+## Phase 8G-add-input-validation-ux-polish — 添加页英文输入校验 UX 精细化
+
+**提交：** frontend pending
+**文档：** `docs/add-input-validation-product-rules.md`（Phase 8G 更新版）
+**测试：** `scripts/test-add-input-validation-cases.js`，109 用例全部通过
+
+### 一、前端本地校验规则重写（全部 6 条，均为 error，均阻止保存）
+
+| 规则 | 触发条件 | 文案 | 阻止保存 |
+|---|---|---|---|
+| 空内容 | trim 后为空 | `英文内容为空` | 是 |
+| 包含中文 | 含任何 CJK 表意文字 | `英文内容请只填写英文` | 是 |
+| 完全无英文 | 无拉丁字母（纯数字/纯符号） | `请输入英文内容` | 是 |
+| 超长 | > 500 字符 | `内容太长了，建议拆成几张卡片再保存` | 是 |
+| 单词类别多词 | category=单词 且词数 ≠ 1 | `单词类别请只填一个词` | 是 |
+| 短语类别单词 | category=短语 且词数 < 2 | `短语类别至少需要两个词` | 是 |
+
+**中文检测优先于"无英文"判断：** 纯中文 → "英文内容请只填写英文"；纯数字/纯符号 → "请输入英文内容"。
+
+阈值常量：`MAX_ENGLISH_CHARS = 500`。不再有 `CHINESE_WARN_MAX_CHARS`（已删除）。
+
+### 二、后端异步分析展示降级
+
+后端分析 fire-and-forget，其 error 在 `buildDisplayState` 中降级为 warning，不阻止保存。
+**红色 error = 只有前端本地 error 才显示。**
+
+### 三、拼写提示降级
+
+| 后端拼写提示类型 | 处理结果 | 展示内容 |
+|---|---|---|
+| 有 correction（`你是不是想写 "X"`） | → hint | `也可能是：X。确认原词没问题的话，可以继续保存` |
+| 无 correction（人名/品牌/专有名词提示） | → 隐藏 | 无提示 |
+
+拼写 hint **不隐藏**参考理解区（`shouldSkipMachineSuggestionForUnknownSingleWord` 仅由"词典未收录"类警告触发）。
+
+### 四、网络失败文案统一
+
+| 旧文案 | 新文案 |
+|---|---|
+| `网络不可用，暂未完成增强分析。` | `网络暂时不稳，可以先保存` |
+| `请检查网络，可先保存。` | `网络暂时不稳，可以先保存` |
+| `暂未发现明显问题，请检查您的网络，可先保存。` | `网络暂时不稳，可以先保存` |
+
+保存成功 toast：新增 → `已保存`；编辑 → `已更新`（Phase 8G 验证仍正确，未改）。
+
+### 五、analysisWarnings 决策
+
+`getAnalysisProblems`（读取 `analysisWarnings` 的函数）从未被调用（Phase 6G 决策）。
+Phase 8G 决策：**停止写入用户可见文案**到 `analysisWarnings`：
+- 后台分析失败时：`analysisWarnings: []`（不再写入 `'分析暂时失败，可稍后重试'` 等文案）
+
+### 六、100 个测试用例
+
+**文件：** `scripts/test-add-input-validation-cases.js`
+**总数：** 109（100 主用例 + 4 拼写 hint 转换 + 5 边界）
+
+| 类别 | 编号 | 说明 |
+|---|---|---|
+| A. 空/无效输入 | 1-10 | 空字符串、纯空格、纯中文、纯数字、纯符号 |
+| B. 正常英文单词 | 11-20 | hello/clutch/go/be/in 等 |
+| C. 短语 | 21-30 | break a leg/pick up 等 |
+| D. 句子/段落 | 31-40 | 带标点、100-500 字符、超长 |
+| E. 连字符词 | 41-50 | well-known/state-of-the-art 等 |
+| F. 字母数字词 | 51-60 | COVID-19/GPT-4/5G/B2B 等 |
+| G. 缩写 | 61-70 | U.S./e.g./Dr./vs. 等 |
+| H. 中英混合 | 71-80 | 含中文 → error "英文内容请只填写英文" |
+| I. 中英混合（较多中文） | 81-90 | 含中文 → error "英文内容请只填写英文" |
+| J. 标点/emoji/边界 | 91-100 | 全角标点不计汉字 |
+
+### 七、未改内容
+
+- 后端 `validator.py` / `analyzer.py` 不变
+- 后端数据库 schema 不变
+- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
+- `Hunyuan → TMT → None` 例句生成链路不变
+- `today_review_status` 页面不变
+- `detectEnglishCategory` 自动分类逻辑不变
 
 ---
 

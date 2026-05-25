@@ -265,8 +265,30 @@ function filterDictionaryWarningsWhenSuggestionWorks(warnings, suggestion) {
     return warningList;
   }
 
-  // 机器翻译已经给出有效中文参考时，隐藏“词典未收录/未识别”类提醒
+  // 机器翻译已经给出有效中文参考时，隐藏”词典未收录/未识别”类提醒
   return warningList.filter((item) => !isDictionaryUnrecognizedWarning(item));
+}
+
+var MAX_ENGLISH_CHARS = 500;  // > 500 字符 = 过长 (error, 阻止保存)
+
+// 检查文本中是否包含中文汉字（CJK 表意文字，不含全角标点）
+function hasChineseChar(text) {
+  return /[一-鿿㐀-䶿豈-﫿]/.test(String(text || ''));
+}
+
+// 拼写提示变换：有 correction → hint 文案；无 correction → 隐藏
+var SPELL_WITH_CORRECTION_RE = /^拼写疑似有误：(.+?)。你是不是想写\s*”(.+?)”/;
+var SPELL_NO_CORRECTION_RE = /^拼写疑似有误：/;
+
+function transformSpellingWarning(w) {
+  var m = SPELL_WITH_CORRECTION_RE.exec(w);
+  if (m) {
+    return { text: '也可能是：' + m[2] + '。确认原词没问题的话，可以继续保存', isHint: true };
+  }
+  if (SPELL_NO_CORRECTION_RE.test(w)) {
+    return null;
+  }
+  return { text: w, isHint: false };
 }
 
 function buildRecentWhereEncounteredOptions() {
@@ -360,25 +382,40 @@ function getLocalValidationResult(text, category) {
   const warnings = [];
   const info = [];
 
+  // 规则 1：空内容
   if (!normalizedText) {
     errors.push('英文内容为空');
     return { normalizedText, errors, warnings, info, words: [] };
   }
 
+  // 规则 7：超过 500 字符
+  if (normalizedText.length > MAX_ENGLISH_CHARS) {
+    errors.push('内容太长了，建议拆成几张卡片再保存');
+    return { normalizedText, errors, warnings, info, words: [] };
+  }
+
+  // 规则 2：包含中文汉字 → error（中文解释请写到"我的理解/补充备注/场景"字段）
+  if (hasChineseChar(normalizedText)) {
+    errors.push('英文内容请只填写英文');
+    return { normalizedText, errors, warnings, info, words: [] };
+  }
+
+  // 规则 3：完全无英文（纯数字 / 纯符号）
+  if (!hasLatinLetter(normalizedText)) {
+    errors.push('请输入英文内容');
+    return { normalizedText, errors, warnings, info, words: [] };
+  }
+
   const words = getNormalizedWordList(normalizedText);
 
-  // 前端只做最低限度判断：必须包含英文字母
-  if (!hasLatinLetter(normalizedText)) {
-    errors.push('英文内容里至少要包含英文字母。');
-  }
-
-  // 类别硬限制只保留最明显的情况
+  // 规则 5：类别=单词但多个词
   if (category === '单词' && words.length !== 1) {
-    errors.push('卡片类别是“单词”时，英文内容只能填写一个英文单词。');
+    errors.push('单词类别请只填一个词');
   }
 
+  // 规则 6：类别=短语但只有一个词
   if (category === '短语' && words.length < 2) {
-    errors.push('卡片类别是“短语”时，至少需要两个英文单词。');
+    errors.push('短语类别至少需要两个词');
   }
 
   return {
@@ -527,7 +564,7 @@ Page({
         ok: false,
         validation: {
           errors: [],
-          warnings: ['网络不可用，暂未完成增强分析。']
+          warnings: ['网络暂时不稳，可以先保存']
         },
         understanding: {
           candidate: '',
@@ -591,7 +628,7 @@ Page({
         ok: false,
         validation: {
           errors: [],
-          warnings: ['请检查网络，可先保存。']
+          warnings: ['网络暂时不稳，可以先保存']
         },
         understanding: {
           candidate: '',
@@ -1029,23 +1066,26 @@ Page({
     localErrors = [],
     cloudErrors = [],
     cloudWarnings = [],
+    spellHints = [],
     cloudInfo = [],
     onlineValidationUnavailable = false
   } = {}) {
+    // 只有前端本地 error 才真正阻止保存，显示红色
     if (localErrors.length > 0) {
       return {
         displayMessage: localErrors[0],
         displayMessageType: 'error'
       }
     }
-  
+
+    // 后端 error 不阻止保存，降级为 warning 展示
     if (cloudErrors.length > 0) {
       return {
         displayMessage: cloudErrors[0],
-        displayMessageType: 'error'
+        displayMessageType: 'warning'
       }
     }
-  
+
     if (cloudWarnings.length > 0) {
       return {
         displayMessage: cloudWarnings[0],
@@ -1053,20 +1093,28 @@ Page({
       }
     }
 
-    if (cloudInfo.length > 0) {
+    // 拼写 hint（有 correction 时），以 hint 样式展示
+    if (spellHints.length > 0) {
       return {
-        displayMessage: cloudInfo[0],
-        displayMessageType: 'warning'
-      }
-    }
-  
-    if (onlineValidationUnavailable) {
-      return {
-        displayMessage: '暂未发现明显问题，请检查您的网络，可先保存。',
+        displayMessage: spellHints[0],
         displayMessageType: 'hint'
       }
     }
-  
+
+    if (cloudInfo.length > 0) {
+      return {
+        displayMessage: cloudInfo[0],
+        displayMessageType: 'hint'
+      }
+    }
+
+    if (onlineValidationUnavailable) {
+      return {
+        displayMessage: '网络暂时不稳，可以先保存',
+        displayMessageType: 'hint'
+      }
+    }
+
     return {
       displayMessage: '检查通过',
       displayMessageType: 'success'
@@ -1104,6 +1152,7 @@ Page({
 
     let cloudErrors = []
     let cloudWarnings = []
+    let spellHints = []
     let cloudInfo = []
     let onlineValidationUnavailable = false
     let suggestion = ''
@@ -1125,11 +1174,21 @@ Page({
 
       cloudErrors = Array.isArray(validation.errors) ? validation.errors : []
 
+      // 分离拼写 hint（有 correction）和普通 warning
+      var rawBackendWarnings = Array.isArray(validation.warnings) ? validation.warnings : []
+      var filteredBackendWarnings = []
+      rawBackendWarnings.forEach(function(w) {
+        var transformed = transformSpellingWarning(w)
+        if (!transformed) return  // 无 correction 的拼写提示：隐藏
+        if (transformed.isHint) {
+          spellHints.push(transformed.text)  // 有 correction：hint 样式
+        } else {
+          filteredBackendWarnings.push(transformed.text)
+        }
+      })
+
       cloudWarnings = prioritizeWarnings(
-        filterWarningsByCategory(
-          Array.isArray(validation.warnings) ? validation.warnings : [],
-          category
-        ),
+        filterWarningsByCategory(filteredBackendWarnings, category),
         category
       )
 
@@ -1166,20 +1225,22 @@ Page({
       suggestion = ''
     }
 
-    // 单词：词典未收录时，不用机器翻译来“证明”它有效。
-    // 句子：允许生成机器翻译参考，但保留“部分词未识别”的 warning，提醒用户自行判断。
+    // 单词：词典未收录时，不用机器翻译来”证明”它有效。
+    // 句子：允许生成机器翻译参考，但保留”部分词未识别”的 warning，提醒用户自行判断。
     // 短语：可以继续弱化词典未识别提醒，避免小短语频繁打扰。
     if (suggestion && category === '短语') {
       cloudWarnings = filterDictionaryWarningsWhenSuggestionWorks(cloudWarnings, suggestion)
     }
 
     const shouldShowSuggestion = !shouldBlockSuggestion && !!suggestion
-    const canSave = !hasAnyError
-    
+    // 只有前端本地 error 才真正阻止保存
+    const canSave = localErrors.length === 0
+
     const displayState = this.buildDisplayState({
       localErrors,
       cloudErrors,
       cloudWarnings,
+      spellHints,
       cloudInfo,
       onlineValidationUnavailable
     })
@@ -1874,7 +1935,7 @@ Page({
       } else {
         analysisLocalPatch = {
           analysisStatus: 'failed',
-          analysisWarnings: ['分析暂时失败，可稍后重试'],
+          analysisWarnings: [],
           analysisErrors: [],
           analysisSource: 'analyzeEnglish',
           analyzeCacheKey: makeKey(sourceText, sourceCategory),
@@ -1913,7 +1974,7 @@ Page({
 
         const failedLocalPatch = {
           analysisStatus: 'failed',
-          analysisWarnings: ['请检查网络，可先保存。'],
+          analysisWarnings: [],
           analysisErrors: [],
           analysisSource: 'analyzeEnglish',
           analyzedAt: new Date().toISOString()
