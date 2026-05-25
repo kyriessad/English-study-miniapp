@@ -70,7 +70,7 @@ function getLocalValidationResult(text, category) {
   }
 
   if (normalizedText.length > MAX_ENGLISH_CHARS) {
-    errors.push('内容太长了，建议拆成几张卡片再保存');
+    errors.push('内容较长，建议拆分后再保存');
     return { normalizedText: normalizedText, errors: errors, warnings: warnings, info: info, words: [] };
   }
 
@@ -229,7 +229,7 @@ var str180 = 'Learning English is a journey that requires patience and dedicatio
 runCase(36, str180, '句子', 'success', '', true, 'D36: 180-500 字符英文，本地 success');
 // D37: 超过 500 字符，本地 error
 var str501 = 'The quick brown fox jumps over the lazy dog. '.repeat(12); // 45*12=540 chars
-runCase(37, str501, '句子', 'error', '内容太长了', false, 'D37: 超 500 字符');
+runCase(37, str501, '句子', 'error', '内容较长', false, 'D37: 超 500 字符');
 // D38: 带换行英文
 runCase(38, 'hello\nworld',       '短语', 'success', '', true, 'D38: 带换行');
 // D39: 带制表符英文
@@ -387,7 +387,7 @@ var str500 = 'a'.repeat(500);
 runCase('E3', str500, '句子', 'success', '', true, 'Extra: 正好500字符 success');
 // 501 字符 → error
 var str501b = 'a'.repeat(501);
-runCase('E4', str501b, '句子', 'error', '内容太长了', false, 'Extra: 501字符 error');
+runCase('E4', str501b, '句子', 'error', '内容较长', false, 'Extra: 501字符 error');
 // 单词类别 + 连字符词（1词）→ success
 runCase('E5', 'well-known', '单词', 'success', '', true, 'Extra: well-known 单词类别 1词');
 

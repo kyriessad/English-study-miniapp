@@ -390,7 +390,7 @@ function getLocalValidationResult(text, category) {
 
   // 规则 7：超过 500 字符
   if (normalizedText.length > MAX_ENGLISH_CHARS) {
-    errors.push('内容太长了，建议拆成几张卡片再保存');
+    errors.push('内容较长，建议拆分后再保存');
     return { normalizedText, errors, warnings, info, words: [] };
   }
 
@@ -1078,13 +1078,7 @@ Page({
       }
     }
 
-    // 后端 error 不阻止保存，降级为 warning 展示
-    if (cloudErrors.length > 0) {
-      return {
-        displayMessage: cloudErrors[0],
-        displayMessageType: 'warning'
-      }
-    }
+    // 后端 error 不展示（异步分析结果，不阻止保存，不透传原文）
 
     if (cloudWarnings.length > 0) {
       return {

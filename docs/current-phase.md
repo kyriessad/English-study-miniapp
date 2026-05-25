@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校验规则（6 条，全部 error），统一前端错误文案，降级后端异步 error 为 warning，拼写提示按有无建议词分别转 hint / 隐藏，统一网络失败文案为"网络暂时不稳，可以先保存"，清空 `analysisWarnings` 用户可见文案写入，新增 109 个本地校验测试用例，全部通过。**修订：英文内容字段不再允许任何中文，含中文即 error "英文内容请只填写英文"。**
+Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校验规则（6 条，全部 error），统一前端错误文案，后端异步 error 不展示（不透传原文），拼写提示按有无建议词分别转 hint / 隐藏，统一网络失败文案为"网络暂时不稳，可以先保存"，清空 `analysisWarnings` 用户可见文案写入，新增 109 个本地校验测试用例，全部通过。**修订：英文内容字段不再允许任何中文，含中文即 error "英文内容请只填写英文"。后端 error 不展示。**
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -48,7 +48,7 @@ Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校
 | 空内容 | trim 后为空 | `英文内容为空` | 是 |
 | 包含中文 | 含任何 CJK 表意文字 | `英文内容请只填写英文` | 是 |
 | 完全无英文 | 无拉丁字母（纯数字/纯符号） | `请输入英文内容` | 是 |
-| 超长 | > 500 字符 | `内容太长了，建议拆成几张卡片再保存` | 是 |
+| 超长 | > 500 字符 | `内容较长，建议拆分后再保存` | 是 |
 | 单词类别多词 | category=单词 且词数 ≠ 1 | `单词类别请只填一个词` | 是 |
 | 短语类别单词 | category=短语 且词数 < 2 | `短语类别至少需要两个词` | 是 |
 
@@ -56,10 +56,13 @@ Phase 8G-add-input-validation-ux-polish — 重写添加页英文输入本地校
 
 阈值常量：`MAX_ENGLISH_CHARS = 500`。不再有 `CHINESE_WARN_MAX_CHARS`（已删除）。
 
-### 二、后端异步分析展示降级
+### 二、后端异步分析展示规则
 
-后端分析 fire-and-forget，其 error 在 `buildDisplayState` 中降级为 warning，不阻止保存。
-**红色 error = 只有前端本地 error 才显示。**
+后端分析 fire-and-forget，不阻止保存：
+- **后端 error：不展示。** 不透传原文，不降级为 warning。
+- 后端 warning：正常展示为 warning。
+- 网络失败：hint "网络暂时不稳，可以先保存"。
+- **红色 error = 只有前端本地 error 才显示。**
 
 ### 三、拼写提示降级
 
