@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8H-hotfix-real-validation — 修复 `runInputAnalysis` 中分析前 normalize 的触发条件。根因：写回条件比较了两边都已 normalize 的值（始终相等），导致写回从未触发。修复为比较原始 `form.englishText` 与 `normalizedText`。新增 18 个触发条件测试（共 211 个，全部通过）。
+Phase 8H completed — Add input validation and English content normalization stabilized. All 211 tests passing. Next phase pending product review.
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 看一看 / 继续看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,13 +10,14 @@ Phase 8H-hotfix-real-validation — 修复 `runInputAnalysis` 中分析前 norma
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8H-hotfix-real-validation | Fix runInputAnalysis normalize trigger condition | — | pending |
-| Phase 8H-hotfix | Local normalize before analysis + auto-category restore | — | pending |
-| Phase 8H-small-hotfix | English content normalization stabilization | — | pending |
-| Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | pending |
-| Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | pending |
-| Phase 8F-scene-memory-copy-polish | Strengthen scene memory copy in add/review pages | — | pending |
-| Phase 8E-cleanup-dead-home-and-history-code | Clean up dead reviewActions, status-overview-card CSS, history-stats-card CSS | — | pending |
+| Phase 8H-hotfix-real-validation | Fix runInputAnalysis normalize trigger condition | — | `6adccf1` |
+| Phase 8H-hotfix | Local normalize before analysis + auto-category restore | — | `0d5ff0c` |
+| Phase 8H-small-hotfix | English content normalization stabilization | — | `434a669` |
+| Phase 8G-hotfix-copy-inventory | Copy inventory, long-content copy unification, add-page-copy-inventory.md | — | `f86d3e1` |
+| Phase 8G-add-input-validation-ux-polish | Rewrite local validation rules, downgrade backend errors, spell hint demotion, network copy unification | — | `6eab0c2` |
+| Phase 8F-hotfix-and-add-input-validation-audit | Scene pill readability hotfix + add input validation audit doc | — | `8132411`, `15950ff` |
+| Phase 8F-scene-memory-copy-polish | Strengthen scene memory copy in add/review pages | — | `8132411` |
+| Phase 8E-cleanup-dead-home-and-history-code | Clean up dead reviewActions, status-overview-card CSS, history-stats-card CSS | — | `e607bc3` |
 | Phase 8D-hotfix-feedback-result-colors | Fix feedback result pill colors on today_reviewed / history_reviewed | — | `1742603` |
 | Phase 8D-home-lightweight | Remove home new-card prompt, lighten subtitle copy | — | pending |
 | hotfix-bulk-action-position | Move bulk action toolbar below filters, above card list | — | pending |
@@ -40,8 +41,8 @@ Phase 8H-hotfix-real-validation — 修复 `runInputAnalysis` 中分析前 norma
 
 ## Phase 8G-add-input-validation-ux-polish — 添加页英文输入校验 UX 精细化
 
-**提交：** frontend pending
-**文档：** `docs/add-input-validation-product-rules.md`（Phase 8G 更新版）
+**提交：** frontend `6eab0c2`（validation UX）+ `f86d3e1`（copy inventory）
+**文档：** `docs/add-input-validation-product-rules.md`（Phase 8G 更新版）、`docs/add-page-copy-inventory.md`（文案盘点）
 **测试：** `scripts/test-add-input-validation-cases.js`，109 用例全部通过
 
 ### 一、前端本地校验规则重写（全部 6 条，均为 error，均阻止保存）
@@ -118,6 +119,14 @@ Phase 8G 决策：**停止写入用户可见文案**到 `analysisWarnings`：
 - `Hunyuan → TMT → None` 例句生成链路不变
 - `today_review_status` 页面不变
 - `detectEnglishCategory` 自动分类逻辑不变
+
+### 八、Phase 8G-hotfix-copy-inventory（`f86d3e1`）
+
+- 超长文案统一为：`内容较长，建议拆分后再保存`
+- 新增 `docs/add-page-copy-inventory.md`，文案盘点共 54 条
+- 后端 error 不展示（Phase 8G 规则确认）
+- 文案盘点后仅保留"保存失败 / 更新失败 / 删除失败"等标准失败 toast
+- 保存成功 toast：新增 → `已保存`；编辑 → `已更新`（保留不改）
 
 ---
 
@@ -729,7 +738,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Phase 8H-small-hotfix — English Content Normalization Stabilization
 
-**提交：** frontend pending
+**提交：** frontend `434a669`
 **文档：** `docs/add-input-validation-product-rules.md`（Phase 8H 更新版）
 **测试：** `scripts/test-add-input-validation-cases.js`，159 用例全部通过（原 109 + 新增 50）
 
@@ -812,7 +821,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Phase 8H-hotfix — Local Normalize Before Analysis & Auto-Category Restore
 
-**提交：** frontend pending
+**提交：** frontend `0d5ff0c`
 **文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix 更新版）
 **测试：** `scripts/test-add-input-validation-cases.js`，193 用例全部通过（原 159 + 新增 34）
 
@@ -876,7 +885,7 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 
 ## Phase 8H-hotfix-real-validation — Fix runInputAnalysis Normalize Trigger Condition
 
-**提交：** frontend pending
+**提交：** frontend `6adccf1`
 **文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix-real-validation 更新版）
 **测试：** `scripts/test-add-input-validation-cases.js`，211 用例全部通过（原 193 + 新增 18）
 
@@ -989,6 +998,26 @@ if (this.data.form.englishText !== normalizedText) {
 - 字段可选，空值不展示。
 - 后端字段名 `where_encountered`，前端字段名 `whereEncountered`。
 
+### Add 页英文输入校验
+- 英文内容只允许英文，含中文汉字阻止保存。
+- 前端本地 6 条 error 规则：空内容、含中文、无英文、超长（>500 字符）、单词类别多词、短语类别单词。
+- 红色 error = 只有前端本地 error 才显示；后端 error 不展示。
+- 后端 warning 正常展示；网络失败统一提示"网络暂时不稳，可以先保存"。
+- 拼写 correction 降级为 hint（"也可能是：X。确认原词没问题的话，可以继续保存"），无 correction 的拼写 warning 隐藏。
+
+### Add 页英文内容规范化
+- 前端在分析前和保存前执行同一套低风险 normalize（10 步，见 Phase 8H-small-hotfix）。
+- 规范化不依赖后端，弱网/后端关闭时也生效。
+- 规范化只做格式清理（空格、标点、缩写），不做大小写、拼写、语法、表达改写。
+- 后端 normalizedText 不回写英文输入框。
+- 最终英文内容由前端本地 normalize + 用户输入决定。
+
+### Add 页自动类别识别
+- 新增卡片时，用户未手动选择类别则自动识别：单词 / 短语 / 句子。
+- 用户手动选择过类别后不再自动覆盖（`hasUserChangedCategory` guard）。
+- 编辑已有卡片时不自动乱改类别。
+- `U.S.`、`e.g.`、`Dr.` 等缩写不会因末尾句点误判为句子。
+
 ---
 
 ## What Is Fixed
@@ -1021,23 +1050,27 @@ if (this.data.form.englishText !== normalizedText) {
 
 ## Recommended Next Step
 
-**Phase 8D：继续清理首页和记录页的任务化残留文案**
+**Phase 8I/8J — Product review and acceptance**
 
-重点包括：
+1. **人工验收 Phase 8H normalization 效果**：
+   - 在 Add 页分别输入 `he 's`、`good   morning`、`hello\nworld`、`hello，world`、`HELLO`、`cluch`、`good job 👍`、`hello 你好`、`2024`
+   - 验证规范化行为、error 提示、hint 展示是否符合预期
 
-- 删除首页"学习新卡"模块（不再展示"还有 X 张新卡可以开始学习"/"学习 X 张新卡"）
-- 删除首页额外动态激励文案，只保留"今天还没看过卡片 / 今天看过 X 张 · 查看 ›"
-- 复习页"今日复习"标题改为"看一看"
-- 今日复习内容页改为"今天看过"（顶部导航标题、页面大标题）
-- 历史复习内容页改为"历史记录"（顶部导航标题、页面大标题）
-- 历史页右上角"历史复习内容 ›" → "历史记录 ›"
-- 删除"复习 X 次 / 本时段复习 X 次 / 未分类"等强统计或调试感展示
-- 今天看过页：筛选从"待加强 / 已掌握"改为"有点忘了 / 记得"
-- 历史页：筛选从"全部 / 想不起来 / 不太稳 / 已掌握"改为"全部 / 有点忘了 / 记得"
+2. **若验收通过，评估是否进入下一轮 UI 文案轻量化**：
+   - 复习页"今日复习"标题 → "看一看"
+   - 今天看过页标题确认
+   - 历史记录页标题确认
+   - 今天看过页筛选从"待加强 / 已掌握" → "有点忘了 / 记得"
+   - 历史页筛选从"全部 / 想不起来 / 不太稳 / 已掌握" → "全部 / 有点忘了 / 记得"
 
-新卡仍由"看一看 / 继续看"内部调度，不改 `new_only` 能力。底层算法和 session 逻辑不变。
+3. **暂不继续扩展以下能力**：
+   - 自动纠错 / 自动拼写替换
+   - 规范写法建议按钮
+   - 大小写自动修正
+   - 语法或表达改写
+   - 历史数据 normalize 迁移
 
-**不建议现在新增 Claude Code skill / command**。等产品调整稳定后再沉淀命令。
+底层复习调度规则和 session 逻辑不变。
 
 ---
 
@@ -1067,6 +1100,12 @@ if (this.data.form.englishText !== normalizedText) {
 
 | Commit | Phase | Description |
 |---|---|---|
+| `6adccf1` | 8H-hotfix-real-validation | fix runInputAnalysis normalize writeback trigger condition |
+| `0d5ff0c` | 8H-hotfix | local normalize before analysis + auto-category detection fix |
+| `434a669` | 8H-small-hotfix | English content normalization (10-step) + stop backend normalizedText writeback |
+| `f86d3e1` | 8G-hotfix-copy-inventory | copy inventory, long-content copy unification |
+| `6eab0c2` | 8G | rewrite add input validation UX rules |
+| `e607bc3` | 8E-cleanup | clean up dead home and history code |
 | `8d10689` | 8H | fix stale cache eviction for word/phrase with empty example sentence |
 | `1018f65` | 8H | document Phase 8H diagnostic and fix results |
 | `365fe20` | 8D | fix example generation cache and translation gate |
