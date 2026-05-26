@@ -6,7 +6,7 @@
       <picker
         class="settings-item-picker"
         mode="selector"
-        range="{{['3 张', '5 张', '10 张']}}"
+        range="{{dailyGoalLabels}}"
         value="{{dailyGoalIndex}}"
         bindchange="onDailyGoalChange"
       >

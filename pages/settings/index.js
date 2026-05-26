@@ -1,7 +1,7 @@
 const DAILY_GOAL_KEY = 'dailyGoal';
 const DAILY_GOAL_DEFAULT = 5;
-const DAILY_GOAL_OPTIONS = [3, 5, 10];
-const DAILY_GOAL_LABELS = ['3 张', '5 张', '10 张'];
+const DAILY_GOAL_OPTIONS = [3, 5, 10, 15];
+const DAILY_GOAL_LABELS = ['3 张', '5 张', '10 张', '15 张'];
 
 function readDailyGoal() {
   try {
@@ -27,7 +27,8 @@ Page({
   data: {
     dailyGoal: DAILY_GOAL_DEFAULT,
     dailyGoalIndex: 1,
-    dailyGoalLabel: '5 张'
+    dailyGoalLabel: '5 张',
+    dailyGoalLabels: DAILY_GOAL_LABELS
   },
 
   onShow() {

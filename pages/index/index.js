@@ -23,7 +23,7 @@ const {
 
 const DAILY_GOAL_KEY = 'dailyGoal';
 const DAILY_GOAL_DEFAULT = 5;
-const DAILY_GOAL_OPTIONS = [3, 5, 10];
+const DAILY_GOAL_OPTIONS = [3, 5, 10, 15];
 
 function readDailyGoal() {
   try {
@@ -37,8 +37,9 @@ function readDailyGoal() {
 }
 
 // Map dailyGoal to a valid backend limit (VALID_LIMITS = {5, 10, 15}).
-// dailyGoal=3 → 5 (backend minimum), dailyGoal=10 → 10.
+// dailyGoal=3 → 5 (backend minimum), dailyGoal=10 → 10, dailyGoal=15 → 15.
 function dailyGoalToLimit(goal) {
+  if (goal === 15) return 15;
   if (goal === 10) return 10;
   return 5;
 }

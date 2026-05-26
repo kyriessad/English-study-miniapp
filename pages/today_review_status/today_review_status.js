@@ -5,7 +5,7 @@ const TODAY_REVIEWED_CACHE_KEY = 'todayReviewedCache';
 
 const DAILY_GOAL_KEY = 'dailyGoal';
 const DAILY_GOAL_DEFAULT = 5;
-const DAILY_GOAL_OPTIONS = [3, 5, 10];
+const DAILY_GOAL_OPTIONS = [3, 5, 10, 15];
 
 function readDailyGoal() {
   try {

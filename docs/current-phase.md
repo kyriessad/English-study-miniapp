@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Fix review batch size setting — 每次看几张设置现已对所有 session 类型生效。
+Extend review batch size options — 每次看几张新增 15 张选项，选项范围扩展为 3 / 5 / 10 / 15。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Fix review batch size setting — 每次看几张设置现已对所有 session �
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| extend-batch-size-options | Extend: 每次看几张选项扩展为 3 / 5 / 10 / 15；更新 5 个前端文件 + 后端 VALID_DAILY_GOALS；测试脚本扩展至 53 个用例 | pending | pending |
 | fix-review-batch-size | Fix: `limit:5` hardcoded in all session creation paths → `dailyGoalToLimit(readDailyGoal())`；新增 37 个测试用例 | — | pending |
 | Phase about-polish | About page: update desc copy, add 怎么使用 4-step block, add 联系开发者 modal with email copy | — | pending |
 | Release-P1-copy-alignment | Copy P1: align result labels (没想起/有点模糊/记得/很熟) in today_reviewed & history_reviewed; review page title → "查看卡片" | — | pending |
@@ -42,6 +43,62 @@ Fix review batch size setting — 每次看几张设置现已对所有 session �
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+## extend-batch-size-options — 每次看几张扩展为 3 / 5 / 10 / 15 张
+
+**提交：** frontend pending / backend pending
+**测试：** `scripts/test-review-batch-size.js`，53 个用例全部通过
+
+### 根因 / 原限制
+
+"每次看几张"选项列表在以下位置硬编码为 `[3, 5, 10]`：
+- `pages/settings/index.js` — `DAILY_GOAL_OPTIONS` / `DAILY_GOAL_LABELS`
+- `pages/settings/index.wxml` — picker `range` 内联字符串
+- `pages/index/index.js` — `DAILY_GOAL_OPTIONS` + `dailyGoalToLimit`（仅映射到 10）
+- `pages/today_review_status/today_review_status.js` — `DAILY_GOAL_OPTIONS`（15 会 fallback 到 5）
+- `scripts/test-review-batch-size.js` — 测试常量
+- 后端 `app/services/review_rules.py` — `VALID_DAILY_GOALS = {3, 5, 10}`（15 被 fallback 到 5）
+
+### 修改
+
+| 文件 | 改动 |
+|---|---|
+| `pages/settings/index.js` | `DAILY_GOAL_OPTIONS` / `DAILY_GOAL_LABELS` 增加 15；`data` 新增 `dailyGoalLabels` |
+| `pages/settings/index.wxml` | `range` 从内联字符串改为 `{{dailyGoalLabels}}` 数据绑定 |
+| `pages/index/index.js` | `DAILY_GOAL_OPTIONS` 增加 15；`dailyGoalToLimit` 增加 `15 → 15` 分支 |
+| `pages/today_review_status/today_review_status.js` | `DAILY_GOAL_OPTIONS` 增加 15 |
+| `scripts/test-review-batch-size.js` | 测试从 37 个扩展到 53 个（含 dailyGoal=15 全覆盖） |
+| `app/services/review_rules.py` | `VALID_DAILY_GOALS = {3, 5, 10, 15}` |
+
+### 产品规则
+
+| 选项 | 前端保存值 | 后端 limit | 说明 |
+|---|---|---|---|
+| 3 张 | 3 | 5 | 后端最小合法 limit 为 5；`daily_suggested` 通过 `daily_goal=3` 控制实际数量 |
+| 5 张 | 5 | 5 | 直接映射 |
+| 10 张 | 10 | 10 | 直接映射 |
+| 15 张 | 15 | 15 | 直接映射；`VALID_LIMITS = {5, 10, 15}` 已包含 15 |
+
+### 默认值、非法值、未完成 session
+
+- 默认值：5（不变）
+- 非法值（0 / 1 / 7 / 20 / abc / undefined）：fallback 到 5（不变）
+- 有未完成 session 时点击"继续查看"直接跳转原 session，不受新设置影响（不变）
+- 当前卡片不足时实际 session 返回更少卡片，不算 bug（不变）
+
+### 不做的内容
+
+- 不做自由输入、不做"自定义"选项、不做 20 张选项
+- 不做根据卡片数量动态显示或隐藏选项
+- 不改数据库 schema，不新增 migration
+
+### 未改内容
+
+- 4 档反馈、回炉逻辑、`review_state` 枚举、`ReviewSession`、调度链不变
+- Phase 8J repeat item cap 不变
+- `apiClient.js` 后端地址不变
 
 ---
 
