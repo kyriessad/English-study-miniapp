@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Extend review batch size options — 每次看几张新增 15 张选项，选项范围扩展为 3 / 5 / 10 / 15。
+Release-Planning-Docs — 建立发布前项目控制文档（roadmap / release-checklist / ai-working-rules）。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Extend review batch size options — 每次看几张新增 15 张选项，选项
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | pending |
 | extend-batch-size-options | Extend: 每次看几张选项扩展为 3 / 5 / 10 / 15；更新 5 个前端文件 + 后端 VALID_DAILY_GOALS；测试脚本扩展至 53 个用例 | pending | pending |
 | fix-review-batch-size | Fix: `limit:5` hardcoded in all session creation paths → `dailyGoalToLimit(readDailyGoal())`；新增 37 个测试用例 | — | pending |
 | Phase about-polish | About page: update desc copy, add 怎么使用 4-step block, add 联系开发者 modal with email copy | — | pending |
@@ -43,6 +44,38 @@ Extend review batch size options — 每次看几张新增 15 张选项，选项
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+## Release-Planning-Docs — 发布前项目控制文档
+
+**提交：** frontend pending
+**类型：** docs only — 不涉及任何业务代码改动
+
+### 新增文档
+
+| 文档 | 说明 |
+|---|---|
+| `docs/roadmap.md` | P0/P1/P2 发布路线图；P0 最大阻断项为生产 HTTPS 后端、微信合法域名、前端 BACKEND_BASE_URL |
+| `docs/release-checklist.md` | 人工验收清单（15 大类，覆盖部署、域名、添加卡片、首页、复习、四档反馈、回炉、今日看过、历史、设置、离线、真机、接口验证） |
+| `docs/ai-working-rules.md` | Claude Code 工作规则（必读顺序、任务模式、验证命令、强禁区、提交规则、文档更新时机） |
+
+### 本次 docs 覆盖的背景
+
+基于 2026-05-27 对 `English-analyzer-backend` 的只读审查，主要发现：
+- `app/database.py` 有 SQLite 静默 fallback（P0 风险）
+- `alembic.ini` 硬编码 SQLite URL（被 `env.py` 运行时覆盖，P1 级别）
+- `app/main.py` 无 CORS middleware（小程序不需要，P2 级别）
+- 无 systemd 服务文件、无 Nginx 配置（P0 运维项）
+- `utils/apiClient.js` BACKEND_BASE_URL 仍为 `http://127.0.0.1:8001`（P0 发布阻断）
+
+### 未改内容
+
+- 业务代码（JS/WXML/WXSS/Python）不变
+- 数据库 schema 不变，无新增 migration
+- 复习规则、4 档反馈、回炉逻辑不变
+- `today_review_status` 页面不变
+- apiClient.js 后端地址不变（发布前由 P0-4 专项处理）
 
 ---
 
