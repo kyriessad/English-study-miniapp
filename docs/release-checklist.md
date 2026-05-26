@@ -6,15 +6,35 @@
 
 ---
 
+## 零、发布前仓库清洁检查
+
+提交审核前必须确认仓库状态干净，无敏感文件和开发占位符。
+
+- [ ] `git status --short` 输出为空（无未提交的改动）
+- [ ] `utils/localBackendConfig.js` 未被提交（确认未在 git status 中出现）
+- [ ] `.env` 未被提交（`git log --all -- .env` 无输出）
+- [ ] `project.private.config.json` 未被提交
+- [ ] `settings.local.json` 未被提交
+- [ ] 非 docs 代码中无 `127.0.0.1:8001`（`grep -r "127.0.0.1:8001" pages/ utils/` 无输出）
+- [ ] 非 docs 代码中无局域网 IP（`grep -r "192\.168\.\|10\.\." pages/ utils/` 无输出）
+- [ ] 非 docs 代码中无占位符域名 `api.yourdomain.com`（`grep -r "api.yourdomain.com" pages/ utils/` 无输出）
+- [ ] 非 docs 代码中无密钥值（`HUNYUAN_API_KEY`、`WECHAT_SECRET`、`JWT_SECRET_KEY` 的实际值未出现在代码中）
+
+---
+
 ## 一、后端部署验证
 
 - [ ] 服务器可 SSH 访问
 - [ ] PostgreSQL 已运行，数据库和用户已创建
 - [ ] 生产 `.env` 已配置：`DATABASE_URL`（PostgreSQL）、`JWT_SECRET_KEY`、`HUNYUAN_API_KEY`、`WECHAT_APPID`、`WECHAT_SECRET`
+- [ ] **人工确认 `DATABASE_URL` 以 `postgresql://` 开头，不是 `sqlite:///`**（`app/database.py` 在 URL 未设置时静默 fallback 到 SQLite，必须人工核查）
 - [ ] `alembic upgrade head` 已运行，输出无 ERROR，所有 migration 已应用
 - [ ] uvicorn 服务已启动，`GET /health` 返回 `{"status":"ok"}`
-- [ ] systemd 服务已启用（`systemctl status english-backend` 为 active (running)）
+- [ ] systemd 服务已启用（`systemctl status english-backend` 为 active (running)），且设置了 `Restart=on-failure`
+- [ ] systemd 服务使用 `EnvironmentFile` 或 `Environment=` 加载 `.env` 中的密钥，而非依赖 shell 环境
 - [ ] Nginx 配置已生效，`curl -I https://api.yourdomain.com/health` 返回 HTTP 200
+- [ ] Nginx 配置包含 `proxy_set_header Host`、`proxy_set_header X-Forwarded-For`、`proxy_set_header X-Forwarded-Proto`
+- [ ] Nginx `proxy_read_timeout` 已设置（建议 60s 以上，AI 分析接口可能较慢）
 - [ ] HTTP 请求自动跳转 HTTPS（`curl -I http://api.yourdomain.com/health` 返回 301/302）
 - [ ] HTTPS 证书有效期 > 30 天（`certbot certificates` 确认）
 
@@ -153,10 +173,10 @@
 
 ## 十三、离线与弱网
 
-- [ ] 断网情况下添加卡片，保存后卡片出现在本地列表（offline 标识或静默）
-- [ ] 断网情况下首页显示缓存卡片，带离线提示（"网络恢复后会更新学习记录"）
+- [ ] 断网情况下添加卡片：toast 显示"已保存"；首页立即出现该卡片；首页底部显示"网络恢复后会更新学习记录"
+- [ ] 断网情况下首页显示缓存卡片，底部显示"网络恢复后会更新学习记录"
 - [ ] 断网情况下今天看过页显示缓存数据
-- [ ] 断网情况下历史页显示缓存数据或提示"当前无网络连接，暂时无法查看"
+- [ ] 断网情况下历史页：有本地缓存时显示缓存数据；无缓存时显示"当前无网络连接，暂时无法查看"
 - [ ] 恢复网络后，pending 卡片自动同步到后端（首页 onShow 触发）
 - [ ] 离线状态下复习反馈无法提交时，弹 toast "网络连接异常，请检查网络后再试"，停留在当前卡片
 
@@ -176,9 +196,106 @@
 
 ## 十五、生产后端接口验证
 
+以下接口路径均已通过 grep `app/routers/` 和 `app/main.py` 代码核实。
+
 - [ ] `GET https://api.yourdomain.com/health` → `{"status":"ok"}`
-- [ ] `POST https://api.yourdomain.com/api/auth/wechat-login` → 返回 JWT token（小程序登录流程）
-- [ ] `GET https://api.yourdomain.com/api/auth/me`（携带 Bearer token）→ 返回用户信息
-- [ ] `POST https://api.yourdomain.com/api/analyze-english`（传入 `{"text":"clutch","cardType":"word","targetLang":"zh"}`）→ 返回翻译 + 例句
-- [ ] `GET https://api.yourdomain.com/api/cards`（携带 Bearer token）→ 返回卡片列表
-- [ ] `POST https://api.yourdomain.com/api/reviews/sessions`（携带 Bearer token）→ 创建复习 session 返回 items
+- [ ] `POST https://api.yourdomain.com/api/auth/wechat-login` → 返回 JWT token（核实：`app/routers/auth.py` `prefix="/api/auth"`）
+- [ ] `GET https://api.yourdomain.com/api/auth/me`（携带 Bearer token）→ 返回用户信息（核实：同上）
+- [ ] `POST https://api.yourdomain.com/api/analyze-english`（传入 `{"text":"clutch","cardType":"word","targetLang":"zh"}`）→ 返回翻译 + 例句（核实：`app/main.py:30`）
+- [ ] `GET https://api.yourdomain.com/api/cards`（携带 Bearer token）→ 返回卡片列表（核实：`app/routers/cards.py` `prefix="/api/cards"`）
+- [ ] `POST https://api.yourdomain.com/api/review-sessions`（携带 Bearer token）→ 创建复习 session 返回 items（核实：`app/routers/reviews.py` `review_sessions_router` `prefix="/api/review-sessions"`）
+- [ ] `GET https://api.yourdomain.com/api/reviews/today-reviewed`（携带 Bearer token）→ 返回今日复习列表（核实：`app/routers/reviews.py:1447`）
+- [ ] `GET https://api.yourdomain.com/api/reviews/history`（携带 Bearer token）→ 返回历史复习列表（核实：`app/routers/reviews.py:838`）
+- [ ] `GET https://api.yourdomain.com/api/reviews/history/summary`（携带 Bearer token）→ 返回历史统计摘要（核实：`app/routers/reviews.py:962`）
+
+---
+
+## 十六、新用户从零使用验收
+
+- [ ] 用全新微信账号（从未登录过）扫体验版码，小程序正常打开
+- [ ] 首次打开完成微信登录（`wx.login` → JWT token），无报错
+- [ ] 无卡片时首页显示空状态引导区，不崩溃
+- [ ] 添加第一张卡片：输入英文、填写理解，点击保存，toast 显示"已保存"
+- [ ] 保存后首页出现该卡片，内容正确
+- [ ] 点击卡片可查看详情 / 进入编辑
+
+---
+
+## 十七、多用户数据隔离验收
+
+- [ ] 用微信账号 A 登录，添加卡片"hello"
+- [ ] 用微信账号 B 登录，确认首页不显示账号 A 的"hello"卡片
+- [ ] 账号 B 的复习历史、今天看过页面均不显示账号 A 的数据
+- [ ] 账号 A 和账号 B 各自的今日看过数量互不影响
+
+---
+
+## 十八、隐私保护指引验收
+
+- [ ] 微信公众平台 → 设置 → 隐私设置中，隐私保护指引已配置并与当前版本对应
+- [ ] 隐私指引中声明的信息收集类型（用户输入内容、学习记录、微信登录标识、AI 分析调用）与实际实现一致
+- [ ] 小程序首次需要用户授权时弹窗正常显示（不跳过）
+- [ ] 用户拒绝授权时功能降级提示合理（非强制性、非崩溃）
+
+---
+
+## 十九、AI 服务失败降级验收
+
+- [ ] 模拟 Hunyuan 不可用（临时关闭 HUNYUAN_API_KEY）：添加卡片时 AI 分析失败，前端显示"网络暂时不稳，可以先保存"（不暴露错误详情）
+- [ ] 用户仍可点击保存，卡片正常保存，toast 显示"已保存"
+- [ ] 主流程（首页、查看卡片、今天看过、历史）不依赖 AI 分析，正常可用
+- [ ] 恢复 Hunyuan 配置后，新输入的卡片 AI 分析恢复正常
+
+---
+
+## 二十、服务重启验收
+
+- [ ] 执行 `systemctl restart english-backend` 后，`GET /health` 返回 `{"status":"ok"}`
+- [ ] 重启后已有用户的卡片数据仍可正常访问（数据库持久化正常）
+- [ ] Nginx 仍正常转发请求（`curl -I https://api.yourdomain.com/health` 返回 200）
+- [ ] systemd 服务设置了 `Restart=on-failure`，确认崩溃后自动拉起
+- [ ] `journalctl -u english-backend --since today` 无 ERROR 级别日志
+
+---
+
+## 二十一、数据库备份验收
+
+- [ ] 手动执行 `pg_dump` 导出成功，备份文件存在且可读
+- [ ] 记录恢复命令（如 `psql -U user -d dbname < backup.sql`）并存档
+- [ ] 备份文件已上传到服务器本机以外的安全位置（对象存储 / 本地备份）
+- [ ] 自动备份定时任务（cron 或 systemd timer）已配置并验证可运行
+
+---
+
+## 二十二、体验版灰度验收
+
+- [ ] 微信开发者工具已上传体验版，版本号正确
+- [ ] 非开发者体验成员扫码打开体验版，无"无权限"提示
+- [ ] iOS 真机（非开发者账号）：完整走一遍添加卡片 → 查看卡片 → 反馈 → 今天看过 → 历史流程
+- [ ] Android 真机（非开发者账号）：同上
+- [ ] 远程调试（微信开发者工具 → 真机调试）console 无关键报错（无红色 Error）
+
+---
+
+## 二十三、回滚预案验收
+
+- [ ] 确认知道如何回滚前端版本（微信公众平台 → 版本管理 → 切换版本）
+- [ ] 确认知道如何回滚后端代码（`git checkout <stable-commit>` + `systemctl restart english-backend`）
+- [ ] 确认知道如何回滚 Nginx 配置（`nginx -t` + `systemctl reload nginx`）
+- [ ] 数据库 migration 不随意 downgrade，发布前已完成 `pg_dump` 备份
+- [ ] 回滚操作文档（或本文档该节）已告知参与发布的人员
+
+---
+
+## 二十四、审核提交前检查
+
+在微信公众平台点击"提交审核"前逐项确认。
+
+- [ ] 小程序名称已填写完整，符合微信规范，无违禁词
+- [ ] 小程序头像（图标）已上传，清晰无违规内容
+- [ ] 小程序简介已填写，准确描述核心功能，不夸大不误导
+- [ ] 服务类目已选择，与实际功能匹配
+- [ ] 隐私保护指引已在微信公众平台配置完成（见十八节）
+- [ ] 本次提交的版本说明已填写（描述本次更新内容）
+- [ ] 审核说明已填写（如有 AI 生成内容，说明 AI 来源和用途；如功能需登录，提供测试账号说明）
+- [ ] 体验版已完成灰度测试，无严重问题（见二十二节）

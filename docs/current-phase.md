@@ -2,15 +2,18 @@
 
 ## Current Phase
 
-Release-Planning-Docs — 建立发布前项目控制文档（roadmap / release-checklist / ai-working-rules）。
+Release-Control-Docs-Completeness — 完善发布控制文档（roadmap / release-checklist / ai-working-rules）。
 
-**整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
+**本次只改文档，不改业务代码，不代表实际完成部署。**
+
+整体方向不变：不删除底层复习系统，弱化前端"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | pending |
+| Release-Control-Docs-Completeness | Docs only: 完善 roadmap / release-checklist / ai-working-rules；补充发布合规、安全、备份、登录、多用户隔离、AI 降级、灰度、回滚；修正 pending commit 状态；修正 session 创建接口路径为 /api/review-sessions；补充审核材料准备、SQLite fallback 人工确认、systemd/Nginx 细节、发布前仓库清洁检查、接口路径全量核实、禁止主动重命名核心文档规则；恢复原始 docs 文件路径 | — | pending |
+| Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | `63bff0c` |
 | extend-batch-size-options | Extend: 每次看几张选项扩展为 3 / 5 / 10 / 15；更新 5 个前端文件 + 后端 VALID_DAILY_GOALS；测试脚本扩展至 53 个用例 | pending | pending |
 | fix-review-batch-size | Fix: `limit:5` hardcoded in all session creation paths → `dailyGoalToLimit(readDailyGoal())`；新增 37 个测试用例 | — | pending |
 | Phase about-polish | About page: update desc copy, add 怎么使用 4-step block, add 联系开发者 modal with email copy | — | pending |
@@ -44,6 +47,54 @@ Release-Planning-Docs — 建立发布前项目控制文档（roadmap / release-
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+## Release-Control-Docs-Completeness — 完善发布控制文档
+
+**提交：** frontend pending（本次尚未提交，等用户确认后再提交）
+**类型：** docs only — 不涉及任何业务代码改动，不代表实际完成部署
+
+### 修改文件
+
+| 文件 | 主要改动 |
+|---|---|
+| `docs/roadmap.md` | 新增 P0-6 ~ P0-13（发布合规、安全、备份、登录隔离、AI 降级、灰度、回滚）；修正 P1-5/P1-6 pending commit（git log 核实均已提交）；新增 P1-7 ~ P1-11（日志、监控、告警、限流、反馈入口）；扩充 P2；**新增** P0-14 审核材料准备（从 P1-11 提升）；**新增** P0-15 发布前仓库清洁检查；**扩充** P0-1 systemd/Nginx 细节（EnvironmentFile、restart 策略、proxy headers、proxy_read_timeout）；**明确** P0-9 SQLite fallback 为人工确认项，P1-1 代码断言计划后续加入但本次未实现 |
+| `docs/release-checklist.md` | 修正 session 创建接口路径为 `/api/review-sessions`；**全量核实** 9 个生产接口路径（通过 grep `app/routers/` 和 `app/main.py`）；**新增** 接口 `/api/reviews/today-reviewed`、`/api/reviews/history`、`/api/reviews/history/summary`；**新增** 零节：发布前仓库清洁检查；**具体化** 离线验收预期（去除"或"歧义，以代码中实际文案为准）；**新增** 二十四节：审核提交前检查；**补充** 一节 systemd/Nginx 验证项 |
+| `docs/ai-working-rules.md` | 新增 Audit-Then-Hotfix 模式；收紧 Readonly Audit Bash 白名单；明确"允许提交"与"要求提交"的区别；新增"关键事实以代码为准"和"发布/部署任务特殊规则"两节；移除 commit message 模板中的硬编码模型版本；**新增** 十一节：禁止主动重命名核心文档；**新增** 十二节：路径兼容规则；**新增** 十三节：current-phase 状态规则 |
+| `docs/current-phase.md` | 修正本节文件路径（从数字前缀恢复为原始路径）；记录本次补充重点；明确 pending 状态 |
+
+### 重点修正（以代码/git log 核实）
+
+| 修正项 | 核实方式 | 结果 |
+|---|---|---|
+| session 创建接口路径 | grep `review_sessions_router` + main.py `include_router` | 真实路径为 `POST /api/review-sessions`（`reviews.py:58+1153`） |
+| `/api/reviews/today-reviewed` | grep `@router.get` in `reviews.py` | 真实路径存在（`reviews.py:1447`） |
+| `/api/reviews/history` | grep `@router.get` in `reviews.py` | 真实路径存在（`reviews.py:838`） |
+| `/api/reviews/history/summary` | grep `@router.get` in `reviews.py` | 真实路径存在（`reviews.py:962`） |
+| `POST /api/analyze-english` | grep `app/main.py` | 真实路径存在（`main.py:30`） |
+| 前端 pending commits | `git log --oneline` 核实 | 7 个 pending phase 全部已提交（e3009f9 / 1008751 / 537bc56 / e99aaab / 4d2caa4 / b753bf1 / 9143346） |
+| 后端 pending commit | `git log --oneline` 核实 | extend-batch-size-options 已提交 121b565 |
+| 离线 toast 文案 | grep `pages/add/add.js`、`pages/index/index.wxml` | 首页离线提示实际文案为"网络恢复后会更新学习记录"；保存 toast 为"已保存"/"已更新" |
+
+### 本次补充重点（2026-05-27 第二轮）
+
+1. **恢复原始 docs 文件路径**：将数字前缀文件（01roadmap.md 等）迁回原始路径（roadmap.md 等），删除数字前缀文件
+2. **补充审核材料准备**：从 P1-11 提升为 P0-14，包含名称/图标/简介/类目/版本说明/隐私指引/审核说明/截图
+3. **明确 SQLite fallback 人工确认**：P0-9 明确为人工确认步骤，P1-1 明确代码断言计划后续加入但本次未实现
+4. **补充 systemd / Nginx 细节**：P0-1 和 release-checklist 一节新增 EnvironmentFile、Restart 策略、proxy headers、proxy_read_timeout
+5. **补充发布前仓库清洁检查**：P0-15 + release-checklist 零节
+6. **接口路径全量核实**：通过 grep router 代码核实 9 个接口路径，release-checklist 十五节补充 today-reviewed、history、history/summary
+7. **禁止主动重命名核心文档**：ai-working-rules 十一/十二/十三节
+
+### 未改内容
+
+- 业务代码（JS/WXML/WXSS/Python）不变
+- 数据库 schema 不变，无新增 migration
+- 复习规则、4 档反馈、回炉逻辑不变
+- `today_review_status` 页面不变
+- `docs/product-features.md` 不变（从 git HEAD 原始恢复，无内容改动）
+- 本次文档描述的发布步骤均为"待执行"，不代表已部署或已配置
 
 ---
 
@@ -500,19 +551,6 @@ review session / feedback / dailyGoal 业务逻辑、接口、数据结构、历
 
 ---
 
-## Phase 8F-readonly — validate_english Classification Review
-
-**类型：** read-only audit，无代码提交。
-
-### 核心发现
-- `clutch` / `crave` 等普通词分类为 `word`，正确进入 Hunyuan。
-- `commit guilty` 实际分类为 `phrase`，问题不是分类，而是不自然短语 + 校验不通过。
-- `well-known` / `full-time` / `follow-up` / `e-mail` 等连字符词被 Rule 3 判 `unknown`，不进入 Hunyuan → 延至 Phase 8H 修复。
-- `U.S.` / `e.g.` / `Dr.` 等缩写句点被 SENTENCE_END_RE 判 `sentence` → 延至 Phase 8I 修复。
-- 没有 `[hunyuan][diag]` 日志时，优先怀疑分类、缓存、API key、接口路径，而非直接怀疑模型。
-
----
-
 ## Phase 8H — Full-Coverage Diagnosis & Stale Cache / Hyphen Fix
 
 **提交：**
@@ -578,686 +616,63 @@ Hunyuan prompt、model、温度、TMT fallback 模板、例句持久化、数据
 | #N/A | phrase | **unknown** | N |
 | 2024 | unknown | unknown | N |
 
-### 三、Example Validation 重写
-
-**`_text_in_sentence`（`app/services/hunyuan_example.py`）**
-
-| 输入类型 | 校验行为 |
-|---|---|
-| 单词 | 精确子串检查 + 词形集合 token 匹配 |
-| 短语 | 精确子串检查 + **仅第一词**词形变化，其余词**连续出现** |
-
-**新增 `_IRREGULAR_FORMS` 表**（36 个常见不规则动词）和 **`_generate_word_forms(base)`**：
-- 不规则形式（break→broke/broken、give→gave/given、come→came 等）
-- 规则 +s / +ed / +ing
-- e 结尾去 e（crave→craving/craved）
-- y→ies/ied（study→studied）
-- 同化结尾 +es（watch→watches）
-
-### 四、词形校验对照
-
-| input | example sentence | old | new | reason |
-|---|---|---|---|---|
-| crave | She craves chocolate. | pass | pass | "crave" 是 "craves" 子串 |
-| crave | He was craving attention. | pass | pass | e-stem: craving |
-| avoid | She avoided the question. | pass | pass | "avoid" 是 "avoided" 子串 |
-| break out | A fire broke out last night. | **fail** | **pass** | 短语词形：broke out |
-| give up | She gave up smoking. | **fail** | **pass** | 短语词形：gave up |
-| pick up | He picked up the phone. | **fail** | **pass** | 短语词形：picked up |
-| crave | She really wanted chocolate. | fail | fail | 纯同义替换 |
-| break a leg | Good luck with your interview. | fail | fail | 无 break a leg 形式 |
-| commit guilty | He was found guilty of committing a crime. | fail | fail | committing + guilty 不连续 |
-
-### 五、硬编码白名单声明
-- 分类规则基于字符集结构（`[A-Za-z0-9.\-'']+` + `_has_english`），非样例列表。
-- 缩写检测基于段长通用规则（每段 1-4 字母）。
-- 词形基于通用生成规则（+s/ed/ing/e-stem/y-stem）+ 不规则动词补充表。
-- COVID-20 / GPT-5 / part-time / co-founder / avoided / admiring / picked up 等同类词无需新增白名单即可适配。
-
-### 六、测试
+### 三、测试
 - 新增 51 个测试（AlphanumericClassificationTest、AlphanumericExampleChainTest、ExampleValidationTest）。
 - 更新 2 个旧测试（`test_covid19_is_unknown` → `test_covid19_is_word` 等）。
 - 全量：86/86 unit + 269/269 全量通过。
 
 ---
 
-## Phase 8I-2-readonly — Substring False Positive Review
-
-**Status:** Completed (2026-05-21) — readonly，无代码提交。
-
-### 复核结论
-
-复核 `_text_in_sentence` 对单词使用的 `text in sentence.lower()` 裸 substring 检查，针对以下短词风险样本逐项审查：
-
-| input | 风险 | 复核结果 |
-|---|---|---|
-| he | "he" in "the"/"she"/"here" | Hunyuan 自然生成的含 "he" 例句均为独立 token，未触发 false positive |
-| art | "art" in "party"/"started" | 同上 |
-| in | "in" in "interesting"/"going" | 同上 |
-| go | "go" in "logo"/"undergo" | 同上 |
-| be | "be" in "because"/"better" | 同上 |
-
-**结论：未发现裸 substring false positive。** Hunyuan prompt 要求生成自然完整英语句子，短词实际出现时均为词边界内的独立 token。
-
-### 保留项
-- 词形变化规则（`_generate_word_forms` + `_IRREGULAR_FORMS` + 短语第一词变化）暂时保留，不因本次复核通过而简化。
-- 不加词边界 `\b` 检查 — 当前逻辑在实际模型中已验证安全，不引入提前优化。
-
----
-
-## Phase 8A-home-review-navigation-lightweight — Lighten Home Review Entry
-
-**提交：** frontend pending
-
-### 变更内容
-
-#### 删除首页今日目标大卡片
-
-- 移除 `status-overview-card`（展示"今日目标 X/Y"、进度条的卡片）
-- 移除 `onStatusOverviewTap` 在 WXML 中的引用（函数保留，不删除）
-
-#### 新增轻量今日复习入口
-
-- 有今日复习记录（`actualCompletedToday > 0`）：显示"今天看过 X 张 · 查看 ›"，点击进入 `today_reviewed`
-- 无今日复习记录：显示"今天还没复习"（静态，不可点击）
-- 入口位于 header 区域，subtitle 下方
-
-#### 复习按钮文案改为"复习一下"
-
-- goal_blocked 状态的"继续复习"改为"复习一下"
-- 普通状态的 `{{reviewButtonLabel}}` 改为"复习一下"
-- `goToReview` 业务逻辑（fallback chain）不变
-
-#### 简化 dailyStatusMessage（去掉目标导向文案）
-
-- 超额完成："今天已完成 N 张，超额完成" → "今天复习了不少，继续加油"
-- 恰好完成："今日目标已完成" → "今天的复习完成了"
-- 其他状态文案不变
-
-#### 复习完成后跳转改为 today_reviewed
-
-- `review.js` 中 `response.done` 时的 `wx.redirectTo` 改为 `/pages/today_reviewed/today_reviewed?from=review_complete`
-- `navigateToTodayReviewStatus()` 函数未被调用，保留但不修改
-
-### 未改
-
-- 后端、数据库 schema 不变
-- review session / feedback / 4档反馈逻辑不变
-- daily_suggested / new_only / free_review 复习调度规则不变
-- today_review_status 页面代码保留，未删除
-- 历史页内部逻辑不变
-- 不新增底部导航栏
-
----
-
-## Phase 8L-3-hotfix — Simplify Not-Started State in Today Review Status
-
-**提交：** frontend `f2ba18b` simplify empty today review status page
-
-### 变更内容
-
-#### today_review_status `not_started` 状态精简
-
-`not_started` 状态：今天有复习任务（`displayTotal > 0`）但 `actualCompletedToday == 0`，即今天还没有开始复习。
-
-**页面标题区**：
-- 将 `<view class="status-page-title">` 外包 flex header 行
-- `not_started` 时右侧显示弱链接"历史复习内容 ›"（点击走 `onHistoryTap` → `history_index`）
-- 其他状态标题行不变（历史链接不显示）
-
-**not_started 主体**：
-- 保留：hero 图标 `●`、标题"今日完成 0 / N"、副文案"还没开始，今天先复习一点"
-- 保留：绿色主按钮"开始复习"（`onMainButtonTap` → `_startReview`）
-- 保留：底部"每日目标 N 张 调整 ›"（所有状态共用，未改）
-- **移除**：disabled 入口"暂无复习内容"（卡片式按钮）
-- **移除**：secondary 区域内的"查看历史复习内容"大按钮（移至标题行弱链接）
-
-### 判断字段
-
-- `state === 'not_started'`：`displayCompleted === 0 && displayTotal > 0`
-- `actualCompletedToday`：来自 `goalProgress.completed_unique_today`（无 goal_progress 时用 `completedToday`）
-
-### 未改
-
-- 其他状态（in_progress、goal_blocked、all_done、overachieved、offline_cached）的展示逻辑完全不变
-- `_startReview` 业务逻辑不变
-- 复习完成 redirect 链路（review.js）不变
-- 历史页内部逻辑不变
-- 离线状态（`offline_cached`、`loadFailed`）不变
-
----
-
-## Phase 8L-2-hotfix — Home Goal Card Dual Routing + Today Reviewed History Link
-
-**提交：** frontend `9d88c8b` adjust home goal card routing and today reviewed history link
-
-### 变更内容
-
-#### 首页今日目标板块
-
-- `actualCompletedToday > 0`（今日已复习卡片数 > 0）：跳转到 `today_reviewed`（今日复习内容页）
-- `actualCompletedToday == 0`：跳转到 `today_review_status`（今日复习情况页），用户看到 `not_started` 引导态（页面精简版见 Phase 8L-3-hotfix）
-- 右侧箭头 `›` 在所有状态下均显示（0/5、2/5、5/5、超额均显示）
-- hover-class 在所有状态下均生效
-- 判断依据：`actualCompletedToday`（= `goal_progress.completed_unique_today`，当天 distinct card_id 计数），与 dailyGoal 是否完成无关
-
-**最终状态行为（含 Phase 8L-3-hotfix 后）：**
-
-| 首页状态 | 箭头 | 点击跳转 |
-|---|---|---|
-| 0/5 — 今日未复习任何卡片 | 显示 | today_review_status（not_started 引导态） |
-| 2/5 — 已复习部分 | 显示 | today_reviewed（今日复习内容页） |
-| 5/5 — 恰好完成 | 显示 | today_reviewed |
-| 超额完成 | 显示 | today_reviewed |
-
-#### 今日复习内容页右上角入口
-
-- 原"共 X 张卡片"（`.today-hero__sub`）替换为弱链接"历史复习内容 ›"（`.today-hero__history-link`）
-- 点击跳转 `/pages/history_reviewed/history_index`
-- 字号 24rpx、颜色 `#8a9a8e`（muted）、无加粗，视觉权重明显弱于主标题
-
-### 状态行为
-
-| 首页状态 | 箭头 | 点击跳转 |
-|---|---|---|
-| 0/5 — 未复习任何卡片 | 显示 | today_review_status（not_started 态） |
-| 2/5 — 已复习部分 | 显示 | today_reviewed（今日复习内容页） |
-| 5/5 — 恰好完成 | 显示 | today_reviewed |
-| 超额完成 | 显示 | today_reviewed |
-
-### 未改
-
-- 后端、数据库 schema、review session / feedback 核心逻辑不变
-- dailyGoal / goal_progress 计算不变
-- today_review_status 页面保留；not_started 内部 UI 由 Phase 8L-3-hotfix 进一步精简
-- 复习完成后 redirect 到 today_review_status 链路（review.js）保留
-- 历史页内部逻辑未改
-
----
-
-## Phase 8L-hotfix — Home Goal Card Routing to Today Reviewed
-
-**提交：** frontend `4e41639` route home goal card to today reviewed content
-
-### 变更内容
-
-- 首页"今日目标"板块点击行为改为：
-  - `actualCompletedToday > 0`（今日已复习卡片数 > 0）：跳转到 `today_reviewed`（今日复习内容页）
-  - `actualCompletedToday == 0`：不跳转，无 toast
-- 右侧绿色小箭头：仅在 `actualCompletedToday > 0` 时显示（`wx:if`），0 时隐藏
-- hover 效果：仅在 `actualCompletedToday > 0` 时有 hover 态
-- 首页"今日目标"板块不再跳转 `today_review_status`
-
-### 判断字段
-
-- `actualCompletedToday`（= `gp.completed_unique_today` from backend `goal_progress`）
-- 该字段基于当天 distinct card_id 计数，是今日真实已复习卡片数
-
-### 状态行为
-
-| 状态 | 箭头 | 点击行为 |
-|---|---|---|
-| 0/5（未复习任何卡片） | 隐藏 | 无跳转 |
-| 2/5（已复习 2 张） | 显示 | 跳转今日复习内容页 |
-| 5/5（恰好完成） | 显示 | 跳转今日复习内容页 |
-| 超额完成 | 显示 | 跳转今日复习内容页 |
-
-### 未改
-
-- 后端、数据库 schema 不变
-- review session / feedback 核心逻辑不变
-- dailyGoal / goal_progress 计算不变
-- today_review_status 页面保留，未删除
-- 复习完成后 redirect 到 today_review_status 链路（review.js line 462、754-759）保留
-- 历史页未改
-
----
-
-## Phase 8K — Review Progress Display, Home Label Semantics & Today Reviewed Filters
-
-**提交：** frontend `af338dc` polish review progress and today reviewed filters
-
-### 一、复习页进度展示修复
-
-- 顶部进度文案从"今日进度 X / Y"改为"当前进度 X / Y"。
-- 删除了复习卡片右上角重复的"X / Y"进度数字（`task-progress`），仅保留顶部进度条。
-- 卡片左上角的类型标签（单词/短语/句子）不受影响。
-- 进度条不受影响。
-
-### 二、首页筛选丸子数字可读性
-
-- 卡片库 Tab 数字（library-tab-count）的 opacity 从 0.45 提升到 1，颜色从 `#9aaa9e` 改为 `#4a7358`。
-- 统一使用中等深度的主题绿色，不破坏绿色主题。
-- 筛选 pill 整体风格保持轻量。
-
-### 三、首页进度卡片标签修正
-
-- 首页顶部进度卡片内的 label 从"今日完成"改为"今日目标"。
-- `displayCompleted / displayTotal` 数值不变。
-- 顶部鼓励文案（"今天已完成 N 张，超额完成"）不受影响。
-- 修复了超额完成时"今日完成 5/5"与"今天已完成 8 张"语义冲突的问题。
-- 进度条仍最多 100%，不溢出。
-
-### 四、今日复习情况页产品审查（未改代码）
-
-**审查结论：**
-
-- 该页面仍有存在价值，不建议删除。
-- 核心独特价值：**结果分解**（掌握较好 N 张 / 还需巩固 N 张）——这是首页没有的复盘信息。
-- 该页面是复习完成后的自然落地页。
-
-**后续重构建议：**
-
-- **首页（index）**：轻量进度 + 快速入口（添加卡片 / 开始复习）。当前形态基本正确。
-- **今日复习情况页（today_review_status）**：建议从"进度重复页"重构为"今日复盘页"。
-  - 核心内容：今日真实完成数 → 掌握较好 / 还需巩固分解 → 今日复习内容 → 历史复习内容。
-  - 弱化"继续复习"按钮，强化"查看今日复习内容""查看历史复习内容"入口。
-  - 结果分解（masteredCount / consolidateCount）可以不仅在 all_done/overachieved 状态展示，也可以在 in_progress 状态展示"当前已掌握"等中间态数据。
-
-**本次不做大改**，仅记录方案。
-
-### 五、今日复习内容页增加结果筛选
-
-- 新增 3 个筛选丸子：`全部 / 待加强 / 已掌握`。
-- **待加强**：包含 forgot（想不起来）和 shaky（不太稳）的卡片。
-- **已掌握**：包含 got_it（基本掌握）和 fluent（很熟了）的卡片。
-- 筛选仅影响本地展示，不改后端接口。
-- 每个丸子显示对应数量（基于当前列表实时计算）。
-- 筛选后为空时显示"今天还没有这类复习内容"。
-- 卡片上的来源 pill、反馈结果标签、编辑入口不受影响。
-- 不影响离线缓存展示。
-
-### 未改
-- 后端无改动。
-- 数据库 schema 不变。
-- review session / feedback 核心逻辑不变。
-- dailyGoal 计算逻辑不变。
-- 缓存结构不变。
-- today_review_status 页面未删除、未重构。
-
----
-
 ## Phase 8H-small-hotfix — English Content Normalization Stabilization
 
 **提交：** frontend `434a669`
-**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H 更新版）
-**测试：** `scripts/test-add-input-validation-cases.js`，159 用例全部通过（原 109 + 新增 50）
-
-### 问题背景
-
-后端 `analyzeEnglish` 返回 `normalizedText` 后，前端 `applyAnalysisToPage` 会把 `normalizedText` 回写到 `form.englishText`。这导致同一个输入的保存结果依赖后端返回时机：
-
-- 后端返回前保存：可能保存原始输入（如 `he 's`）
-- 后端返回后保存：可能保存后端规范化结果（如 `he's`）
 
 ### 一、增强前端 normalizeEnglishText
 
-`pages/add/add.js` 中的 `normalizeEnglishText` 从原来 4 步增强为 10 步：
-
-| # | 规则 | 示例 |
-|---|---|---|
-| 1 | 去除前后空格 | ` hello ` → `hello` |
-| 2 | 弯引号 → 直引号 | `I'm happy` → `I'm happy` |
-| 3 | 各种 dash → 英文连字符 | `long—term` → `long-term` |
-| 4 | 中文标点 → 英文标点 | `hello，world` → `hello,world` |
-| 5 | 特殊空白 → 普通空格 | NBSP、全角空格、tab、换行、CRLF |
-| 6 | 合并连续空白 | `good   morning` → `good morning` |
-| 7 | 修复分裂缩写中间空格 | `he ' s` → `he 's`（撇号与后缀间空格） |
-| 8 | 修复分裂缩写 / 所有格 | `he 's` → `he's`（撇号前空格） |
-| 9 | 删除标点前多余空格 | `hello , world` → `hello, world` |
-| 10 | 清理括号内侧空格 | `( hello )` → `(hello)` |
+`pages/add/add.js` 中的 `normalizeEnglishText` 从原来 4 步增强为 10 步。详见 `docs/add-input-validation-product-rules.md`。
 
 ### 二、停止后端 normalizedText 自动回写
 
 - `applyAnalysisToPage` 中删除了 `shouldApplyBackendNormalizedText` 逻辑
 - 后端 `normalizedText` 不再写回 `form.englishText`
-- 后端 `normalizedText` 可继续保存在分析结果中，供内部参考
-- 后端 spelling correction / warnings / hint 逻辑保持不变
-- AI 参考理解、例句、翻译逻辑保持不变
-- "全部填入"仍然只填入我的理解 / 备注，不改英文内容
 
-### 三、保存结果一致性
-
-以下场景保存的 content 完全一致（仅经前端 `normalizeEnglishText` 处理）：
-- 后端返回前保存 / 后端返回后保存 / 网络失败时保存
-- 新增保存 / 编辑保存
-- 从 review 页进入编辑再保存
-- 从 today_reviewed 页进入编辑再保存
-
-### 四、不自动改写的内容
-
-- 大小写（`HELLO` 仍是 `HELLO`）
-- 拼写（`cluch` 仍是 `cluch`）
-- emoji（`good job 👍` 不变）
-- 多余标点（`hello!!!` 不变）
-- e-mail / email 互转
-- 标点后补空格
-- Unicode NFKC
-- 语法 / 表达
-
-### 五、测试
+### 三、测试
 
 **原有测试：** 109（Phase 8G）
 **新增测试：** 50（45 个规范化纯函数 + 5 个 error 规则验证）
 **总测试数：** 159
-**结果：** 全部通过
-
-### 六、修改文件
-
-- `pages/add/add.js` — 增强 `normalizeEnglishText`；删除 `applyAnalysisToPage` 中的 backend normalizedText 回写
-- `scripts/test-add-input-validation-cases.js` — 增强 `normalizeEnglishText` 副本；新增 50 个测试用例
-- `docs/add-input-validation-product-rules.md` — 新增"英文内容规范化规则"章节
-- `docs/current-phase.md` — 记录 Phase 8H
-
-### 七、未改内容
-
-- 后端 `validator.py` / `analyzer.py` 不变
-- 后端数据库 schema 不变
-- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
-- Phase 8G 的 6 条 error 规则不变
-- 保存成功 toast `已保存` / `已更新` 不变
-- UI / WXML / WXSS 不变
 
 ---
 
 ## Phase 8H-hotfix — Local Normalize Before Analysis & Auto-Category Restore
 
 **提交：** frontend `0d5ff0c`
-**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix 更新版）
-**测试：** `scripts/test-add-input-validation-cases.js`，193 用例全部通过（原 159 + 新增 34）
 
 ### 问题 1：输入框不显示规范化后的英文
 
-`runInputAnalysis` 虽然用 `normalizedText` 做分析，但从不更新 `form.englishText`。导致输入 `he 's` 后，生成参考时英文框仍显示 `he 's` 而非 `he's`。
+`runInputAnalysis` 虽然用 `normalizedText` 做分析，但从不更新 `form.englishText`。
 
-**修复：** `runInputAnalysis` 入口处计算 `normalizedText`，若与当前 `form.englishText` 的规范化结果不同，则通过 `setData` 更新 `form.englishText`。这样分析触发前英文框即显示规范化后的内容。
+**修复：** `runInputAnalysis` 入口处计算 `normalizedText`，若与当前 `form.englishText` 的规范化结果不同，则通过 `setData` 更新 `form.englishText`。
 
 ### 问题 2：缩写句点误判为句子
 
-`detectEnglishCategory` 中 `/[.!?]$/.test(normalizedText)` 直接返回 `句子`，导致 `U.S.` / `e.g.` / `Dr.` 等缩写被误判。
-
 **修复：** 末尾 `.` `!` `?` 检查增加一步：去掉末尾标点后若无空格 → 视为单词/缩写，返回 `单词`；有空格 → 返回 `句子`。
 
-### 修改文件
-
-- `pages/add/add.js` — `runInputAnalysis` 增加分析前 normalize；`detectEnglishCategory` 修复缩写句点误判
-- `scripts/test-add-input-validation-cases.js` — 新增 34 个测试（24 自动类别 + 7 分析前 normalize + 3 后端不回写）
-- `docs/add-input-validation-product-rules.md` — 新增"分析前规范化"和"自动类别识别"章节
-- `docs/current-phase.md` — 记录 Phase 8H-hotfix
-
-### 测试
-
-**原有测试：** 159（Phase 8G 109 + Phase 8H 50）
-**新增测试：** 34
 **总测试数：** 193
-**结果：** 全部通过
-
-| 类别 | 数量 | 说明 |
-|---|---|---|
-| 自动类别识别 | 24 | C1-C24：单词/短语/句子/normalize 后识别 |
-| 分析前 normalize | 7 | P1-P7：normalizeEnglishText 纯函数验证 |
-| 后端不回写 | 3 | B1-B3：applyAnalysisToPage 不修改 form.englishText |
-
-### 人工验收项
-
-1. Add 页输入 `he 's`，等待生成参考前，英文框应变为 `he's`
-2. Add 页输入 `good   morning`，英文框应变为 `good morning`
-3. Add 页输入 `hello\nworld`，英文框应变为 `hello world`
-4. Add 页输入 `hello world`，未手动选类别时应自动变成"短语"
-5. Add 页输入 `I am happy.`，未手动选类别时应自动变成"句子"
-6. 手动选"单词"后输入 `hello world`，应保持"单词"并提示"单词类别请只填一个词"
-7. 输入 `cluch`，不应自动变 `clutch`，只能 hint
-8. 输入 `HELLO`，不应自动变小写
-9. 输入 `good job 👍`，emoji 保留
-10. 后端返回 `normalizedText` 时，不应再覆盖英文框
-
-### 未改内容
-
-- 后端 `validator.py` / `analyzer.py` 不变
-- 后端数据库 schema 不变
-- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
-- Phase 8G 的 6 条 error 规则不变
-- Phase 8H 已定的 normalize 规则边界不变
-- 保存 toast `已保存` / `已更新` 不变
-- 后端 `normalizedText` 不回写英文输入框（Phase 8H 规则保持）
-- UI / WXML / WXSS 不变
 
 ---
 
 ## Phase 8H-hotfix-real-validation — Fix runInputAnalysis Normalize Trigger Condition
 
 **提交：** frontend `6adccf1`
-**文档：** `docs/add-input-validation-product-rules.md`（Phase 8H-hotfix-real-validation 更新版）
-**测试：** `scripts/test-add-input-validation-cases.js`，211 用例全部通过（原 193 + 新增 18）
-
-### 问题复现
-
-Phase 8H-hotfix 声称已在 `runInputAnalysis` 入口做分析前 normalize 并回写英文输入框，但以下 3 个样例实际验收失败：
-
-1. 输入 `he 's` → 英文框仍显示 `he 's`（应为 `he's`）
-2. 输入 `good   morning` → 英文框仍显示 `good   morning`（应为 `good morning`）
-3. 输入 `hello\nworld` → 英文框仍显示 `hello\nworld`（应为 `hello world`）
 
 ### 根因
 
-`runInputAnalysis` (add.js:1360) 中的写回条件：
+`runInputAnalysis` 写回条件 bug：两边都 normalize，始终相等，写回从未触发。
 
-```javascript
-// Bug: 两边都 normalize，始终相等
-if (normalizeEnglishText(this.data.form.englishText) !== normalizedText) {
-    patch['form.englishText'] = normalizedText
-}
-```
+**修复：** 改为比较原始 `form.englishText` 与 `normalizedText`。
 
-`normalizeEnglishText(this.data.form.englishText)` 和 `normalizedText`（来自 `normalizeEnglishText(englishText)`）都基于同一个原始输入值 `nextValue`，因此 normalize 后结果始终相同，条件永远为 `false`，写回从未触发。
-
-**修复：** 改为比较原始 `form.englishText` 与 `normalizedText`：
-
-```javascript
-// Fix: 比较 raw text 与 normalized text
-if (this.data.form.englishText !== normalizedText) {
-    patch['form.englishText'] = normalizedText
-}
-```
-
-### 修改文件
-
-- `pages/add/add.js` — 修复 `runInputAnalysis` 第 1360 行写回条件（1 行）
-- `scripts/test-add-input-validation-cases.js` — 新增 18 个触发条件测试（T1-T18）
-- `docs/add-input-validation-product-rules.md` — 更新"分析前规范化"章节（触发时机 + 验收样例）
-- `docs/current-phase.md` — 记录 Phase 8H-hotfix-real-validation
-
-### 测试
-
-**原有测试：** 193（Phase 8G 109 + Phase 8H 50 + Phase 8H-hotfix 34）
-**新增测试：** 18（触发条件验证 T1-T18）
 **总测试数：** 211
-**结果：** 全部通过
-
-| 类别 | 数量 | 说明 |
-|---|---|---|
-| 应触发回写 | 6 | T1-T6：he 's / good   morning / hello\nworld / hello，world / he ' s / don 't |
-| 不应触发回写 | 10 | T7-T16：已规范 / 大小写 / 拼写 / emoji / 连字符 / 多余标点 |
-| 边界 | 2 | T17-T18：正常 debounce 调度 |
-
-### 人工验收步骤
-
-在微信开发者工具中打开 Add 页，分别输入以下内容**等待 500ms debounce 后**：
-
-1. 输入 `he 's` → 等待分析触发 → 英文输入框应显示 `he's`
-   - 检查点：console 无报错；suggestionSourceText 为 `he's`；后端请求参数 content 为 `he's`
-2. 输入 `good   morning` → 等待分析触发 → 英文输入框应显示 `good morning`
-   - 检查点：多余空格已合并；suggestionSourceText 为 `good morning`
-3. 输入 `hello\nworld`（textarea 中按回车） → 等待分析触发 → 英文输入框应显示 `hello world`
-   - 检查点：换行已替换为空格；suggestionSourceText 为 `hello world`
-
-额外验证：
-4. 输入 `cluch` → 不自动变 `clutch`，仅显示 hint
-5. 输入 `HELLO` → 保持大写
-6. 输入 `good job 👍` → emoji 保留
-7. 手动选"单词"后输入 `hello world` → 类别保持"单词"并提示"单词类别请只填一个词"
-8. 新增卡片输入 `hello world`（未手动选类别） → 自动变成"短语"
-9. 新增卡片输入 `I am happy.`（未手动选类别） → 自动变成"句子"
-
-### 未改内容
-
-- 后端 `validator.py` / `analyzer.py` 不变
-- 后端数据库 schema 不变
-- `review_state` / `ReviewSession` / 4 档反馈逻辑不变
-- Phase 8G 的 6 条 error 规则不变
-- Phase 8H 已定的 normalize 规则边界不变
-- 保存 toast `已保存` / `已更新` 不变
-- 后端 `normalizedText` 不回写英文输入框（Phase 8H 规则保持）
-- UI / WXML / WXSS 不变
-
----
-
-## Key Product Semantics
-
-### 例句生成
-- 例句仅在 Add/Edit 页实时展示，不持久化到 card 或数据库。
-- 只有 word/phrase 分类才进入 Hunyuan 例句生成。sentence/paragraph 不生成例句。
-- Hunyuan → TMT fallback → None 三级链路。
-- 例句可通过"全部填入"按钮写入备注（格式：例句英文 + 换行 + 中文翻译）。
-
-### 复习页
-- 卡片正面：场景：xxx（有来源才显示，英文上方）+ 英文内容（未翻面时展示）。
-- 卡片背面：我的理解 + 补充备注 + 场景：xxx。
-- 查看理解按钮：白底绿色描边次级按钮。
-- 卡片展开后页面整体滚动，无内部滚动条。
-- 顶部进度：当前进度 X / Y。卡片内不重复显示进度数字。
-
-### 超额完成
-- 真实完成数作为主信息（"今天完成了 N 张"）。
-- 目标 5/5 作为副信息。
-
-### 首页
-- 添加卡片为主按钮（绿色渐变，≈66% 宽），复习为次按钮（白色，≈34% 宽）。
-- 复习次按钮文案：普通状态"查看卡片"，有进行中 session 时"继续查看"。
-- 今日任务/今日已完成采用 unique card count，不统计已删除卡片。
-
-### whereEncountered
-- 字段可选，空值不展示。
-- 后端字段名 `where_encountered`，前端字段名 `whereEncountered`。
-
-### Add 页英文输入校验
-- 英文内容只允许英文，含中文汉字阻止保存。
-- 前端本地 6 条 error 规则：空内容、含中文、无英文、超长（>500 字符）、单词类别多词、短语类别单词。
-- 红色 error = 只有前端本地 error 才显示；后端 error 不展示。
-- 后端 warning 正常展示；网络失败统一提示"网络暂时不稳，可以先保存"。
-- 拼写 correction 降级为 hint（"也可能是：X。确认原词没问题的话，可以继续保存"），无 correction 的拼写 warning 隐藏。
-
-### Add 页英文内容规范化
-- 前端在分析前和保存前执行同一套低风险 normalize（10 步，见 Phase 8H-small-hotfix）。
-- 规范化不依赖后端，弱网/后端关闭时也生效。
-- 规范化只做格式清理（空格、标点、缩写），不做大小写、拼写、语法、表达改写。
-- 后端 normalizedText 不回写英文输入框。
-- 最终英文内容由前端本地 normalize + 用户输入决定。
-
-### Add 页自动类别识别
-- 新增卡片时，用户未手动选择类别则自动识别：单词 / 短语 / 句子。
-- 用户手动选择过类别后不再自动覆盖（`hasUserChangedCategory` guard）。
-- 编辑已有卡片时不自动乱改类别。
-- `U.S.`、`e.g.`、`Dr.` 等缩写不会因末尾句点误判为句子。
-
----
-
-## What Is Fixed
-
-| 问题 | 根因 | 修复阶段 |
-|---|---|---|
-| word/phrase 30 天无例句 | 缓存写入空例句 | 8D（写入侧）+ 8H（读取侧） |
-| translation 为空不调 Hunyuan | translation gate | 8D |
-| well-known 等连字符词无例句 | Rule 3 将连字符词判 unknown | 8H |
-| COVID-19 / 5G / GPT-4 无例句 | 含数字硬判 unknown | 8I |
-| U.S. / e.g. / Dr. 无例句 | SENTENCE_END_RE 判 sentence | 8I |
-| broke out / gave up 校验失败 | 短语不检查第一词词形变化 | 8I |
-| craving / avoided 可能丢例句 | 单词不检查常见词形变化 | 8I |
-
----
-
-## Known Remaining Boundaries
-
-| 场景 | 状态 |
-|---|---|
-| 完整句子（I love English.）不生成例句 | 产品语义保留，不变 |
-| `commit guilty` 分类为 phrase，进入 Hunyuan | 不阻断（产品无害），词形校验正确拒绝非连续匹配 |
-| substring false positive 风险（he in "the", art in "party"） | Phase 8I-2 已复核，未发现裸 false positive |
-| 不规则名词复数（analysis→analyses） | 未处理，但 analysis 是 analyses 子串，实际可过 |
-| 不做例句持久化 | 产品语义保留 |
-| 不换模型 | 不变 |
-| 数据库 schema 不变 | 始终不变 |
-
----
-
-## Recommended Next Step
-
-**Phase 8I/8J — Product review and acceptance**
-
-1. **人工验收 Phase 8H normalization 效果**：
-   - 在 Add 页分别输入 `he 's`、`good   morning`、`hello\nworld`、`hello，world`、`HELLO`、`cluch`、`good job 👍`、`hello 你好`、`2024`
-   - 验证规范化行为、error 提示、hint 展示是否符合预期
-
-2. **若验收通过，评估是否进入下一轮 UI 文案轻量化**：
-   - 复习页"今日复习"标题 → "看一看"
-   - 今天看过页标题确认
-   - 历史记录页标题确认
-   - 今天看过页筛选从"待加强 / 已掌握" → "有点忘了 / 记得"
-   - 历史页筛选从"全部 / 想不起来 / 不太稳 / 已掌握" → "全部 / 有点忘了 / 记得"
-
-3. **暂不继续扩展以下能力**：
-   - 自动纠错 / 自动拼写替换
-   - 规范写法建议按钮
-   - 大小写自动修正
-   - 语法或表达改写
-   - 历史数据 normalize 迁移
-
-底层复习调度规则和 session 逻辑不变。
-
----
-
-## Phase about-polish — 关于页说明优化与联系开发者入口
-
-**提交：** frontend pending
-
-### 修改文件
-
-- `pages/about/index.js`
-- `pages/about/index.wxml`
-- `pages/about/index.wxss`
-- `docs/current-phase.md`
-- `docs/product-features.md`
-
-### 变更内容
-
-#### A. 介绍文案更新
-
-- 保留产品标题"英语知识卡片本"和副标题"随手记下你遇到的英文，轻松回顾。"
-- 更新 `about-desc` 文案：说明小程序用途（记录 + 回顾），去掉"低压力"表述，改为更具体的场景描述；结尾说明"查看卡片"入口。
-- 保留 `v1.0.0` 版本号。
-
-#### B. 新增"怎么使用"区块
-
-- 标题：怎么使用
-- 4 条使用步骤：添加卡片 / 查看卡片 / 反馈记忆 / 回看记录
-- 每条含步骤编号圆形 pill（浅绿底、绿色字）+ 步骤标题 + 简短说明
-
-#### C. 新增"联系开发者"区块
-
-- 标题：联系开发者
-- 说明文案：如有使用问题或功能建议可通过邮箱反馈
-- 次级按钮（白底 + 绿色描边 + 绿色文字）：联系开发者
-- 点击后 `wx.showModal` 弹出开发者邮箱 + 反馈说明
-- confirmText"复制邮箱"→ `wx.setClipboardData` → toast"邮箱已复制"
-- 邮箱常量：`DEVELOPER_EMAIL = '1790624614@qq.com'`
-- 页面不常驻展示完整邮箱
-
-### 未改内容
-
-- 首页、添加页、复习页、今天看过页、历史页不变
-- 后端、apiClient.js、复习规则、4 档反馈、数据库不变
-- app.json 路由不变（about 入口已存在）
-- 设置页入口逻辑不变
 
 ---
 
