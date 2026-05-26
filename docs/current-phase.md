@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-About page guidance and contact entry polished — added usage instructions (怎么使用) and developer contact modal with one-tap email copy.
+Fix review batch size setting — 每次看几张设置现已对所有 session 类型生效。
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ About page guidance and contact entry polished — added usage instructions (怎
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| fix-review-batch-size | Fix: `limit:5` hardcoded in all session creation paths → `dailyGoalToLimit(readDailyGoal())`；新增 37 个测试用例 | — | pending |
 | Phase about-polish | About page: update desc copy, add 怎么使用 4-step block, add 联系开发者 modal with email copy | — | pending |
 | Release-P1-copy-alignment | Copy P1: align result labels (没想起/有点模糊/记得/很熟) in today_reviewed & history_reviewed; review page title → "查看卡片" | — | pending |
 | Phase 8J-backend-hotfix | Backend: cap repeat item from restoring mastered in same review round | `edc945b` | — |
@@ -41,6 +42,51 @@ About page guidance and contact entry polished — added usage instructions (怎
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+## fix-review-batch-size — 每次看几张设置对所有 session 生效
+
+**提交：** frontend pending
+**测试：** `scripts/test-review-batch-size.js`，37 个用例全部通过
+
+### 根因
+
+`pages/index/index.js` 中 `handleStartReview`、`doCreateNewOnlySession`、`_tryCreateSession` 三处创建 session 时 `limit` 硬编码为 `5`。导致：
+
+- `daily_suggested`：不受影响，因为 `daily_goal` 字段才是后端决定 batch size 的依据，`daily_goal: readDailyGoal()` 已正确传入；但 daily goal 已达成后的"加量"session 会错用 limit=5。
+- `new_only` / `free_review`：完全忽略用户设置，始终创建 5 张 session。用户选 10 张时只能得到 5 张。
+
+### 修复
+
+新增辅助函数 `dailyGoalToLimit(goal)`，将用户设置映射到后端合法值（`VALID_LIMITS = {5, 10, 15}`）：
+
+| dailyGoal | limit 传参 | 说明 |
+|---|---|---|
+| 3 | 5 | 后端不支持 limit=3，5 是最小合法值 |
+| 5 | 5 | 直接映射 |
+| 10 | 10 | 直接映射 |
+
+三处 `limit: 5` 统一改为 `limit: dailyGoalToLimit(readDailyGoal())`。
+
+### 验收
+
+- 设置 3：`daily_suggested` 得 3 张（由 `daily_goal=3` 控制）；`new_only`/`free_review` 得 5 张（后端最小值）
+- 设置 5：所有类型得 5 张 ✓
+- 设置 10：所有类型得 10 张 ✓
+- 有未完成 session 时点击"继续查看"直接跳转原 session，不重建 ✓
+
+### 修改文件
+
+- `pages/index/index.js` — 新增 `dailyGoalToLimit`；3 处 `limit: 5` → `limit: dailyGoalToLimit(readDailyGoal())`
+- `scripts/test-review-batch-size.js` — 37 个测试（dailyGoal 解析 + picker 映射 + session payload 构造）
+
+### 未改内容
+
+- 设置页（`pages/settings/index.js`、`index.wxml`）链路本来就正确，未改
+- 后端 review_rules.py / reviews.py 不变（`VALID_DAILY_GOALS = {3,5,10}` 已支持所有合法值）
+- 4 档反馈、回炉逻辑、`review_state` 枚举、`ReviewSession`、调度链不变
+- `apiClient.js` 后端地址不变
 
 ---
 

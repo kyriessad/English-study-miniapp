@@ -36,6 +36,13 @@ function readDailyGoal() {
   }
 }
 
+// Map dailyGoal to a valid backend limit (VALID_LIMITS = {5, 10, 15}).
+// dailyGoal=3 → 5 (backend minimum), dailyGoal=10 → 10.
+function dailyGoalToLimit(goal) {
+  if (goal === 10) return 10;
+  return 5;
+}
+
 const DEFAULT_CATEGORY = '单词';
 const CATEGORY_FILTER_OPTIONS = ['全部', '单词', '短语', '句子'];
 const retryingAnalysisCardIds = new Set();
@@ -1192,7 +1199,7 @@ Page({
 
       var sessionData = {
         session_type: sessionType,
-        limit: 5,
+        limit: dailyGoalToLimit(readDailyGoal()),
         ...(needsRestart ? { restart: true } : {})
       };
       if (sessionType === 'daily_suggested') {
@@ -1309,7 +1316,7 @@ Page({
         (activeSession.session_type || activeSession.sessionType || '') !== 'new_only');
       var sessionData = {
         session_type: 'new_only',
-        limit: 5,
+        limit: dailyGoalToLimit(readDailyGoal()),
         ...(needsRestart ? { restart: true } : {})
       };
       var result = await createReviewSession(sessionData);
@@ -1417,7 +1424,7 @@ Page({
     try {
       var sessionData = {
         session_type: sessionType,
-        limit: 5,
+        limit: dailyGoalToLimit(readDailyGoal()),
         ...(needsRestart ? { restart: true } : {})
       };
       if (sessionType === 'daily_suggested') {
