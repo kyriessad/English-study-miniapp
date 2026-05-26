@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8I-small-hotfix-copy-P1P2 / Phase 8J completed — Frontend copy update: home button "查看卡片 / 继续查看", review feedback labels lightened. Backend Phase 8J hotfix: cap repeat item from restoring mastered in same round.
+Release P1 copy alignment completed — Result labels in today_reviewed / history_reviewed aligned with review page button copy; review page title unified to "查看卡片".
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Phase 8I-small-hotfix-copy-P1P2 / Phase 8J completed — Frontend copy update: h
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Release-P1-copy-alignment | Copy P1: align result labels (没想起/有点模糊/记得/很熟) in today_reviewed & history_reviewed; review page title → "查看卡片" | — | pending |
 | Phase 8J-backend-hotfix | Backend: cap repeat item from restoring mastered in same review round | `edc945b` | — |
 | Phase 8I-small-hotfix-copy-P1P2-b | Copy hotfix: home review button "看一看"→"查看卡片"（普通状态）；"继续查看"不变 | — | pending |
 | Phase 8I-small-hotfix-copy-P1P2 | Copy hotfix: home "添加卡片继续"→"添加卡片"，"继续看"→"继续查看"；复习页反馈按钮轻量化 | — | `81ac8f7` |

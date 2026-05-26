@@ -2,7 +2,7 @@
   <view class="header">
     <view class="title">
       <block wx:if="{{allDone || pageState === 'completed'}}">这轮看完了</block>
-      <block wx:else>看一看</block>
+      <block wx:else>查看卡片</block>
     </view>
     <view wx:if="{{!allDone && pageState !== 'completed' && currentCard}}" class="subtitle">先想一想，再看理解。</view>
   </view>

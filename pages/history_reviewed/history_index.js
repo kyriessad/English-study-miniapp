@@ -170,10 +170,10 @@ function buildQuickFilterOptionsWithCounts(allSummaries = []) {
 
 // Phase 5-1C: backend history result labels
 const REVIEW_RESULT_LABELS = {
-  forgot: '想不起来',
-  shaky: '不太稳',
-  got_it: '基本掌握',
-  fluent: '很熟了'
+  forgot: '没想起',
+  shaky: '有点模糊',
+  got_it: '记得',
+  fluent: '很熟'
 };
 
 const REVIEW_RESULT_TAG_TYPES = {
