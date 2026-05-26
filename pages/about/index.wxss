@@ -45,3 +45,82 @@
   font-size: 24rpx;
   color: #9aa398;
 }
+
+.about-usage-card,
+.about-contact-card {
+  margin-top: 24rpx;
+}
+
+.about-section-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #3a5c40;
+  margin-bottom: 20rpx;
+}
+
+.about-step {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  margin-bottom: 16rpx;
+}
+
+.about-step:last-child {
+  margin-bottom: 0;
+}
+
+.step-num {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 18rpx;
+  background: #e8f2e8;
+  color: #3a7a48;
+  font-size: 22rpx;
+  font-weight: 700;
+  text-align: center;
+  line-height: 36rpx;
+  flex-shrink: 0;
+  margin-right: 16rpx;
+  margin-top: 2rpx;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #3a5c40;
+  line-height: 1.5;
+}
+
+.step-desc {
+  font-size: 24rpx;
+  color: #7f8d82;
+  line-height: 1.6;
+  margin-top: 2rpx;
+}
+
+.about-contact-desc {
+  font-size: 26rpx;
+  color: #7f8d82;
+  line-height: 1.7;
+  margin-bottom: 24rpx;
+}
+
+.about-contact-btn {
+  display: block;
+  padding: 16rpx 0;
+  border: 2rpx solid #4a7a52;
+  border-radius: 40rpx;
+  color: #4a7a52;
+  font-size: 26rpx;
+  font-weight: 500;
+  background: #fff;
+  text-align: center;
+}
+
+.about-contact-btn:active {
+  background: #f0f8f0;
+}

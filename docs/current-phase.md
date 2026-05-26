@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Release P1 copy alignment completed — Result labels in today_reviewed / history_reviewed aligned with review page button copy; review page title unified to "查看卡片".
+About page guidance and contact entry polished — added usage instructions (怎么使用) and developer contact modal with one-tap email copy.
 
 **整体方向：** 本阶段不删除底层复习系统，而是弱化前端的"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。用户界面统一往"添加卡片 / 查看卡片 / 继续查看 / 今天看过 X 张 / 今天看过页面 / 历史记录 / 每次看几张"语义调整。
 
@@ -10,6 +10,7 @@ Release P1 copy alignment completed — Result labels in today_reviewed / histor
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase about-polish | About page: update desc copy, add 怎么使用 4-step block, add 联系开发者 modal with email copy | — | pending |
 | Release-P1-copy-alignment | Copy P1: align result labels (没想起/有点模糊/记得/很熟) in today_reviewed & history_reviewed; review page title → "查看卡片" | — | pending |
 | Phase 8J-backend-hotfix | Backend: cap repeat item from restoring mastered in same review round | `edc945b` | — |
 | Phase 8I-small-hotfix-copy-P1P2-b | Copy hotfix: home review button "看一看"→"查看卡片"（普通状态）；"继续查看"不变 | — | pending |
@@ -1076,6 +1077,51 @@ if (this.data.form.englishText !== normalizedText) {
    - 历史数据 normalize 迁移
 
 底层复习调度规则和 session 逻辑不变。
+
+---
+
+## Phase about-polish — 关于页说明优化与联系开发者入口
+
+**提交：** frontend pending
+
+### 修改文件
+
+- `pages/about/index.js`
+- `pages/about/index.wxml`
+- `pages/about/index.wxss`
+- `docs/current-phase.md`
+- `docs/product-features.md`
+
+### 变更内容
+
+#### A. 介绍文案更新
+
+- 保留产品标题"英语知识卡片本"和副标题"随手记下你遇到的英文，轻松回顾。"
+- 更新 `about-desc` 文案：说明小程序用途（记录 + 回顾），去掉"低压力"表述，改为更具体的场景描述；结尾说明"查看卡片"入口。
+- 保留 `v1.0.0` 版本号。
+
+#### B. 新增"怎么使用"区块
+
+- 标题：怎么使用
+- 4 条使用步骤：添加卡片 / 查看卡片 / 反馈记忆 / 回看记录
+- 每条含步骤编号圆形 pill（浅绿底、绿色字）+ 步骤标题 + 简短说明
+
+#### C. 新增"联系开发者"区块
+
+- 标题：联系开发者
+- 说明文案：如有使用问题或功能建议可通过邮箱反馈
+- 次级按钮（白底 + 绿色描边 + 绿色文字）：联系开发者
+- 点击后 `wx.showModal` 弹出开发者邮箱 + 反馈说明
+- confirmText"复制邮箱"→ `wx.setClipboardData` → toast"邮箱已复制"
+- 邮箱常量：`DEVELOPER_EMAIL = '1790624614@qq.com'`
+- 页面不常驻展示完整邮箱
+
+### 未改内容
+
+- 首页、添加页、复习页、今天看过页、历史页不变
+- 后端、apiClient.js、复习规则、4 档反馈、数据库不变
+- app.json 路由不变（about 入口已存在）
+- 设置页入口逻辑不变
 
 ---
 
