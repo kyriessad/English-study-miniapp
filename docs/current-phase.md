@@ -52,8 +52,8 @@ Release-Control-Docs-Completeness — 完善发布控制文档（roadmap / relea
 
 ## Release-Control-Docs-Completeness — 完善发布控制文档
 
-**提交：** frontend pending（本次尚未提交，等用户确认后再提交）
-**类型：** docs only — 不涉及任何业务代码改动，不代表实际完成部署
+**提交：** frontend completed（commit hash 由提交后汇报，不预写进文档）
+**类型：** docs only — 本阶段只改文档，未改业务代码，不代表实际完成部署
 
 ### 修改文件
 
