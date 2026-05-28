@@ -808,7 +808,7 @@ Page({
     this.loadBackendReviewSession({ restart: true });
   },
 
-  navigateToTodayReviewStatus() {
+  navigateToTodayReviewed() {
     wx.redirectTo({
       url: '/pages/today_reviewed/today_reviewed?from=review_done_fallback',
       fail: () => {

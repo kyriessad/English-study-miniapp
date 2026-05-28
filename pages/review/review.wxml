@@ -166,7 +166,7 @@
     <view class="done-actions">
       <button
         class="done-action-btn done-primary-btn"
-        bindtap="navigateToTodayReviewStatus"
+        bindtap="navigateToTodayReviewed"
       >
         查看今天看过的
       </button>
