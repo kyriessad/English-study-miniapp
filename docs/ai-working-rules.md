@@ -142,7 +142,7 @@ python -m pytest tests/ -q
 
 | 禁止操作 | 原因 |
 |---|---|
-| 删除 `today_review_status` 页面代码 | 仍是复习完成后的跳转落地页 |
+| 重新引入或恢复 `today_review_status` 页面 | 已在 Phase 8K (`34c6660`) 删除；复习完成跳转目标已改为 `today_reviewed`。不要再创建该路径或恢复任何相关代码 |
 | 新增底部导航栏 | 产品方向决策 |
 | 大重构 `recordStorage` / `apiClient` / review 相关链路 | 影响范围过大，需专项规划 |
 | 同时改前端和后端（除非任务明确要求联动） | 防止范围扩大 |

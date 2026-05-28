@@ -315,6 +315,5 @@ assert DATABASE_URL.startswith("postgresql"), "DATABASE_URL must be PostgreSQL i
 | 防滥用机制 | 检测异常请求模式，自动封禁或告警 |
 | 更完善自动备份 | PostgreSQL 定期快照自动上传对象存储（P0-9 的生产强化版） |
 | 多机型真机验收 | iOS / Android 多个机型的显示一致性 |
-| today_review_status 页面重构 | 从进度重复页重构为"今日复盘页"（Phase 8K 有方案草稿） |
 | 性能监控 | API 响应时间、例句生成延迟监控 |
 | 用户增长分析 | 微信小程序数据面板接入（现有官方分析即可） |

@@ -2,14 +2,15 @@
 
 ## Current Phase
 
-Phase 8J-action-queue-duplicate-feedback-fix — 修复 review 反馈在网络失败后重试导致同一 session_item_id 双入队 / 后续双提交的问题。前台失败 action 立即出队，新点击入队前先去重同一 session_item 历史 feedback action。
+Phase 8K-remove-today-review-status-page — 彻底删除 today_review_status 页面（无任何外部入口的孤岛代码 915 行 + app.json 注册）；review.js / wxml 中误导命名 `navigateToTodayReviewStatus` 重命名为 `navigateToTodayReviewed`（跳转目标本就是 today_reviewed，仅清理函数名）。
 
-**类型：** frontend hotfix — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
+**类型：** frontend cleanup — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8K-remove-today-review-status-page | Frontend cleanup: 删除 pages/today_review_status/（4 文件 915 行）；app.json 移除注册；review.js / wxml `navigateToTodayReviewStatus` → `navigateToTodayReviewed`；CLAUDE.md / docs 同步解除"不删除 today_review_status"边界 | — | `34c6660`（代码）+ pending（文档） |
 | Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | `00064cf` |
 | Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | `e73dbc4` |
 | Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | `646280a` |
@@ -51,6 +52,96 @@ Phase 8J-action-queue-duplicate-feedback-fix — 修复 review 反馈在网络�
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
 
 ---
+
+---
+
+## Phase 8K-remove-today-review-status-page — 删除 today_review_status 孤岛页面
+
+**提交：** frontend `34c6660` drop today review status page（业务代码） + pending（文档同步）
+**类型：** frontend cleanup
+**前置：** Phase 8J 真机验收 + 上一轮 readonly 审查已确认 today_review_status 无任何外部用户入口；CLAUDE.md / ai-working-rules.md 此前"不删除 today_review_status"边界本次解除。
+
+### 根因
+
+Phase 8D-home-lightweight 起首页主入口下线 today_review_status，但出于保守策略保留了页面代码。多轮审查（Phase 8I-followup / 8J）证实：
+- 全项目 grep 无任何 `navigateTo` / `redirectTo` / `reLaunch` / `switchTab` 指向 today_review_status
+- review.js 完成态实际跳转 `today_reviewed?from=review_complete`
+- review.js 中的 `navigateToTodayReviewStatus()` 方法名为历史残留，实际跳转目标也是 `today_reviewed?from=review_done_fallback`
+- 该页 4 个文件共 915 行属孤岛死代码，仅 app.json 注册位置浪费体积
+
+### 修改内容
+
+| 文件 | 改动 |
+|---|---|
+| `pages/review/review.js` | `navigateToTodayReviewStatus()` → `navigateToTodayReviewed()`（仅函数名，逻辑和跳转目标不变） |
+| `pages/review/review.wxml` | 完成态"查看今天看过的"按钮 `bindtap` 同步重命名 |
+| `app.json` | 删除 `pages/today_review_status/today_review_status` 页面注册 |
+| `pages/today_review_status/today_review_status.js` | 整文件删除（400 行） |
+| `pages/today_review_status/today_review_status.json` | 整文件删除（2 行） |
+| `pages/today_review_status/today_review_status.wxml` | 整文件删除（216 行） |
+| `pages/today_review_status/today_review_status.wxss` | 整文件删除（297 行） |
+| `CLAUDE.md`（根） | 第三节"首页约定"更新；第十一节强边界第 7 项"删除 today_review_status"改为"重新引入或恢复 today_review_status"（已删除，不要恢复） |
+| `docs/ai-working-rules.md` | 第八节禁止操作表"删除 today_review_status 页面代码"改为"重新引入或恢复 today_review_status 页面" |
+| `docs/product-features.md` | 删除"4. 今日复习情况页"整节；后续 5-9 节顺位调整为 4-8；第 123 行入口描述更新；离线 UI 文案小节移除 today_review_status banner；第九节"明确不做的事"表更新；第十节 Phase 8L / 8K 验收清单标注为历史阶段 |
+| `docs/add-input-validation-product-rules.md` | "未改内容"列表移除"today_review_status 页面不变" |
+| `docs/release-checklist.md` | 复习反馈完成跳转项从 today_review_status 改为 today_reviewed |
+| `docs/roadmap.md` | P2 "today_review_status 页面重构" 条目删除 |
+| `docs/current-phase.md` | 新增本阶段记录 + Recently Completed 表更新 |
+
+### 未改内容
+
+- 后端、数据库 schema、接口 schema 均不变
+- `review_state` 枚举不变
+- 4 档反馈枚举（forgot/shaky/got_it/fluent）不变
+- 回炉算法不变
+- `ReviewSession` / `daily_suggested` / `new_only` / `free_review` 调度链不变
+- `dailyGoal` 存储 / 变量名 / 可选值 3/5/10/15 不变
+- 网络 action queue 不变（Phase 8J 已修）
+- review 加载失败页文案 / 视觉不变（Phase 8I-followup 已处理）
+- 状态图标 ○ / ◐ / ◎ / ● 不变
+- 反馈按钮 没想起 / 有点模糊 / 记得 / 很熟 不变
+- Add 页空输入提示不变
+- Node.js / React.js 分词问题未处理
+- 跨会话回炉 is_repeat 未处理
+- 历史 phase summary 文档（phase6m / 6n / 6p 等）未改，保留历史事实
+
+### 人工验收清单
+
+**A. 编译**
+1. 微信开发者工具重新编译通过
+2. 不出现"今日复习情况页找不到"类报错
+
+**B. 查看卡片完成路径**
+1. 正常进入"看一看"
+2. 完成所有反馈
+3. 自动跳转到"今天看过"（today_reviewed），**不**跳到 today_review_status
+
+**C. done fallback 按钮**
+1. 触发 review 完成 fallback 面板（极少情况）
+2. 点击"查看今天看过的"
+3. 进入 today_reviewed，不报错
+
+**D. 首页常用入口**
+1. 添加卡片正常
+2. 查看卡片 / 继续查看正常
+3. 今天看过入口正常
+4. 设置入口正常
+
+**E. 弱网回归**
+1. 断网进入查看卡片 → 失败页"卡片加载失败"
+2. 恢复网络后重新加载正常
+
+**F. 回归**
+1. Add 页空输入不显示校验文案
+2. 状态图标仍是 ○ / ◐ / ◎ / ●
+3. 反馈按钮仍是 没想起 / 有点模糊 / 记得 / 很熟
+4. 回炉"再看一次"不受影响
+
+### 下一步建议
+
+- 本次仅清理代码 + 文档同步，未涉及业务变更
+- 若后续需要"今日复盘"类轻量页面，应作为新页面命名（如 `daily_recap`）独立设计，**不要**复用已删除的 today_review_status 路径
+- 可以考虑下一阶段处理已知遗留：Node.js / React.js 分词问题（P2）、跨会话回炉 is_repeat（需后端补 `ReviewItemResponse.is_repeat` 字段）
 
 ---
 

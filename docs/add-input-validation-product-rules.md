@@ -151,7 +151,6 @@ MAX_ENGLISH_CHARS = 500  // 字符数 > 500 → error
 - 后端数据库 schema 不变
 - review_state / ReviewSession / 4档反馈逻辑不变
 - `Hunyuan → TMT → None` 例句生成链路不变
-- `today_review_status` 页面不变
 - 后端异步 error 不展示（不显示红色、不降级为 warning、不阻止保存）不变
 - 拼写提示降级逻辑（有 correction → hint；无 correction → 隐藏）不变
 - 网络失败文案统一为"网络暂时不稳，可以先保存"不变
