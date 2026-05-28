@@ -10,7 +10,7 @@ Phase 8J-action-queue-duplicate-feedback-fix — 修复 review 反馈在网络�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | pending |
+| Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | `00064cf` |
 | Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | `e73dbc4` |
 | Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | `646280a` |
 | Phase 8H-hotfix-input-analysis-typing-control | Frontend hotfix: 输入中不回写 form.englishText；输入末尾空白跳过自动分析；blur 后低风险规范化回写；恢复新增卡片时自动类别识别（不被 hasUserChangedCategory 阻止） | — | pending |
@@ -56,7 +56,7 @@ Phase 8J-action-queue-duplicate-feedback-fix — 修复 review 反馈在网络�
 
 ## Phase 8J-action-queue-duplicate-feedback-fix — 修复反馈双入队 / 双提交风险
 
-**提交：** frontend pending（commit hash 由提交后汇报，不预写进文档）
+**提交：** frontend `00064cf` fix duplicate review feedback queueing（验收语义澄清在 `203b752` clarify failed review feedback retry semantics 中补强）
 **类型：** frontend hotfix
 **测试：** `scripts/test-review-action-queue-dedup.js`，34 个用例全部通过
 
