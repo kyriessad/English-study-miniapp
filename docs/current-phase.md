@@ -2,16 +2,15 @@
 
 ## Current Phase
 
-Release-Control-Docs-Completeness — 完善发布控制文档（roadmap / release-checklist / ai-working-rules）。
+Phase 8H-hotfix-input-analysis-typing-control — Add 页输入体验 hotfix：解决输入过程中系统抢控制权问题，恢复自动类别识别。
 
-**本次只改文档，不改业务代码，不代表实际完成部署。**
-
-整体方向不变：不删除底层复习系统，弱化前端"每日目标 / 打卡 / 任务完成 / 成绩报表"心智。保留 daily_suggested → new_only → free_review 调度、4 档反馈、回炉逻辑、review_state、ReviewSession。
+**类型：** frontend hotfix — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8H-hotfix-input-analysis-typing-control | Frontend hotfix: 输入中不回写 form.englishText；输入末尾空白跳过自动分析；blur 后低风险规范化回写；恢复新增卡片时自动类别识别（不被 hasUserChangedCategory 阻止） | — | pending |
 | Release-Control-Docs-Completeness | Docs only: 完善 roadmap / release-checklist / ai-working-rules；补充发布合规、安全、备份、登录、多用户隔离、AI 降级、灰度、回滚；修正 pending commit 状态；修正 session 创建接口路径为 /api/review-sessions；补充审核材料准备、SQLite fallback 人工确认、systemd/Nginx 细节、发布前仓库清洁检查、接口路径全量核实、禁止主动重命名核心文档规则；恢复原始 docs 文件路径 | — | pending |
 | Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | `63bff0c` |
 | extend-batch-size-options | Extend: 每次看几张选项扩展为 3 / 5 / 10 / 15；更新 5 个前端文件 + 后端 VALID_DAILY_GOALS；测试脚本扩展至 53 个用例 | pending | pending |
@@ -47,6 +46,46 @@ Release-Control-Docs-Completeness — 完善发布控制文档（roadmap / relea
 | Phase 8D-hotfix | Cache write gate + translation gate | `211d57e` | `365fe20` |
 | Phase 8C | Review UI polish | — | `731ca47` |
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
+
+---
+
+---
+
+## Phase 8H-hotfix-input-analysis-typing-control — Add 页输入体验 hotfix
+
+**提交：** frontend pending（commit hash 由提交后汇报，不预写进文档）
+**类型：** frontend hotfix
+
+### 根因
+
+1. `runInputAnalysis` 在输入过程中回写 `form.englishText = normalizeEnglishText(englishText)`，导致末尾空格消失、光标跳动、输入被改写（如"figure " 变成 "figure"，打断继续输入"figure out"）。
+2. `onEnglishInput` 的 `shouldAutoUpdateCategory` 加了 `!hasUserChangedCategory` 条件，用户手动选过类别后，英文继续变化时不再自动识别类别，导致类别与内容不匹配引发误拦截（如输入"figure out"但类别还是"单词"，弹出"单词类别请只填一个词"error）。
+
+### 修改内容
+
+| 文件 | 改动 |
+|---|---|
+| `pages/add/add.js` | 新增 `endsWithWhitespace` helper；`runInputAnalysis` 删除 `form.englishText` 回写块；`onEnglishInput` 移除 `!hasUserChangedCategory` 条件，新增末尾空白检测；`onEnglishBlur` 新增规范化回写后再触发分析 |
+| `scripts/test-add-input-validation-cases.js` | 替换旧 T1-T23 触发条件测试，新增 R/BL/W/AC 四组测试（共 26 个用例），总用例数 219 |
+| `docs/add-input-validation-product-rules.md` | 更新"分析前规范化"章节为"输入中不回写 + blur 后规范化"；更新"自动类别识别"移除 hasUserChangedCategory 阻断说明 |
+| `docs/product-features.md` | 更新英文内容规范化、自动类别识别、英文分析触发时机三段描述 |
+| `docs/current-phase.md` | 新增本阶段记录 |
+
+### 新行为
+
+1. **输入中不回写：** `runInputAnalysis` 只更新 `latestEnglishForSuggest` / loading 状态，不修改 `form.englishText`。
+2. **末尾空白跳过分析：** 输入以空白字符结尾时，清除 `suggestionTimer`，不设 `isValidatingEnglish: true`，不发起后端分析。
+3. **blur 后规范化回写：** `onEnglishBlur` 计算 `normalizeEnglishText(rawText)`，若与原值不同则回写，然后触发 `runInputAnalysis(normalizedText, category)`。
+4. **自动类别恢复：** 新增卡片时，`shouldAutoUpdateCategory` 不再检查 `hasUserChangedCategory`，英文每次变化都重新按内容识别类别。
+
+### 未改内容
+
+- 后端接口、数据库 schema 不变
+- 保存前 `normalizeEnglishText` 规则不变（`submitCard` 路径不变）
+- 后端 `normalizedText` 仍不回写英文输入框
+- 复习规则、4 档反馈、回炉逻辑、`ReviewSession`、`review_state` 不变
+- `today_review_status` 页面不变
+- 编辑卡片时的 `isEdit = true` 类别保护逻辑不变
 
 ---
 

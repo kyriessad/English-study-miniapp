@@ -37,6 +37,10 @@ const BACKEND_UNDERSTANDING_SOURCES = ['local', 'machine', 'ai', 'user'];
 
 
 
+function endsWithWhitespace(text) {
+  return /\s$/.test(String(text || ''));
+}
+
 function normalizeEnglishText(text) {
   var result = String(text || '');
 
@@ -1356,11 +1360,6 @@ Page({
       suggestLoading: !!normalizedText
     }
 
-    // 分析前应用本地 normalizeEnglishText，让用户在生成参考时看到规范化后的英文
-    if (this.data.form.englishText !== normalizedText) {
-      patch['form.englishText'] = normalizedText
-    }
-
     this.setData(patch)
 
     if (!normalizedText) {
@@ -1384,7 +1383,8 @@ Page({
       return
     }
     
-    if (normalizeEnglishText(this.data.form.englishText) !== normalizedText) {
+    const currentRaw = this.data.form.englishText
+    if (endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== normalizedText) {
       return
     }
 
@@ -1494,26 +1494,26 @@ Page({
     if (this.data.isReadonlyDetailMode) return;
     const nextValue = event.detail.value;
     const normalizedNextText = normalizeEnglishText(nextValue);
-  
+
+    // 新增卡片时，英文内容每次变化都按内容自动识别类别，不被 hasUserChangedCategory 阻止
     let categoryForAnalysis = this.data.form.category;
     const autoCategory = this.getAutoCategoryForEnglishText(normalizedNextText);
     const shouldAutoUpdateCategory = (
       !this.data.isEdit &&
-      !this.data.hasUserChangedCategory &&
       autoCategory &&
       autoCategory !== this.data.form.category
     );
-  
+
     const nextData = {
       'form.englishText': nextValue
     };
-  
+
     if (shouldAutoUpdateCategory) {
       categoryForAnalysis = autoCategory;
       nextData.categoryIndex = Math.max(CARD_CATEGORIES.indexOf(autoCategory), 0);
       nextData['form.category'] = autoCategory;
     }
-  
+
     if (normalizedNextText !== this.data.suggestionSourceText) {
       nextData.suggestionText = '';
       nextData.suggestionSourceText = '';
@@ -1523,20 +1523,20 @@ Page({
       nextData.validationResult = null;
       nextData.translating = Boolean(normalizedNextText);
     }
-  
+
     this.setData(nextData);
-  
+
     if (!normalizedNextText) {
       if (this.englishValidationTimer) {
         clearTimeout(this.englishValidationTimer);
         this.englishValidationTimer = null;
       }
-  
+
       if (this.suggestionTimer) {
         clearTimeout(this.suggestionTimer);
         this.suggestionTimer = null;
       }
-  
+
       this.clearSuggestion();
       this.setData({
         englishValidationMessage: '英文内容为空',
@@ -1545,13 +1545,27 @@ Page({
       });
       return;
     }
-  
+
+    // 末尾有空白时跳过自动分析，等待用户继续输入、blur 或保存
+    if (endsWithWhitespace(nextValue)) {
+      if (this.suggestionTimer) {
+        clearTimeout(this.suggestionTimer);
+        this.suggestionTimer = null;
+      }
+      this.setData({
+        isValidatingEnglish: false,
+        translating: false,
+        suggestLoading: false
+      });
+      return;
+    }
+
     this.setData({
       englishValidationMessage: '正在检查英文内容...',
       englishValidationType: 'hint',
       isValidatingEnglish: true
     });
-  
+
     this.scheduleSuggestionUpdate(nextValue, categoryForAnalysis, 500);
   },
 
@@ -1567,7 +1581,14 @@ Page({
       this.suggestionTimer = null;
     }
 
-    this.runInputAnalysis(event.detail.value, this.data.form.category);
+    const rawText = event.detail.value;
+    const normalizedText = normalizeEnglishText(rawText);
+
+    if (rawText !== normalizedText) {
+      this.setData({ 'form.englishText': normalizedText });
+    }
+
+    this.runInputAnalysis(normalizedText, this.data.form.category);
   },
 
   onUnderstandingInput(event) {

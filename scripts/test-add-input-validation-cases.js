@@ -770,79 +770,226 @@ failed += backendNoOverwriteFailed;
 failDetails = failDetails.concat(backendNoOverwriteFailDetails);
 
 // ─────────────────────────────────────────────
-// Phase 8H-hotfix-real-validation 新增：runInputAnalysis 触发条件验证
+// Phase 8H-hotfix-input-analysis-typing-control 新增
 // ─────────────────────────────────────────────
 
-var triggerConditionPassed = 0;
-var triggerConditionFailed = 0;
-var triggerConditionFailDetails = [];
+var CARD_CATEGORIES = ['单词', '短语', '句子'];
 
-// 模拟 runInputAnalysis 中分析前 normalize 的触发条件（修复版）
-// 修复：比较 raw form.englishText 与 normalizedText，而非两边都 normalize 后再比
-function simulateRunInputAnalysisTrigger(formEnglishText, englishTextParam) {
-  var normalizedText = normalizeEnglishText(englishTextParam);
-  var patch = {};
-  // 这是修复后的条件：比较 raw text 与 normalized text
-  if (formEnglishText !== normalizedText) {
-    patch['form.englishText'] = normalizedText;
-  }
-  return 'form.englishText' in patch ? patch['form.englishText'] : null;
+function endsWithWhitespace(text) {
+  return /\s$/.test(String(text || ''));
 }
 
-function runTriggerConditionCase(id, formEnglishText, englishTextParam, expectedPatch, note) {
-  var result = simulateRunInputAnalysisTrigger(formEnglishText, englishTextParam);
-  var ok;
-  if (expectedPatch === null) {
-    ok = result === null;
-  } else {
-    ok = result === expectedPatch;
-  }
+// ── A. runInputAnalysis 不回写 form.englishText ──────────────────────────────
+// 新规则：runInputAnalysis 只更新 latestEnglishForSuggest / translating 等状态，
+// 不修改 form.englishText。规范化回写由 onEnglishBlur 完成。
+
+var runInputNoPatchPassed = 0;
+var runInputNoPatchFailed = 0;
+var runInputNoPatchFailDetails = [];
+
+function simulateRunInputAnalysisPatch(englishText) {
+  var normalizedText = normalizeEnglishText(englishText);
+  var patch = {
+    latestEnglishForSuggest: normalizedText,
+    translating: !!normalizedText,
+    isValidatingEnglish: !!normalizedText,
+    suggestLoading: !!normalizedText
+  };
+  return 'form.englishText' in patch;
+}
+
+function runInputNoPatchCase(id, englishText, note) {
+  var hasPatch = simulateRunInputAnalysisPatch(englishText);
+  var ok = !hasPatch;
 
   if (ok) {
-    triggerConditionPassed++;
+    runInputNoPatchPassed++;
   } else {
-    triggerConditionFailed++;
-    triggerConditionFailDetails.push(
-      'FAIL trigger#' + id + ' [' + note + ']: got "' + (result === null ? 'null' : result) + '", want "' + (expectedPatch === null ? 'null (no patch)' : expectedPatch) + '"'
+    runInputNoPatchFailed++;
+    runInputNoPatchFailDetails.push(
+      'FAIL noWriteback#' + id + ' [' + note + ']: runInputAnalysis would patch form.englishText'
     );
   }
 }
 
-// ── A. 应触发 normalize 回写的输入 ──────────────────────────────────
+runInputNoPatchCase('R1', "he 's",          'R1: he \'s → 不产生 form.englishText patch');
+runInputNoPatchCase('R2', 'good   morning', 'R2: 多空格 → 不产生 form.englishText patch');
+runInputNoPatchCase('R3', 'hello\nworld',   'R3: 换行 → 不产生 form.englishText patch');
+runInputNoPatchCase('R4', 'figure ',        'R4: figure 末尾空格 → 不产生 form.englishText patch');
+runInputNoPatchCase('R5', 'figure out ',    'R5: figure out 末尾空格 → 不产生 form.englishText patch');
+runInputNoPatchCase('R6', 'hello',          'R6: 已规范输入 → 不产生 form.englishText patch');
+runInputNoPatchCase('R7', 'HELLO',          'R7: 大写 → 不产生 form.englishText patch');
 
-runTriggerConditionCase('T1', "he 's",          "he 's",          "he's",          'T1: he \'s → he\'s 回写触发');
-runTriggerConditionCase('T2', 'good   morning', 'good   morning', 'good morning',  'T2: 多空格 → 单空格 回写触发');
-runTriggerConditionCase('T3', 'hello\nworld',   'hello\nworld',   'hello world',   'T3: 换行 → 空格 回写触发');
-runTriggerConditionCase('T4', 'hello，world',   'hello，world',   'hello,world',   'T4: 中文逗号 → 英文逗号 回写触发');
-runTriggerConditionCase('T5', "he ' s",         "he ' s",         "he's",          'T5: he \' s → he\'s 回写触发');
-runTriggerConditionCase('T6', "don 't",         "don 't",         "don't",         'T6: don \'t → don\'t 回写触发');
+passed += runInputNoPatchPassed;
+failed += runInputNoPatchFailed;
+failDetails = failDetails.concat(runInputNoPatchFailDetails);
 
-// ── B. 不应触发回写的输入（已规范化或不在 low-risk 规则内）──────────
+// ── B. onEnglishBlur 规范化回写 ────────────────────────────────────────────
+// blur 时：rawText !== normalizedText → 回写；否则不回写。
 
-runTriggerConditionCase('T7', 'hello',          'hello',          null,            'T7: hello 已规范 → 不回写');
-runTriggerConditionCase('T8', 'HELLO',          'HELLO',          null,            'T8: 大写保留 → 不回写');
-runTriggerConditionCase('T9', 'cluch',          'cluch',          null,            'T9: 拼写不纠错 → 不回写');
-runTriggerConditionCase('T10', 'good job 👍', 'good job 👍', null,             'T10: emoji保留 → 不回写');
-runTriggerConditionCase('T11', 'hello world',   'hello world',    null,            'T11: 已单空格 → 不回写');
-runTriggerConditionCase('T12', "he's",          "he's",           null,            'T12: he\'s 已规范 → 不回写');
-runTriggerConditionCase('T13', "I'm fine",      "I'm fine",       null,            'T13: I\'m fine 已规范 → 不回写');
-runTriggerConditionCase('T14', 'GPT-4',         'GPT-4',          null,            'T14: GPT-4 保留 → 不回写');
-runTriggerConditionCase('T15', 'e-mail',        'e-mail',         null,            'T15: e-mail 保留 → 不回写');
-runTriggerConditionCase('T16', 'hello!!!',      'hello!!!',       null,            'T16: 多余标点保留 → 不回写');
+var blurNormalizePassed = 0;
+var blurNormalizeFailed = 0;
+var blurNormalizeFailDetails = [];
 
-// ── C. 边界：debounce 正常调度场景 ────────────────────────────────
-// scheduleSuggestionUpdate 在每次 onEnglishInput 中 reset timer，
-// 所以 runInputAnalysis 的 englishText 参数总是最新的用户输入。
-// 不存在"旧参数 + 新 form.englishText"的 race condition。
+function simulateBlurNormalize(rawText) {
+  var normalizedText = normalizeEnglishText(rawText);
+  if (rawText !== normalizedText) {
+    return normalizedText;
+  }
+  return null;
+}
 
-runTriggerConditionCase('T17', 'hello   world',   'hello   world', 'hello world',   'T17: 多空格输入 → 正常回写');
-// form.englishText 与 englishTextParam 相同 + 已规范化 → 不回写
-runTriggerConditionCase('T18', 'hello',          'hello',          null,            'T18: 已规范 + 参数同 → 不回写');
+function runBlurNormalizeCase(id, rawText, expectedResult, note) {
+  var result = simulateBlurNormalize(rawText);
+  var ok = expectedResult === null ? result === null : result === expectedResult;
 
-// 合并触发条件测试结果
-passed += triggerConditionPassed;
-failed += triggerConditionFailed;
-failDetails = failDetails.concat(triggerConditionFailDetails);
+  if (ok) {
+    blurNormalizePassed++;
+  } else {
+    blurNormalizeFailed++;
+    blurNormalizeFailDetails.push(
+      'FAIL blur#' + id + ' [' + note + ']: got "' + (result === null ? 'null' : result) + '", want "' + (expectedResult === null ? 'null (no writeback)' : expectedResult) + '"'
+    );
+  }
+}
+
+runBlurNormalizeCase('BL1', "he 's",          "he's",        'BL1: he \'s → blur 后回写 he\'s');
+runBlurNormalizeCase('BL2', 'good   morning', 'good morning','BL2: 多空格 → blur 后回写 good morning');
+runBlurNormalizeCase('BL3', 'hello\nworld',   'hello world', 'BL3: 换行 → blur 后回写 hello world');
+runBlurNormalizeCase('BL4', 'figure out  ',   'figure out',  'BL4: 末尾双空格 → blur 后回写 figure out');
+runBlurNormalizeCase('BL5', 'HELLO',          null,          'BL5: HELLO 大写不变 → 不回写');
+runBlurNormalizeCase('BL6', 'cluch',          null,          'BL6: cluch 拼写不纠错 → 不回写');
+runBlurNormalizeCase('BL7', 'good job 👍', null,          'BL7: emoji 保留 → 不回写');
+
+passed += blurNormalizePassed;
+failed += blurNormalizeFailed;
+failDetails = failDetails.concat(blurNormalizeFailDetails);
+
+// ── C. 末尾空白跳过自动分析 ─────────────────────────────────────────────────
+// 有内容且末尾是空白 → 跳过自动分析；空内容 → 走空内容逻辑（不是"跳过分析"）；无末尾空白 → 正常分析
+
+var trailingSkipPassed = 0;
+var trailingSkipFailed = 0;
+var trailingSkipFailDetails = [];
+
+function shouldSkipAutoAnalysis(rawValue) {
+  var normalizedText = normalizeEnglishText(rawValue);
+  if (!normalizedText) return false;
+  return endsWithWhitespace(rawValue);
+}
+
+function runTrailingSkipCase(id, rawValue, expectedSkip, note) {
+  var result = shouldSkipAutoAnalysis(rawValue);
+  var ok = result === expectedSkip;
+
+  if (ok) {
+    trailingSkipPassed++;
+  } else {
+    trailingSkipFailed++;
+    trailingSkipFailDetails.push(
+      'FAIL trailing#' + id + ' [' + note + ']: got ' + result + ', want ' + expectedSkip
+    );
+  }
+}
+
+runTrailingSkipCase('W1', 'figure',       false, 'W1: figure → 不跳过');
+runTrailingSkipCase('W2', 'figure ',      true,  'W2: figure 末尾空格 → 跳过');
+runTrailingSkipCase('W3', 'figure out',   false, 'W3: figure out → 不跳过');
+runTrailingSkipCase('W4', 'figure out ',  true,  'W4: figure out 末尾空格 → 跳过');
+runTrailingSkipCase('W5', 'I am ',        true,  'W5: I am 末尾空格 → 跳过');
+runTrailingSkipCase('W6', '',             false, 'W6: 空字符串 → 不跳过（走空内容逻辑）');
+runTrailingSkipCase('W7', '   ',          false, 'W7: 纯空格 → 不跳过（走空内容逻辑）');
+
+passed += trailingSkipPassed;
+failed += trailingSkipFailed;
+failDetails = failDetails.concat(trailingSkipFailDetails);
+
+// ── D. 自动类别识别不被 hasUserChangedCategory 阻止 ─────────────────────────
+// 新规则：新增卡片时，只要英文内容变化，始终按内容自动识别类别，
+// hasUserChangedCategory=true 不再阻止自动识别。
+
+var autoCatRestorePassed = 0;
+var autoCatRestoreFailed = 0;
+var autoCatRestoreFailDetails = [];
+
+function simulateShouldAutoUpdateCategory(isEdit, currentCategory, englishText) {
+  var normalizedText = normalizeEnglishText(englishText);
+  var autoCategory = detectEnglishCategory(normalizedText);
+  if (!autoCategory || CARD_CATEGORIES.indexOf(autoCategory) === -1) {
+    return { shouldUpdate: false, autoCategory: '' };
+  }
+  var shouldUpdate = !isEdit && !!autoCategory && autoCategory !== currentCategory;
+  return { shouldUpdate: shouldUpdate, autoCategory: autoCategory };
+}
+
+function runAutoCatRestoreCase(id, isEdit, currentCategory, englishText, expectedShouldUpdate, expectedCategory, note) {
+  var result = simulateShouldAutoUpdateCategory(isEdit, currentCategory, englishText);
+  var ok = result.shouldUpdate === expectedShouldUpdate &&
+    (!expectedShouldUpdate || result.autoCategory === expectedCategory);
+
+  if (ok) {
+    autoCatRestorePassed++;
+  } else {
+    autoCatRestoreFailed++;
+    autoCatRestoreFailDetails.push(
+      'FAIL autoCatRestore#' + id + ' [' + note + ']: got shouldUpdate=' + result.shouldUpdate + ' category="' + result.autoCategory + '", want shouldUpdate=' + expectedShouldUpdate + ' category="' + expectedCategory + '"'
+    );
+  }
+}
+
+// 用户手动改过类别后，英文继续变化仍自动识别（hasUserChangedCategory 不再阻止）
+runAutoCatRestoreCase('AC1', false, '单词', 'figure out',  true,  '短语', 'AC1: 手动选单词后输入figure out → 自动改为短语');
+runAutoCatRestoreCase('AC2', false, '句子', 'hello',       true,  '单词', 'AC2: 手动选句子后输入hello → 自动改为单词');
+runAutoCatRestoreCase('AC3', false, '单词', 'I am happy.', true,  '句子', 'AC3: 手动选单词后输入完整句子 → 自动改为句子');
+// 类别已经正确时不触发更新
+runAutoCatRestoreCase('AC4', false, '短语', 'figure out',  false, '',     'AC4: 类别已正确 → 不触发更新');
+// 编辑模式不自动改类别
+runAutoCatRestoreCase('AC5', true,  '单词', 'figure out',  false, '',     'AC5: isEdit=true → 不自动改类别');
+
+passed += autoCatRestorePassed;
+failed += autoCatRestoreFailed;
+failDetails = failDetails.concat(autoCatRestoreFailDetails);
+
+// ─────────────────────────────────────────────
+// Section SG — runInputAnalysis 旧结果 stale guard
+// await 返回后：末尾有空白 或 normalize 后不等于 analysisText → 不 apply
+// ─────────────────────────────────────────────
+
+var staleGuardPassed = 0;
+var staleGuardFailed = 0;
+var staleGuardFailDetails = [];
+
+function simulateShouldApplyAnalysis(currentRaw, analysisText) {
+  // Mirrors: endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== analysisText → return (不 apply)
+  if (endsWithWhitespace(currentRaw)) return false;
+  if (normalizeEnglishText(currentRaw) !== analysisText) return false;
+  return true;
+}
+
+function runStaleGuardCase(id, currentRaw, analysisText, expectApply, label) {
+  var actual = simulateShouldApplyAnalysis(currentRaw, analysisText);
+  if (actual === expectApply) {
+    staleGuardPassed++;
+  } else {
+    staleGuardFailed++;
+    staleGuardFailDetails.push(id + ' FAIL: ' + label + ' → got ' + actual + ', expect ' + expectApply);
+  }
+}
+
+// 末尾有空白 → 不 apply（核心场景）
+runStaleGuardCase('SG1', 'figure ',     'figure',        false, 'figure 末尾空格, analysisText=figure → 不 apply');
+runStaleGuardCase('SG2', 'figure  ',    'figure',        false, 'figure 末尾双空格 → 不 apply');
+// 内容已变 → 不 apply
+runStaleGuardCase('SG3', 'figure out',  'figure',        false, '内容已变为 figure out, 旧 analysisText=figure → 不 apply');
+runStaleGuardCase('SG4', '',            'figure',        false, '已清空, 旧 analysisText=figure → 不 apply');
+// 正常情况 → 可以 apply
+runStaleGuardCase('SG5', 'figure',      'figure',        true,  'figure 无空白 = analysisText → apply');
+runStaleGuardCase('SG6', 'he \'s',      'he\'s',         true,  'he \'s normalize 后 = he\'s → apply');
+runStaleGuardCase('SG7', 'good   morning', 'good morning', true, '多空格 normalize 后 = good morning → apply');
+
+passed += staleGuardPassed;
+failed += staleGuardFailed;
+failDetails = failDetails.concat(staleGuardFailDetails);
 
 // ─────────────────────────────────────────────
 // 输出结果
@@ -863,10 +1010,13 @@ var newNormalizeTests = normalizationPassed + normalizationFailed;  // N1-N50
 var newAutoCategoryTests = autoCategoryPassed + autoCategoryFailed;
 var newPreNormalizeTests = preNormalizePassed + preNormalizeFailed;
 var newBackendNoOverwriteTests = backendNoOverwritePassed + backendNoOverwriteFailed;
-var newTriggerConditionTests = triggerConditionPassed + triggerConditionFailed;
-var newPhase8HHotfixTests = newAutoCategoryTests + newPreNormalizeTests + newBackendNoOverwriteTests;
-var newPhase8HRealValidationTests = newTriggerConditionTests;
-var totalNewTests = newRunCaseTests + newNormalizeTests + newPhase8HHotfixTests + newPhase8HRealValidationTests;
+var newRunInputNoPatchTests = runInputNoPatchPassed + runInputNoPatchFailed;
+var newBlurNormalizeTests = blurNormalizePassed + blurNormalizeFailed;
+var newTrailingSkipTests = trailingSkipPassed + trailingSkipFailed;
+var newAutoCatRestoreTests = autoCatRestorePassed + autoCatRestoreFailed;
+var newStaleGuardTests = staleGuardPassed + staleGuardFailed;
+var newTypingControlTests = newRunInputNoPatchTests + newBlurNormalizeTests + newTrailingSkipTests + newAutoCatRestoreTests + newStaleGuardTests;
+var totalNewTests = newRunCaseTests + newNormalizeTests + newAutoCategoryTests + newPreNormalizeTests + newBackendNoOverwriteTests + newTypingControlTests;
 var totalTests = passed + failed;
 
 console.log('\n测试明细：');
@@ -876,7 +1026,12 @@ console.log('  Phase 8H 规范化：' + newNormalizeTests);
 console.log('  Phase 8H-hotfix 自动类别：' + newAutoCategoryTests);
 console.log('  Phase 8H-hotfix 分析前 normalize：' + newPreNormalizeTests);
 console.log('  Phase 8H-hotfix 后端不回写：' + newBackendNoOverwriteTests);
-console.log('  Phase 8H-hotfix-real-validation 触发条件：' + newTriggerConditionTests);
+console.log('  Phase 8H-hotfix-input-analysis-typing-control:');
+console.log('    runInputAnalysis 不回写（R1-R7）：' + newRunInputNoPatchTests);
+console.log('    onEnglishBlur 规范化（BL1-BL7）：' + newBlurNormalizeTests);
+console.log('    末尾空白跳过分析（W1-W7）：' + newTrailingSkipTests);
+console.log('    自动类别识别恢复（AC1-AC5）：' + newAutoCatRestoreTests);
+console.log('    stale guard 旧结果拦截（SG1-SG7）：' + newStaleGuardTests);
 console.log('  本次新增：' + totalNewTests);
 console.log('  总测试数：' + totalTests);
 console.log('  通过：' + passed + '，失败：' + failed);

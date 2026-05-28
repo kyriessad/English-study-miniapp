@@ -221,66 +221,83 @@ MAX_ENGLISH_CHARS = 500  // 字符数 > 500 → error
 - 从 review 页进入编辑再保存
 - 从 today_reviewed 页进入编辑再保存
 
-### 分析前规范化（Phase 8H-hotfix 新增 + Phase 8H-hotfix-real-validation 修复）
+### 输入中不回写 + blur 后规范化（Phase 8H-hotfix-input-analysis-typing-control）
 
-> 新增于：Phase 8H-hotfix（2026-05-25）
-> 修复于：Phase 8H-hotfix-real-validation（2026-05-25）
+> 修订于：Phase 8H-hotfix-input-analysis-typing-control（2026-05-28）
+> 替代原：Phase 8H-hotfix + Phase 8H-hotfix-real-validation 中的"分析前回写"规则
 
-输入英文后，在触发后端分析/生成参考内容之前，前端会先用 `normalizeEnglishText` 对 `form.englishText` 做本地规范化。
+**核心原则：输入过程中不回写英文输入框；blur 后才做低风险规范化回写。**
 
-**触发时机：** `runInputAnalysis` 被调用时（由 `onEnglishInput` 经 500ms debounce 的 `scheduleSuggestionUpdate` 调用，或由 `onEnglishBlur` 直接调用）。
+| 时机 | 行为 |
+|---|---|
+| `onEnglishInput` | 只记录用户原始输入到 `form.englishText`，不做规范化回写 |
+| `runInputAnalysis`（输入中 debounce 触发） | 用 `normalizeEnglishText(englishText)` 做分析，**不修改** `form.englishText` |
+| `onEnglishBlur`（离开输入框） | `rawText !== normalizedText` 时回写 `form.englishText = normalizedText` |
+| `submitCard`（保存前） | 始终用 `normalizeEnglishText` 后的结果保存，与输入框当前值无关 |
 
-**修复（Phase 8H-hotfix-real-validation）：** 原始实现中，`runInputAnalysis` 的写回条件比较的是 `normalizeEnglishText(form.englishText) !== normalizedText`（两边都 normalize 后再比较），由于 `onEnglishInput` 已将同一个原始值写入 `form.englishText`，两边 normalize 结果永远相同，写回从未触发。修复为比较 `form.englishText !== normalizedText`（原始值 vs 规范化值）。
+**输入以空白字符结尾时跳过自动分析：**
 
-**真实触发链路：**
-1. 用户在英文输入框输入：`he 's`
-2. `onEnglishInput` 触发 → 写 `form.englishText = "he 's"`（原始值）
-3. 调用 `scheduleSuggestionUpdate("he 's", category, 500)`，启动 500ms debounce
-4. 500ms 后 `runInputAnalysis("he 's", category)` 被调用
-5. `runInputAnalysis` 计算 `normalizedText = normalizeEnglishText("he 's") = "he's"`
-6. 比较：`"he 's" !== "he's"` → true → setData `form.englishText = "he's"`
-7. 英文输入框显示 `he's`
+| 输入 | normalizedText | 行为 |
+|---|---|---|
+| `figure` | `figure` | 正常触发自动分析 |
+| `figure ` | `figure` | 跳过自动分析，等待继续输入或 blur |
+| `figure out` | `figure out` | 正常触发自动分析 |
+| `figure out ` | `figure out` | 跳过自动分析 |
 
-**三个关键验收样例：**
+**blur 后回写三个典型样例：**
 
-| 输入 | normalize 后 | 触发条件 | 输入框显示 |
-|---|---|---|---|
-| `he 's` | `he's` | `"he 's" !== "he's"` → 回写 | `he's` |
-| `good   morning` | `good morning` | `"good   morning" !== "good morning"` → 回写 | `good morning` |
-| `hello\nworld` | `hello world` | `"hello\nworld" !== "hello world"` → 回写 | `hello world` |
+| 输入（blur 前） | blur 后 `form.englishText` |
+|---|---|
+| `he 's` | `he's` |
+| `good   morning` | `good morning` |
+| `hello\nworld` | `hello world` |
+| `HELLO` | `HELLO`（不变，不转小写） |
+| `cluch` | `cluch`（不变，不自动拼写纠错） |
 
 - 后端 `normalizedText` 仍然不回写英文输入框（Phase 8H 规则保持不变）
 
 ---
 
-## 十一、自动类别识别（Phase 8H-hotfix 新增）
+## 十一、自动类别识别（Phase 8H-hotfix + Phase 8H-hotfix-input-analysis-typing-control）
 
 > 新增于：Phase 8H-hotfix（2026-05-25）
+> 修订于：Phase 8H-hotfix-input-analysis-typing-control（2026-05-28）
 
 ### 规则
 
-1. **新增卡片、用户未手动选择类别时**：输入内容变化后，根据 `normalizeEnglishText` 后的内容自动判断类别：
+1. **新增卡片时**：只要英文内容变化，始终根据 `normalizeEnglishText` 后的内容自动识别类别：
    - 单词：一个 token（hello、well-known、GPT-4、don't、U.S.、e.g.）
    - 短语：多个词但不像完整句子（hello world、break a leg、pick up）
    - 句子：明显句子或带句末标点（I am happy.、How are you?）
    - 末尾 `.` `!` `?` 会检查：去掉末尾标点后无空格 → 视为单词/缩写（U.S. / e.g. / Dr.），有空格 → 句子
 
-2. **用户手动选择类别后**：不再自动覆盖 category（`hasUserChangedCategory = true`），但仍执行本地校验（单词类别多词 error、短语类别单词 error）
+2. **用户手动选择类别后**：不再永久阻止自动识别。只要英文内容继续变化，仍然会重新按内容自动识别类别。`hasUserChangedCategory = true` 只记录"用户选过"，不再作为跳过条件。
 
-3. **编辑已有卡片时**：不自动改已有 category（`isEdit = true` 时跳过自动识别）
+3. **编辑已有卡片时**：不自动改已有 category（`isEdit = true` 时跳过自动识别，编辑模式暂保持现有策略）
 
 4. **连续新增（保存并继续新增）时**：`hasUserChangedCategory` 重置为 `false`，下一张卡片可再次自动识别
+
+### 典型样例
+
+| 操作 | 英文内容 | 期望 category |
+|---|---|---|
+| 输入 `figure` | figure | 单词 |
+| 继续输入 `figure out` | figure out | 短语 |
+| 继续输入 `I figured it out.` | I figured it out. | 句子 |
+| 用户手动选"单词"后继续输入 `figure out` | figure out | 短语（重新自动识别） |
+| 用户手动选"句子"后继续输入 `hello` | hello | 单词（重新自动识别） |
 
 ### 实现位置
 
 - `detectEnglishCategory(text)` — 纯函数，根据规范化后的英文内容返回类别
 - `getAutoCategoryForEnglishText(text)` — Page 方法，调用 `detectEnglishCategory` 并验证结果在 `CARD_CATEGORIES` 中
-- `onEnglishInput` — 输入时检查 `shouldAutoUpdateCategory`，条件满足时自动更新类别
-- `onCategoryChange` — 用户手动选择类别时设置 `hasUserChangedCategory: true`
+- `onEnglishInput` — 每次输入变化都执行 `shouldAutoUpdateCategory`（移除了 `!hasUserChangedCategory` 条件）
+- `onCategoryChange` — 用户手动选择类别时仍设置 `hasUserChangedCategory: true`（保留状态，但不再阻止后续自动识别）
 
 ### 测试覆盖
 
 24 个自动类别识别测试（C1-C24），覆盖单词/短语/句子/缩写/normalize 后识别。
+5 个自动类别识别恢复测试（AC1-AC5），覆盖手动改过类别后仍自动识别场景。
 
 ---
 
