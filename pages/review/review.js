@@ -14,6 +14,8 @@ const {
   enqueueAction,
   flushActionQueue,
   getPendingActionCount,
+  removeActionFromQueue,
+  removeQueuedFeedbackActionsBySessionItemId,
 } = require('../../utils/actionQueue');
 
 const {
@@ -401,6 +403,16 @@ Page({
       pageState: 'submitting',
     });
 
+    // Phase 8J: Dedupe any stale feedback action for the same session_item_id
+    // (e.g. from an earlier foreground failure on a different result). The most
+    // recent click is the user's true intent — we don't want an older action
+    // racing it during a later background flush.
+    try {
+      removeQueuedFeedbackActionsBySessionItemId(currentItem.session_item_id);
+    } catch (dedupErr) {
+      console.warn('[review] feedback dedup failed before enqueue', dedupErr);
+    }
+
     // Step 1: Enqueue action locally
     enqueueAction('review_feedback', {
       client_action_id: clientActionId,
@@ -549,12 +561,23 @@ Page({
   _handleForegroundFailure(clientActionId, error) {
     console.warn('[review] foreground feedback failed, staying on current card', error);
 
+    // Phase 8J: Drop the failed action from the local queue so it cannot
+    // race a later click on the same session_item during background flush.
+    // The user is explicitly told the click failed; they will retry, and
+    // the next click is the action that should reach the backend.
+    try {
+      removeActionFromQueue(clientActionId);
+    } catch (removeErr) {
+      console.warn('[review] failed to remove failed feedback action from queue', removeErr);
+    }
+
     // Reset submitting state — do NOT advance to next item
     this.setData({
       submittingFeedback: false,
       isSubmitting: false,
       pageState: 'active',
       currentClientActionId: '',
+      pendingActionCount: getPendingActionCount(),
     });
 
     wx.showToast({

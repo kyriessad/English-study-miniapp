@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8I-ux-copy-polish-followup — Phase 8I 真机验收后续 hotfix：Add 页空输入彻底不展示校验提示；删除"不会修改英文内容"多余文案；回炉卡"再看一次"改用前端 seenCardIds 兜底（后端 ReviewItemResponse 不暴露 is_repeat）；review 加载失败页文案 / 视觉轻量化。
+Phase 8J-action-queue-duplicate-feedback-fix — 修复 review 反馈在网络失败后重试导致同一 session_item_id 双入队 / 后续双提交的问题。前台失败 action 立即出队，新点击入队前先去重同一 session_item 历史 feedback action。
 
 **类型：** frontend hotfix — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
 
@@ -10,7 +10,8 @@ Phase 8I-ux-copy-polish-followup — Phase 8I 真机验收后续 hotfix：Add �
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | pending |
+| Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | pending |
+| Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | `e73dbc4` |
 | Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | `646280a` |
 | Phase 8H-hotfix-input-analysis-typing-control | Frontend hotfix: 输入中不回写 form.englishText；输入末尾空白跳过自动分析；blur 后低风险规范化回写；恢复新增卡片时自动类别识别（不被 hasUserChangedCategory 阻止） | — | pending |
 | Release-Control-Docs-Completeness | Docs only: 完善 roadmap / release-checklist / ai-working-rules；补充发布合规、安全、备份、登录、多用户隔离、AI 降级、灰度、回滚；修正 pending commit 状态；修正 session 创建接口路径为 /api/review-sessions；补充审核材料准备、SQLite fallback 人工确认、systemd/Nginx 细节、发布前仓库清洁检查、接口路径全量核实、禁止主动重命名核心文档规则；恢复原始 docs 文件路径 | — | pending |
@@ -50,6 +51,132 @@ Phase 8I-ux-copy-polish-followup — Phase 8I 真机验收后续 hotfix：Add �
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
 
 ---
+
+---
+
+## Phase 8J-action-queue-duplicate-feedback-fix — 修复反馈双入队 / 双提交风险
+
+**提交：** frontend pending（commit hash 由提交后汇报，不预写进文档）
+**类型：** frontend hotfix
+**测试：** `scripts/test-review-action-queue-dedup.js`，34 个用例全部通过
+
+### 根因
+
+`pages/review/review.js` 的 `submitReview` 每次点击都调用 `enqueueAction('review_feedback', { client_action_id, session_id, session_item_id, card_id, result })`。
+- 成功路径：`_handleForegroundSuccess` → `_removeProcessedAction(clientActionId)` 将 action 从队列移除。
+- 失败路径：`_handleForegroundFailure` 仅 `setData({ submittingFeedback: false, pageState: 'active', currentClientActionId: '' })` 并 toast "网络不可用，请检查当前网络"，**不出队**。
+
+后果：
+- 用户失败后再点同一卡片任意反馈 → `generateClientActionId()` 生成新 UUID → 入队 → 队列里现在有两条 `review_feedback` 都指向同一 `session_item_id`，但 `client_action_id` 不同。
+- 后端 `/api/reviews/feedback` 幂等仅按 `client_action_id`（见 `app/routers/reviews.py:1192-1232` `get_existing_client_action`），不同 client_action_id 视为不同请求。
+- 后续 `flushActionQueue` 按 `created_at ASC` 串行发送两条：
+  - 第一条（旧失败 action）先到 → 后端 Step 4 检查 `item.status == 'pending'` 通过 → 正常应用反馈、写 review_log、写 item.first_result = 旧 result。
+  - 第二条（用户真实意图）到 → 后端 Step 4 检查 `item.status != 'pending'` → 返回 `status: 'ignored'`, `ignored_reason: 'session_item_not_pending'`。
+- **用户可见后果**：用户最终看到的是"第一次失败那次的 result"被记录，不是用户最后真正想点的结果。回炉算法、review_state 转移、ReviewLog 内容都按错误 result 推进。
+
+后端虽然有 `session_item_id` "pending" 兜底，但**只能保证不重复处理同一 item，不能保证以最后一次用户意图为准**。前端必须自己保证队列里同一 session_item 只剩最新一条 action。
+
+### 只读链路核实
+
+| 检查项 | 位置 | 结论 |
+|---|---|---|
+| `clientActionId` 生成时机 | `review.js:381` `generateClientActionId()` | 每次 `submitReview` 调用都生成新 UUID |
+| 每次点击都 enqueue | `review.js:405-412` | 是，无去重 |
+| Action 字段 | `actionQueue.js:54-72` | `client_action_id` / `action_type` / `payload.{session_id, session_item_id, card_id, result}` / `status` / `created_at` / `local_sequence` / `retry_count` / `next_retry_at` |
+| Success 出队位置 | `review.js:_handleForegroundSuccess` → `_removeProcessedAction(clientActionId)` → `markActionSynced + removeActionFromQueue` | 正确出队 |
+| Failure 出队 | `review.js:_handleForegroundFailure`（修前） | **不出队**（确认 bug） |
+| 失败后再点击产生新 action | `submitReview` → 新 UUID → enqueueAction | 是，两条都进队 |
+| Flush 串行发送 | `actionQueue.js:flushActionQueue` 按 `sortByCreatedAtAndLocalSequence` | 是，按时间顺序两条都发 |
+| 后端 client_action_id 幂等 | `app/routers/reviews.py:1192` `get_existing_client_action` | 是，按 client_action_id 查 ProcessedClientAction |
+| 后端 session_item_id 二次检查 | `app/routers/reviews.py:1289` `item.status != 'pending'` → 返回 ignored | 有兜底，但只能去重不能纠正用户意图 |
+
+### 修改内容
+
+| 文件 | 改动 |
+|---|---|
+| `utils/actionQueue.js` | 新增 `removeQueuedFeedbackActionsBySessionItemId(sessionItemId)`：只匹配 `action_type === 'review_feedback'` 且 `payload.session_item_id === sessionItemId` 的项，返回被移除的 `client_action_id` 列表；空 / null / undefined 输入为 no-op；不影响其他 action_type；不按 card_id 去重 |
+| `pages/review/review.js` | import 新增 `removeActionFromQueue` 和 `removeQueuedFeedbackActionsBySessionItemId`；`submitReview` 在 `enqueueAction` 前调用 `removeQueuedFeedbackActionsBySessionItemId(currentItem.session_item_id)` 防御性去重；`_handleForegroundFailure` 调用 `removeActionFromQueue(clientActionId)` 立即出队失败 action，并刷新 `pendingActionCount` |
+| `scripts/test-review-action-queue-dedup.js` | 新增 34 用例测试脚本：T1 系列覆盖 `removeActionFromQueue` 基础行为；T2 系列覆盖 dedup helper 的 session_item 匹配、空输入、非 review_feedback 类型保护；T3 系列模拟端到端用户流（失败→重试同 result / 失败→换 result / 旧版本没清理 + dedup 兜底 / 多卡片独立） |
+| `docs/current-phase.md` | 新增本阶段记录 |
+
+### 新行为
+
+1. **前台反馈失败立即出队：** 用户看到失败 toast 时，对应 client_action_id 已从队列移除，不会随后台 flush 偷偷提交。
+2. **入队前去重防御：** `submitReview` 在 enqueue 前先 `removeQueuedFeedbackActionsBySessionItemId(currentItem.session_item_id)`。即使失败清理因任何原因未执行（旧版本残留、storage 异常、并发等），也能保证同一 session_item 在队列里只剩本次新点击的 action。
+3. **同 card_id 不同 session_item_id 不去重：** 回炉卡（同 card 不同 session_item 行）独立处理，不会被一并清掉。
+4. **跨 session 不去重：** 不同 session_id 但同 session_item_id 理论上不会发生（item_id 是 UUID），但即使发生也只匹配相同 item_id，不按 card_id 误删。
+5. **flushActionQueue / 队列存储格式 / 入队字段保持不变。**
+
+### 未改内容
+
+- 后端不变（依赖现有 `client_action_id` 幂等 + `session_item_id` "pending" 兜底）
+- 数据库 schema 不变
+- 接口 schema 不变（`ReviewFeedbackRequest` / `ReviewFeedbackResponse` 字段不变）
+- `review_state` 枚举（new/reviewing/strengthening/mastered）不变
+- 4 档反馈枚举（forgot/shaky/got_it/fluent）不变
+- 回炉算法（forgot 2次/shaky 1次）不变
+- `ReviewSession` / `daily_suggested` / `new_only` / `free_review` 调度链不变
+- `dailyGoal` 存储 / 变量名 / 可选值 3/5/10/15 不变
+- `today_review_status` 未删除
+- Node.js / React.js 分词问题未修
+- 跨会话回炉提示 `is_repeat` 未处理（后端 `ReviewItemResponse` 仍不暴露该字段）
+- 失败 toast 文案不变（"网络不可用，请检查当前网络"）
+- 反馈按钮文案 / 颜色不变
+- review 空状态 / 加载失败页文案不变（Phase 8I-followup 已处理）
+
+### 测试用例（34）
+
+| 编号 | 覆盖点 |
+|---|---|
+| T1.1 | `removeActionFromQueue` 按 client_action_id 单条移除 |
+| T1.2 | 未知 client_action_id 为 no-op |
+| T1.3 | 移除指定 id 不影响其他 action |
+| T2.1 | 同 session_item_id 单条 stale 去重 + 新 action 入队 |
+| T2.2 | 同 session_item_id 多条 stale 一次性全部去重 |
+| T2.3 | dedup 只影响目标 session_item_id |
+| T2.4 | 同 card_id 不同 session_item_id 不会被合并去重（回炉场景） |
+| T2.5 | 空 / null / undefined sessionItemId 输入为 no-op |
+| T2.6 | dedup 不影响非 review_feedback 类型的 action |
+| T3.1 | 失败→重试同 result 只剩一条 action |
+| T3.2 | 失败→改点不同 result，队列只保留用户最后意图 |
+| T3.3 | 即使旧版本失败清理未执行，dedup 仍能兜底 |
+| T3.4 | 不同卡片各自独立，互不干扰 |
+
+### 人工验收清单
+
+**A. 正常反馈成功**
+1. 网络正常进入"看一看"
+2. 点击"记得" → 正常进入下一张 / 完成页
+3. 无错误 toast
+4. 今天看过 / 历史记录正常出现该卡
+
+**B. 网络失败后重试同反馈**
+1. 进入"看一看" → 断网
+2. 当前卡点"记得" → 停留在当前卡 + toast "网络不可用，请检查当前网络"
+3. 再次点击"记得"
+4. 本地队列不应保留两条同 session_item_id 的 action
+5. 恢复网络后，该 session_item 只产生一条 ReviewLog
+6. 卡片 review_state 不会被重复推进
+
+**C. 网络失败后改点另一反馈**
+1. 进入"看一看" → 断网
+2. 点"记得"失败 → 改点"没想起"
+3. 本地队列只剩 forgot 的 action（无 got_it）
+4. 恢复网络后，最终记录为"没想起"
+
+**D. 不同卡片不互相影响**
+1. 准备 ≥ 2 张卡
+2. 第一张失败后重试 → 第二张正常反馈
+3. 队列去重不会误删第二张的 action
+4. 两张卡各自记录正常
+
+**E. 回归检查**
+1. 反馈按钮仍是：没想起 / 有点模糊 / 记得 / 很熟
+2. 回炉逻辑不变
+3. "再看一次"提示不受影响
+4. review 空状态文案不变
+5. Add 页不受影响
+6. 首页状态图标 ○ / ◐ / ◎ / ● 不受影响
 
 ---
 

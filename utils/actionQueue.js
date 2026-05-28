@@ -191,6 +191,35 @@ function removeActionFromQueue(clientActionId) {
 }
 
 /**
+ * Phase 8J: 移除本地队列中同一 session_item_id 的 review_feedback action。
+ * 用于防止用户在网络失败后反复点击造成同一 session_item 多次入队。
+ * 只匹配 action_type === 'review_feedback' 且 payload.session_item_id 相同的项。
+ * 不会误删其他卡片、其他 session、其他 action 类型。
+ * @param {string} sessionItemId
+ * @returns {string[]} 被移除的 client_action_id 列表
+ */
+function removeQueuedFeedbackActionsBySessionItemId(sessionItemId) {
+  if (!sessionItemId) return [];
+  const queue = _readQueue();
+  const removed = [];
+  const next = [];
+  for (let i = 0; i < queue.length; i++) {
+    const a = queue[i];
+    const isFeedback = a && a.action_type === 'review_feedback';
+    const sameItem = a && a.payload && a.payload.session_item_id === sessionItemId;
+    if (isFeedback && sameItem) {
+      removed.push(a.client_action_id);
+    } else {
+      next.push(a);
+    }
+  }
+  if (removed.length > 0) {
+    _writeQueue(next);
+  }
+  return removed;
+}
+
+/**
  * 错误分级。
  * @param {object} error — { statusCode, data, errMsg }
  * @returns {'network' | 'temporary_server' | 'temporary_processing' | 'auth' | 'business_terminal' | 'server_bug'}
@@ -395,5 +424,6 @@ module.exports = {
   markActionSynced,
   markActionSyncing,
   removeActionFromQueue,
+  removeQueuedFeedbackActionsBySessionItemId,
   sortByCreatedAtAndLocalSequence,
 };
