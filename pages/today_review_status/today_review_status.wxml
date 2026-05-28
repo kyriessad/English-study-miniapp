@@ -1,7 +1,7 @@
 <view class="status-page">
   <!-- offline banner -->
   <view wx:if="{{offline}}" class="status-offline-banner">
-    当前无网络连接，恢复后可继续复习
+    网络不可用，请检查当前网络
   </view>
 
   <!-- loading -->
@@ -17,8 +17,8 @@
   <!-- content -->
   <view wx:else class="status-body">
     <view class="status-page-header">
-      <view class="status-page-title">今日复习情况</view>
-      <view wx:if="{{state === 'not_started'}}" class="status-history-top-link" bindtap="onHistoryTap">历史复习内容 ›</view>
+      <view class="status-page-title">今天的情况</view>
+      <view wx:if="{{state === 'not_started'}}" class="status-history-top-link" bindtap="onHistoryTap">历史记录 ›</view>
     </view>
 
     <!-- ========== empty ========== -->
@@ -35,7 +35,7 @@
 
       <view class="status-secondary">
         <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__label">查看历史记录</text>
           <text class="status-entry__arrow">›</text>
         </view>
         <view class="status-entry" bindtap="onHomeTap">
@@ -91,11 +91,11 @@
 
       <view class="status-secondary">
         <view class="status-entry" bindtap="onTodayReviewedTap">
-          <text class="status-entry__label">今日已复习内容</text>
+          <text class="status-entry__label">今天看过</text>
           <text class="status-entry__arrow">›</text>
         </view>
         <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">历史复习内容</text>
+          <text class="status-entry__label">历史记录</text>
           <text class="status-entry__arrow">›</text>
         </view>
       </view>
@@ -123,7 +123,7 @@
           <text class="status-entry__arrow">›</text>
         </view>
         <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__label">查看历史记录</text>
           <text class="status-entry__arrow">›</text>
         </view>
       </view>
@@ -138,7 +138,7 @@
       <view class="status-hero__sub">{{stateSub}}</view>
 
       <view class="status-section">
-        <view class="status-section__heading">今日复习结果</view>
+        <view class="status-section__heading">今天的复习</view>
         <view class="status-result-grid">
           <view class="status-result">
             <view class="status-result__value status-result__value--mastered">{{masteredCount}} 张</view>
@@ -157,11 +157,11 @@
 
       <view class="status-secondary">
         <view class="status-entry" bindtap="onTodayReviewedTap">
-          <text class="status-entry__label">查看今日复习内容</text>
+          <text class="status-entry__label">今天看过</text>
           <text class="status-entry__arrow">›</text>
         </view>
         <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__label">查看历史记录</text>
           <text class="status-entry__arrow">›</text>
         </view>
         <view class="status-entry" bindtap="onHomeTap">
@@ -196,7 +196,7 @@
         </view>
 
         <view class="status-entry" bindtap="onHistoryTap">
-          <text class="status-entry__label">查看历史复习内容</text>
+          <text class="status-entry__label">查看历史记录</text>
           <text class="status-entry__arrow">›</text>
         </view>
 

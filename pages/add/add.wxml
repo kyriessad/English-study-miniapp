@@ -36,7 +36,7 @@
       bindblur="onEnglishBlur"
     ></textarea>
 
-    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode}}" class="validation-text validation-{{englishValidationType}}">
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && englishValidationMessage}}" class="validation-text validation-{{englishValidationType}}">
       {{englishValidationMessage}}
     </view>
 </view>
@@ -68,7 +68,8 @@
         <view
           class="reference-fill-btn {{referenceApplied ? 'reference-fill-btn-applied' : ''}}"
           bindtap="adoptAllReference"
-        >{{referenceApplied ? '已填入' : '全部填入'}}</view>
+        >{{referenceApplied ? '已填入' : '填入理解和例句'}}</view>
+        <view wx:if="{{!referenceApplied}}" class="reference-fill-hint">不会修改英文内容</view>
       </view>
     </view>
 

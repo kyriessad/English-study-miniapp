@@ -524,7 +524,7 @@ Page({
     });
 
     wx.showToast({
-      title: '网络连接异常，请检查网络后再试',
+      title: '网络不可用，请检查当前网络',
       icon: 'none',
       duration: 2500,
     });

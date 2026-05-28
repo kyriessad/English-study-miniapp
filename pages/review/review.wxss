@@ -175,6 +175,15 @@
   line-height: 38rpx;
 }
 
+.task-repeat-hint {
+  font-size: 22rpx;
+  color: #aaa;
+  background: #f4f4f4;
+  border-radius: 20rpx;
+  padding: 2rpx 16rpx;
+  line-height: 34rpx;
+}
+
 .task-progress {
   font-size: 24rpx;
   font-weight: 400;

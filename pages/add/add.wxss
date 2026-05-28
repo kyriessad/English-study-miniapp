@@ -598,10 +598,17 @@
 
 .reference-fill-row {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   margin-top: 16rpx;
   padding-top: 14rpx;
   border-top: 1rpx solid #dcebd8;
+}
+
+.reference-fill-hint {
+  font-size: 22rpx;
+  color: #b8c8b6;
+  margin-right: 12rpx;
 }
 
 .reference-fill-btn {

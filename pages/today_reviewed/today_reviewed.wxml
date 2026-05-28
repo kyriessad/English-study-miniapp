@@ -5,15 +5,11 @@
     <view class="today-hero__history-link" bindtap="onHistoryLinkTap">历史记录 ›</view>
   </view>
 
-  <view wx:if="{{offline}}" class="today-offline-banner">
-    <text>当前无网络连接，显示最近保存的内容</text>
-  </view>
-
   <view wx:if="{{loading}}" class="today-loading">加载中...</view>
 
   <view wx:elif="{{empty && loadFailed}}" class="today-empty">
     <view class="today-empty__icon">○</view>
-    <view class="today-empty__text">当前无网络连接，暂时无法查看</view>
+    <view class="today-empty__text">网络不可用，请检查当前网络</view>
     <view class="today-empty__retry" bindtap="onRetryTap">重试</view>
   </view>
 

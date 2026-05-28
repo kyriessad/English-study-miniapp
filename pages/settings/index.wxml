@@ -16,6 +16,7 @@
         </view>
       </picker>
     </view>
+    <view class="settings-item-hint">下次新开始时生效</view>
   </view>
 
   <!-- 其他 -->

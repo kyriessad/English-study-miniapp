@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8H-hotfix-input-analysis-typing-control — Add 页输入体验 hotfix：解决输入过程中系统抢控制权问题，恢复自动类别识别。
+Phase 8I-ux-copy-polish — 轻量化 UX 文案 & 离线提示 hotfix：状态图标换为圆形体系、离线 banner 静默化、回炉卡弱提示、Add 页按钮语义优化、today_review_status 旧文案清理。
 
 **类型：** frontend hotfix — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
 
@@ -10,6 +10,7 @@ Phase 8H-hotfix-input-analysis-typing-control — Add 页输入体验 hotfix：�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | pending |
 | Phase 8H-hotfix-input-analysis-typing-control | Frontend hotfix: 输入中不回写 form.englishText；输入末尾空白跳过自动分析；blur 后低风险规范化回写；恢复新增卡片时自动类别识别（不被 hasUserChangedCategory 阻止） | — | pending |
 | Release-Control-Docs-Completeness | Docs only: 完善 roadmap / release-checklist / ai-working-rules；补充发布合规、安全、备份、登录、多用户隔离、AI 降级、灰度、回滚；修正 pending commit 状态；修正 session 创建接口路径为 /api/review-sessions；补充审核材料准备、SQLite fallback 人工确认、systemd/Nginx 细节、发布前仓库清洁检查、接口路径全量核实、禁止主动重命名核心文档规则；恢复原始 docs 文件路径 | — | pending |
 | Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | `63bff0c` |
@@ -48,6 +49,52 @@ Phase 8H-hotfix-input-analysis-typing-control — Add 页输入体验 hotfix：�
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
 
 ---
+
+---
+
+## Phase 8I-ux-copy-polish — 轻量化 UX 文案 & 离线提示 hotfix
+
+**提交：** frontend pending（commit hash 由提交后汇报，不预写进文档）
+**类型：** frontend hotfix
+
+### 修改内容
+
+| 文件 | 改动 |
+|---|---|
+| `pages/index/index.js` | STATE_ICONS + LIBRARY_TABS：reviewing ◑→◐、strengthening !→◎、mastered ✓→● ；session 创建/网络失败提示统一为"网络不可用，请检查当前网络" |
+| `pages/index/index.wxml` | 删除死代码 `showLibraryPreparationTip` 块（含"准备好后会进入学习任务"文案，computeLibraryPreparationTip 始终返回 false） |
+| `pages/add/add.js` | 初始 `englishValidationMessage` 从"正在检查当前内容..."改为空字符串 |
+| `pages/add/add.wxml` | 校验区 `wx:if` 增加 `englishValidationMessage` 非空检查；"全部填入"→"填入理解和例句"；新增"不会修改英文内容"弱提示 |
+| `pages/add/add.wxss` | 新增 `.reference-fill-hint` 样式；`.reference-fill-row` 增加 `align-items: center` |
+| `pages/review/review.js` | `_handleForegroundFailure` toast："网络连接异常，请检查网络后再试"→"网络不可用，请检查当前网络" |
+| `pages/review/review.wxml` | 空状态："等到下一批内容到期"→"可以先添加几张，或者过几天再来看看"；新增回炉卡 `is_repeat` 条件弱提示"再看一次" |
+| `pages/review/review.wxss` | 新增 `.task-repeat-hint` 样式 |
+| `pages/today_reviewed/today_reviewed.wxml` | 删除有缓存时的"显示最近保存的内容"离线 banner；无缓存失败态改为"网络不可用，请检查当前网络" |
+| `pages/history_reviewed/history_index.wxml` | offlineEmpty 态："当前无网络连接，暂时无法查看"→"网络不可用，请检查当前网络" |
+| `pages/today_review_status/today_review_status.wxml` | "今日复习情况"→"今天的情况"；"历史复习内容"→"历史记录"；"今日已复习内容"→"今天看过"；"查看今日复习内容"→"今天看过"；"今日复习结果"→"今天的复习"；离线 banner 文案更新 |
+| `pages/today_review_status/today_review_status.js` | `todayReviewedLabel`："今日已复习内容"→"今天看过"；所有离线/网络失败提示统一为"网络不可用，请检查当前网络" |
+| `pages/settings/index.wxml` | "每次看几张"下方新增"下次新开始时生效"说明 |
+| `pages/settings/index.wxss` | 新增 `.settings-item-hint` 样式 |
+
+### 未改内容
+
+- 后端接口、数据库 schema 不变
+- `review_state` 枚举（new/reviewing/strengthening/mastered）不变
+- 4 档反馈（forgot/shaky/got_it/fluent）不变
+- 回炉算法（forgot 2次/shaky 1次）不变
+- `ReviewSession` / `daily_suggested` / `new_only` / `free_review` 调度链不变
+- `today_review_status` 页面未删除（无 JS 入口，仅清理旧文案）
+- 网络 action 双入队问题只读核实，未修（需专项处理）
+- `dailyGoal` 存储 key / 变量名 / 可选值 3/5/10/15 不变
+- 首页"网络恢复后会更新学习记录"（review action pending）保留
+
+### 审查发现的未修问题
+
+| 问题 | 严重度 | 原因 |
+|---|---|---|
+| 网络 action 双入队：feedback 失败后 action 留队，重试产生两个不同 clientActionId，flush 时可能双处理同一 session_item_id | P2 | 需 backend 侧验证幂等性后专项修 |
+| `Node.js` / `React.js` 等带中间点的技术词被分词判断为短语，若手动选单词类别则被本地校验拦截 | P2 | 需改 getNormalizedWordList 分词逻辑，属于中风险改动，本次不做 |
+| `is_repeat` 字段是否由后端在 session item 中发送尚需真机验证 | 待验 | "再看一次"条件提示已按 `currentCard.is_repeat` 实现；若后端不发送则静默不显示 |
 
 ---
 

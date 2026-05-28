@@ -124,8 +124,7 @@
 
   <!-- 离线空状态 -->
   <view wx:if="{{offlineEmpty}}" class="history-empty">
-    <view class="history-empty-title">当前无网络连接，暂时无法查看</view>
-    <view class="history-empty-desc">请检查网络连接后重试</view>
+    <view class="history-empty-title">网络不可用，请检查当前网络</view>
   </view>
 
   <!-- 在线空状态 -->

@@ -86,11 +86,6 @@
       <view class="library-tabs-fade" />
     </view>
 
-    <!-- Library preparation tip -->
-    <view wx:if="{{showLibraryPreparationTip}}" class="library-tip">
-      部分卡片需要重试分析或补全内容，准备好后会进入学习任务。
-    </view>
-
     <!-- Category Type Filter Pills -->
     <view class="category-filter-pills">
       <view

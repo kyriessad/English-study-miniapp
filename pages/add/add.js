@@ -492,7 +492,7 @@ Page({
     categoryIndex: 0,
     inheritedContextText: '',
     defaultUnderstandingPlaceholder: '写下你自己的理解、翻译或拆解，不求标准，但要对自己有帮助',
-    englishValidationMessage: '正在检查当前内容...',
+    englishValidationMessage: '',
     englishValidationType: 'hint',
     isValidatingEnglish: false,
     suggestionText: '',

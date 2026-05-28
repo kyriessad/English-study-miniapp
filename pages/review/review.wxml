@@ -33,8 +33,8 @@
 
   <!-- ===== NO CARDS ===== -->
   <view wx:elif="{{!allDone && !currentCard && !isLoading}}" class="empty-state">
-    <view class="empty-title">目前没有需要复习的内容。</view>
-    <view class="empty-subtitle">等到下一批内容到期，或者回首页继续添加新卡片。</view>
+    <view class="empty-title">现在没有可查看的卡片。</view>
+    <view class="empty-subtitle">可以先添加几张，或者过几天再来看看。</view>
     <view class="empty-actions">
       <button class="empty-primary-btn" bindtap="goToAddPage">添加卡片</button>
     </view>
@@ -47,7 +47,7 @@
         <view class="task-category">
           {{currentCard.category || '单词'}}
         </view>
-
+        <view wx:if="{{currentCard.is_repeat}}" class="task-repeat-hint">再看一次</view>
       </view>
 
       <view wx:if="{{currentCard.whereEncountered && !answerVisible}}" class="task-front-source">

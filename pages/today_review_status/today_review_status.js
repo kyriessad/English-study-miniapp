@@ -136,7 +136,7 @@ Page({
 
     let state, stateLabel, stateSub, mainButtonLabel, mainButtonDisabled;
     let todayReviewedEnabled = actualCompletedToday > 0;
-    const todayReviewedLabel = todayReviewedEnabled ? '今日已复习内容' : '暂无复习内容';
+    const todayReviewedLabel = todayReviewedEnabled ? '今天看过' : '暂无内容';
 
     if (!offline && displayTotal === 0) {
       state = 'empty';
@@ -295,7 +295,7 @@ Page({
     }
 
     if (offline) {
-      wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
+      wx.showToast({ title: '网络不可用，请检查当前网络', icon: 'none' });
       return;
     }
 
@@ -304,7 +304,7 @@ Page({
 
   onSecondaryReviewTap() {
     if (this.data.offline) {
-      wx.showToast({ title: '当前无网络，请联网后继续', icon: 'none' });
+      wx.showToast({ title: '网络不可用，请检查当前网络', icon: 'none' });
       return;
     }
     this._startReview();
@@ -371,7 +371,7 @@ Page({
     this._reviewStarting = false;
 
     if (lastReason === 'network_error') {
-      wx.showToast({ title: '当前网络不可用，请稍后再试', icon: 'none' });
+      wx.showToast({ title: '网络不可用，请检查当前网络', icon: 'none' });
     } else {
       wx.showToast({ title: '暂无可复习内容，可以添加卡片继续', icon: 'none' });
     }

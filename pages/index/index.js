@@ -51,9 +51,9 @@ const retryingAnalysisCardIds = new Set();
 const LIBRARY_TABS = [
   { key: 'all', label: '全部' },
   { key: 'new', label: '新卡', icon: '○' },
-  { key: 'reviewing', label: '熟悉中', icon: '◑' },
-  { key: 'strengthening', label: '有点忘', icon: '!' },
-  { key: 'mastered', label: '记得', icon: '✓' }
+  { key: 'reviewing', label: '熟悉中', icon: '◐' },
+  { key: 'strengthening', label: '有点忘', icon: '◎' },
+  { key: 'mastered', label: '记得', icon: '●' }
 ];
 
 const STATE_LABELS = {
@@ -65,9 +65,9 @@ const STATE_LABELS = {
 
 const STATE_ICONS = {
   new: '○',
-  reviewing: '◑',
-  strengthening: '!',
-  mastered: '✓'
+  reviewing: '◐',
+  strengthening: '◎',
+  mastered: '●'
 };
 const VALID_REVIEW_STATES = new Set(['new', 'reviewing', 'strengthening', 'mastered']);
 
@@ -1241,7 +1241,7 @@ Page({
     } catch (error) {
       console.warn('[index] create review session failed', error);
       wx.showToast({
-        title: '暂时无法开始复习，请稍后再试',
+        title: '网络不可用，请检查当前网络',
         icon: 'none'
       });
     } finally {
@@ -1364,7 +1364,7 @@ Page({
       console.warn('[index] create new-only session failed', err);
       wx.hideLoading();
       this.setData({ reviewEntryLoading: false });
-      wx.showToast({ title: '暂时无法开始学习，请稍后再试', icon: 'none' });
+      wx.showToast({ title: '网络不可用，请检查当前网络', icon: 'none' });
     }
   },
 
@@ -1555,7 +1555,7 @@ Page({
   _showNoCardsAvailable(reason) {
     if (reason === 'network_error') {
       wx.showToast({
-        title: '当前网络不可用，请稍后再试',
+        title: '网络不可用，请检查当前网络',
         icon: 'none'
       });
       return;
@@ -1589,7 +1589,7 @@ Page({
 
     if (syncedCount === 0) {
       wx.showToast({
-        title: '当前网络不可用，请稍后再试',
+        title: '网络不可用，请检查当前网络',
         icon: 'none'
       });
     } else {
