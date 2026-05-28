@@ -605,12 +605,6 @@
   border-top: 1rpx solid #dcebd8;
 }
 
-.reference-fill-hint {
-  font-size: 22rpx;
-  color: #b8c8b6;
-  margin-right: 12rpx;
-}
-
 .reference-fill-btn {
   flex-shrink: 0;
   padding: 10rpx 22rpx;

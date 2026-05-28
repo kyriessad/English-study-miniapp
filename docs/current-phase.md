@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 8I-ux-copy-polish — 轻量化 UX 文案 & 离线提示 hotfix：状态图标换为圆形体系、离线 banner 静默化、回炉卡弱提示、Add 页按钮语义优化、today_review_status 旧文案清理。
+Phase 8I-ux-copy-polish-followup — Phase 8I 真机验收后续 hotfix：Add 页空输入彻底不展示校验提示；删除"不会修改英文内容"多余文案；回炉卡"再看一次"改用前端 seenCardIds 兜底（后端 ReviewItemResponse 不暴露 is_repeat）；review 加载失败页文案 / 视觉轻量化。
 
 **类型：** frontend hotfix — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
 
@@ -10,7 +10,8 @@ Phase 8I-ux-copy-polish — 轻量化 UX 文案 & 离线提示 hotfix：状态�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | pending |
+| Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | pending |
+| Phase 8I-ux-copy-polish | Frontend hotfix: 状态图标 ○◐◎● 体系；离线内容展示时静默不 banner；失败提示统一为"网络不可用，请检查当前网络"；Add 页"全部填入"→"填入理解和例句"＋"不会修改英文内容"；初始校验文案清空；review 空状态去调度术语；today_review_status 旧文案清理；settings 页新增"下次新开始时生效"；回炉卡 is_repeat 条件显示"再看一次" | — | `646280a` |
 | Phase 8H-hotfix-input-analysis-typing-control | Frontend hotfix: 输入中不回写 form.englishText；输入末尾空白跳过自动分析；blur 后低风险规范化回写；恢复新增卡片时自动类别识别（不被 hasUserChangedCategory 阻止） | — | pending |
 | Release-Control-Docs-Completeness | Docs only: 完善 roadmap / release-checklist / ai-working-rules；补充发布合规、安全、备份、登录、多用户隔离、AI 降级、灰度、回滚；修正 pending commit 状态；修正 session 创建接口路径为 /api/review-sessions；补充审核材料准备、SQLite fallback 人工确认、systemd/Nginx 细节、发布前仓库清洁检查、接口路径全量核实、禁止主动重命名核心文档规则；恢复原始 docs 文件路径 | — | pending |
 | Release-Planning-Docs | Docs only: 新增 docs/roadmap.md、docs/release-checklist.md、docs/ai-working-rules.md；更新 docs/current-phase.md | — | `63bff0c` |
@@ -49,6 +50,62 @@ Phase 8I-ux-copy-polish — 轻量化 UX 文案 & 离线提示 hotfix：状态�
 | Phase 8C-first-mini | Home button priority | — | `51f7d21` |
 
 ---
+
+---
+
+## Phase 8I-ux-copy-polish-followup — Phase 8I 真机验收 hotfix
+
+**提交：** frontend pending（commit hash 由提交后汇报，不预写进文档）
+**类型：** frontend hotfix
+**前置：** Phase 8I-ux-copy-polish (`646280a`) 真机验收发现 4 个问题，本阶段定点修复。
+
+### 根因
+
+1. **Add 页空输入仍显示"正在检查当前内容..."：** `getBasePageState` / `resetFormForContinuousAdd` 的初始 `englishValidationMessage` 仍写入"正在检查当前内容..."；`runInputAnalysis` / `onEnglishInput` 在 normalize 后为空时仍写入"英文内容为空" error。WXML `wx:if` 已检查非空，但 JS 始终塞入非空字符串导致提示一直显示。
+2. **"不会修改英文内容"多余：** 该弱提示视觉冗余，已删除文案与对应样式。
+3. **回炉卡不显示"再看一次"：** 后端 `ReviewItemResponse`（`schemas/reviews.py:71`）只暴露 `session_item_id / card_id / content / understanding / note / where_encountered / card_type / review_state / mastery_score / recovery_stage / due_reason` — **未暴露 `is_repeat`**（虽然 DB 模型 `ReviewSessionItem.is_repeat` 存在且 `ReviewSessionItemResponse` 有该字段，但该 schema 未被 `/api/reviews/today` 路径使用）。前端依赖 `currentCard.is_repeat` 永远为 undefined。本阶段在前端用 `seenCardIds` 客户端兜底：用户对当前 card 提交过反馈后将 card_id 加入集合，后续同一 card_id 再出现即视为回炉。
+4. **断网失败页"复习任务加载失败"+ 重复说明文案：** `loadBackendReviewSession` catch 用 `getErrorMessage(error, '复习任务加载失败，请稍后重试。')`，标题和说明都包含"复习任务"任务化表达；说明文案与标题语义重复。
+
+### 修改内容
+
+| 文件 | 改动 |
+|---|---|
+| `pages/add/add.js` | `getBasePageState` 初始 `englishValidationMessage` `'正在检查当前内容...'` → `''`；`resetFormForContinuousAdd` 同步；`runInputAnalysis` / `onEnglishInput` 空 normalize 分支不再写入"英文内容为空" error |
+| `pages/add/add.wxml` | 删除 `<view wx:if="{{!referenceApplied}}" class="reference-fill-hint">不会修改英文内容</view>` |
+| `pages/add/add.wxss` | 删除 `.reference-fill-hint` 样式 |
+| `pages/review/review.js` | data 新增 `seenCardIds: []`；新增 `decorateRepeat(card, seenCardIds)` helper（基于 cardId 命中判断）；`loadBackendReviewSession` 成功分支重置 `seenCardIds: []`；`submitReview` 在 enqueueAction 后将 `currentItem.card_id` 加入集合；`_handleForegroundSuccess` / `_moveToNextItem` / `_recoverSession` 用 `decorateRepeat` 装饰 next card；catch 分支区分网络错误（`!statusCode && !data` 或 `request:fail`）→ "网络不可用，请检查当前网络"，其他 → "暂时无法加载卡片，请稍后重试" |
+| `pages/review/review.wxml` | 错误态标题"复习任务加载失败" → "卡片加载失败"；标题增加 `review-error-title` 修饰类 |
+| `pages/review/review.wxss` | 新增 `.review-error-title` 弱化样式（font-size 36rpx / font-weight 700 / color #4a7461） |
+| `docs/current-phase.md` | 新增本阶段记录 |
+
+### 新行为
+
+1. **Add 页空输入：** 英文框为空时 `englishValidationMessage = ''` → WXML `wx:if` 隐藏校验提示区。用户输入非空内容后才出现"正在检查英文内容..."。中文 / 纯数字 / 单词多词等非空 error 不受影响。
+2. **"不会修改英文内容"删除：** 参考区按钮区域只保留"填入理解和例句" / "已填入"。
+3. **回炉卡"再看一次"：** 同一 session 内用户对 cardA 提交过反馈后，cardA 再次出现（无论来自 batchItems 内部前进、`next_item` 返回、还是 `_recoverSession` 重新拉取）都会显示弱提示"再看一次"。session 重新加载（restart / 不同 session）会清空 seenCardIds。
+4. **review 失败页：** 标题"卡片加载失败"；说明区按错误类型显示"网络不可用，请检查当前网络"（无 statusCode/data 或 errMsg 含 request:fail）或"暂时无法加载卡片，请稍后重试"；按钮"重新加载"不变。
+
+### 未改内容
+
+- 后端接口、数据库 schema、`ReviewItemResponse` / `ReviewSessionItemResponse` 字段均不变
+- `review_state` 枚举（new/reviewing/strengthening/mastered）不变
+- 4 档反馈（forgot/shaky/got_it/fluent）不变
+- 回炉算法（forgot 2次/shaky 1次）不变
+- `ReviewSession` / `daily_suggested` / `new_only` / `free_review` 调度链不变
+- `today_review_status` 页面未删除
+- 网络 action 双入队问题仍只读核实，未修（需专项处理）
+- `dailyGoal` 存储 key / 变量名 / 可选值 3/5/10/15 不变
+- Node.js / React.js 等中间点分词问题未修
+- Phase 8I 状态图标体系 / 离线 banner 静默化 / 设置页"下次新开始时生效"提示不变
+- `normalizeReviewItem` 既有字段映射不变，仅扩展 `is_repeat` 由 `decorateRepeat` 在调用方注入
+
+### 已知遗留
+
+| 项 | 说明 |
+|---|---|
+| 网络 action 双入队 | `_handleForegroundFailure` 不出队，重试产生新 client_action_id 造成同 session_item 双 action（需 backend 幂等性验证后专项修） |
+| Node.js / React.js 分词 | `getNormalizedWordList` 切分时点号会把"Node.js"拆为 ["Node", "js"]，类别为"单词"时被本地校验拦截 |
+| 跨会话回炉提示 | 关闭小程序重新进入同 session 后 `seenCardIds` 会清空，已在新流程中产生反馈的 card 若再次出现不会标记（后端仍能正确调度，但无视觉提示）。后端补 `is_repeat` 字段是更彻底的方案，需专项推动 |
 
 ---
 

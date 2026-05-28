@@ -649,6 +649,14 @@
   display: none;
 }
 
+/* 复习页加载失败标题：保持容器风格，标题弱化一档 */
+.review-error-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #4a7461;
+  letter-spacing: 0;
+}
+
 .done-text {
   margin-top: 20rpx;
   padding: 20rpx 26rpx;

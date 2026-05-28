@@ -825,7 +825,7 @@ Page({
       cardId: '',
       categoryIndex: 0,
       inheritedContextText: '',
-      englishValidationMessage: '正在检查当前内容...',
+      englishValidationMessage: '',
       englishValidationType: 'hint',
       isValidatingEnglish: false,
       suggestionText: '',
@@ -1365,8 +1365,8 @@ Page({
     if (!normalizedText) {
       this.clearSuggestion()
       this.setData({
-        englishValidationMessage: '英文内容为空',
-        englishValidationType: 'error',
+        englishValidationMessage: '',
+        englishValidationType: 'hint',
         isValidatingEnglish: false,
         validateLoading: false,
         suggestLoading: false
@@ -1710,7 +1710,7 @@ Page({
       categoryIndex: Math.max(CARD_CATEGORIES.indexOf(nextForm.category), 0),
       inheritedContextText: '',
       hasUserChangedCategory: false,
-      englishValidationMessage: '正在检查当前内容...',
+      englishValidationMessage: '',
       englishValidationType: 'hint',
       isValidatingEnglish: false,
       suggestionText: '',

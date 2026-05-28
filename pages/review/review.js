@@ -120,6 +120,16 @@ function generateClientActionId() {
   });
 }
 
+function decorateRepeat(card, seenCardIds) {
+  if (!card) return card;
+  var seen = Array.isArray(seenCardIds) ? seenCardIds : [];
+  var cardId = card.cardId || card.card_id;
+  if (cardId && seen.indexOf(String(cardId)) >= 0) {
+    return Object.assign({}, card, { is_repeat: true });
+  }
+  return card;
+}
+
 Page({
   data: {
     // Phase 2 fields (kept for compatibility)
@@ -149,6 +159,11 @@ Page({
     // Phase 6F-hotfix: display-layer progress (1-based, based on actual filtered items)
     displayCurrentNo: 1,
     displayTotal: 0,
+
+    // Phase 8I-followup: track card_ids that the user has already submitted feedback for
+    // in this client session, so reappear items can be marked is_repeat=true on the client
+    // (backend ReviewItemResponse does not expose is_repeat).
+    seenCardIds: [],
 
     // Compatibility fields
     tasks: [],
@@ -312,6 +327,7 @@ Page({
         batchCurrentIndex: 0,
         currentClientActionId: '',
         pendingActionCount: pendingCount,
+        seenCardIds: [],
         // Phase 6L-hotfix-3: Use backend progress for dynamic total (includes reappear items).
         // items.length is only pending items; progress.total tracks the full session count.
         displayCurrentNo: items.length > 0 ? progress.reviewed + 1 : 0,
@@ -329,10 +345,18 @@ Page({
       });
     } catch (error) {
       console.warn('[review] load backend review session failed', error);
+      const isNetworkError = (
+        !error ||
+        (!error.statusCode && !error.data) ||
+        (error.errMsg && /request:fail/i.test(error.errMsg))
+      );
+      const errorMessage = isNetworkError
+        ? '网络不可用，请检查当前网络'
+        : '暂时无法加载卡片，请稍后重试';
       this.setData({
         isLoading: false,
         pageState: 'error',
-        reviewError: getErrorMessage(error, '复习任务加载失败，请稍后重试。'),
+        reviewError: errorMessage,
         currentItem: null,
         currentCard: null,
         progress: { reviewed: 0, total: 0 },
@@ -386,6 +410,16 @@ Page({
       result,
       created_at: new Date().toISOString(),
     });
+
+    // Phase 8I-followup: remember this card_id so subsequent reappearances
+    // of the same card in this session are marked as repeat (is_repeat=true).
+    const currentCardId = currentItem && currentItem.card_id ? String(currentItem.card_id) : '';
+    if (currentCardId) {
+      const prevSeen = Array.isArray(this.data.seenCardIds) ? this.data.seenCardIds : [];
+      if (prevSeen.indexOf(currentCardId) < 0) {
+        this.setData({ seenCardIds: prevSeen.concat([currentCardId]) });
+      }
+    }
 
     // Update pending action count
     const pendingCount = getPendingActionCount();
@@ -482,7 +516,7 @@ Page({
 
     // Move to next item from backend
     const nextItem = response && response.next_item ? response.next_item : null;
-    const nextCard = normalizeReviewItem(nextItem);
+    const nextCard = decorateRepeat(normalizeReviewItem(nextItem), this.data.seenCardIds);
     const nextIndex = batchCurrentIndex + 1;
 
     this.setData({
@@ -548,7 +582,7 @@ Page({
 
     if (nextIndex < batchItems.length) {
       const nextItem = batchItems[nextIndex];
-      const nextCard = normalizeReviewItem(nextItem);
+      const nextCard = decorateRepeat(normalizeReviewItem(nextItem), this.data.seenCardIds);
       this.setData({
         currentItem: nextItem,
         currentCard: nextCard,
@@ -637,7 +671,7 @@ Page({
 
       const items = Array.isArray(todayResponse && todayResponse.items) ? todayResponse.items : [];
       const currentItem = items[0] || null;
-      const currentCard = normalizeReviewItem(currentItem);
+      const currentCard = decorateRepeat(normalizeReviewItem(currentItem), this.data.seenCardIds);
       const progress = normalizeProgress(todayResponse && todayResponse.progress);
 
       if (items.length > 0) {
