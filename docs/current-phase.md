@@ -5,6 +5,8 @@
 Phase 8M-review-batch-size-change-takes-effect-next-view — 修改”每次看几张”后，下次点击”查看卡片 / 继续查看”即按新数量重新创建一轮；删除设置页”下次新开始时生效”文案。
 
 **类型：** frontend — 改前端 JS/WXML/WXSS + 测试脚本 + 文档；后端不改。
+**状态：** 已完成 (2026-05-30)
+**前端提交：** `f854bd3` apply review batch size changes on next view
 
 ### 本阶段产品语义
 
@@ -43,6 +45,16 @@ Phase 8M-review-batch-size-change-takes-effect-next-view — 修改”每次看�
 - Add 页输入逻辑不变
 - 反馈按钮文案 / 回炉逻辑不变
 
+### 验证结果
+
+- `node --check pages/settings/index.js` → OK
+- `node --check pages/index/index.js` → OK
+- `node --check scripts/test-review-batch-size.js` → OK（语法检查）
+- `scripts/test-review-batch-size.js` → 79 passed
+- `scripts/test-add-input-validation-cases.js` → 226 passed
+- `scripts/test-review-action-queue-dedup.js` → 34 passed
+- `git diff --check` → clean
+
 ### 人工验收清单
 
 **A. 设置 3 改 5，下次查看立即生效**
@@ -71,7 +83,7 @@ Phase 8M-review-batch-size-change-takes-effect-next-view — 修改”每次看�
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
-| Phase 8M-review-batch-size-change-takes-effect-next-view | Frontend: 修改”每次看几张”后下次查看即按新数量重开 session；删除设置页”下次新开始时生效”文案；新增 26 个测试用例（总 79 个） | — | pending |
+| Phase 8M-review-batch-size-change-takes-effect-next-view | Frontend: 修改”每次看几张”后下次查看即按新数量重开 session；删除设置页”下次新开始时生效”文案；新增 26 个测试用例（总 79 个） | — | `f854bd3` |
 | Phase 8L-backend-fill-session-to-target-size | Docs sync for backend方案 A：每次看几张为新建 session 目标数量；daily_suggested 可用卡足够时尽量凑满；未完成 session 继续原 session 不扩容；ReviewLog/去重统计/回炉算法语义同步 | pending | pending |
 | Phase 8K-remove-today-review-status-page | Frontend cleanup: 删除 pages/today_review_status/（4 文件 915 行）；app.json 移除注册；review.js / wxml `navigateToTodayReviewStatus` → `navigateToTodayReviewed`；CLAUDE.md / docs 同步解除"不删除 today_review_status"边界 | — | `34c6660`（代码）+ pending（文档） |
 | Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | `00064cf` |
