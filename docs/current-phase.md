@@ -2,14 +2,23 @@
 
 ## Current Phase
 
-Phase 8K-remove-today-review-status-page — 彻底删除 today_review_status 页面（无任何外部入口的孤岛代码 915 行 + app.json 注册）；review.js / wxml 中误导命名 `navigateToTodayReviewStatus` 重命名为 `navigateToTodayReviewed`（跳转目标本就是 today_reviewed，仅清理函数名）。
+Phase 8L-backend-fill-session-to-target-size — 后端已按方案 A 修复 daily_suggested 新建 session 的批量补位语义；本仓仅同步产品文档，不改前端 JS/WXML/WXSS。
 
-**类型：** frontend cleanup — 只改前端，不改后端，不改数据库，不改接口，不改复习规则。
+**类型：** docs only — 不改前端代码、不改 fallback 链、不改设置页 UI、不改 `dailyGoal` storage key。
+
+### 本阶段产品语义
+
+- “每次看几张”是新建一轮查看时的目标数量；卡片库可用卡片数足够时，系统会尽量凑满。
+- 有未完成 session 时，“继续查看”继续原 session，不扩容，也不受当前设置变化影响。
+- 选卡优先顺序：未看过的新卡；到期 / 熟悉中 / 需要巩固；有点忘 / 最近负反馈；已记得 / mastered / 今天已看过卡仅作为补位。
+- 同一张卡当天重复查看不重复增加“今天看过 N 张”的去重计数；ReviewLog 仍记录每次真实反馈。
+- 回炉算法不变，反馈按钮仍是：没想起 / 有点模糊 / 记得 / 很熟。
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8L-backend-fill-session-to-target-size | Docs sync for backend方案 A：每次看几张为新建 session 目标数量；daily_suggested 可用卡足够时尽量凑满；未完成 session 继续原 session 不扩容；ReviewLog/去重统计/回炉算法语义同步 | pending | pending |
 | Phase 8K-remove-today-review-status-page | Frontend cleanup: 删除 pages/today_review_status/（4 文件 915 行）；app.json 移除注册；review.js / wxml `navigateToTodayReviewStatus` → `navigateToTodayReviewed`；CLAUDE.md / docs 同步解除"不删除 today_review_status"边界 | — | `34c6660`（代码）+ pending（文档） |
 | Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | `00064cf` |
 | Phase 8I-ux-copy-polish-followup | Frontend hotfix: Add 页空输入不展示校验提示；删除"不会修改英文内容"；review 回炉提示改用 seenCardIds 客户端兜底；review 失败页"复习任务加载失败"→"卡片加载失败"＋网络感知文案＋标题弱化 | — | `e73dbc4` |
