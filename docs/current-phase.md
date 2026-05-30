@@ -2,22 +2,76 @@
 
 ## Current Phase
 
-Phase 8L-backend-fill-session-to-target-size — 后端已按方案 A 修复 daily_suggested 新建 session 的批量补位语义；本仓仅同步产品文档，不改前端 JS/WXML/WXSS。
+Phase 8M-review-batch-size-change-takes-effect-next-view — 修改”每次看几张”后，下次点击”查看卡片 / 继续查看”即按新数量重新创建一轮；删除设置页”下次新开始时生效”文案。
 
-**类型：** docs only — 不改前端代码、不改 fallback 链、不改设置页 UI、不改 `dailyGoal` storage key。
+**类型：** frontend — 改前端 JS/WXML/WXSS + 测试脚本 + 文档；后端不改。
 
 ### 本阶段产品语义
 
-- “每次看几张”是新建一轮查看时的目标数量；卡片库可用卡片数足够时，系统会尽量凑满。
-- 有未完成 session 时，“继续查看”继续原 session，不扩容，也不受当前设置变化影响。
-- 选卡优先顺序：未看过的新卡；到期 / 熟悉中 / 需要巩固；有点忘 / 最近负反馈；已记得 / mastered / 今天已看过卡仅作为补位。
-- 同一张卡当天重复查看不重复增加“今天看过 N 张”的去重计数；ReviewLog 仍记录每次真实反馈。
+- 修改”每次看几张”后，前端写入 `batchSizeChangedNeedsRestart` storage 标记。
+- 下次点击”查看卡片 / 继续查看”时，检测到标记即忽略当前未完成 session，强制 `restart: true` 按新数量重开新 session。
+- 成功创建 session 后清除标记；若创建失败，标记保留，用户下次重试仍按新数量创建。
+- 已提交的反馈记录（ReviewLog）保留，不回滚。
+- 未修改设置时，有未完成 session 仍继续原 session，行为不变。
+- 设置页不新增说明文案；修改后只显示”已更新”toast。
+- 删除设置页”下次新开始时生效”文案 + 对应 `.settings-item-hint` 样式。
+- Phase 8L 的”库存足够时尽量凑满”后端逻辑不变。
 - 回炉算法不变，反馈按钮仍是：没想起 / 有点模糊 / 记得 / 很熟。
+
+### 修改文件
+
+| 文件 | 改动 |
+|---|---|
+| `pages/settings/index.js` | `onDailyGoalChange`：新值与旧值不同时写入 `batchSizeChangedNeedsRestart` storage |
+| `pages/settings/index.wxml` | 删除 `<view class=”settings-item-hint”>下次新开始时生效</view>` |
+| `pages/settings/index.wxss` | 删除 `.settings-item-hint` 样式块 |
+| `pages/index/index.js` | `onShow` 读取标记并初始化 `_batchSizeChangedNeedsRestart`；`applyReviewOverview` 强制按钮为”查看卡片”；`goToReview` 检查标记并 forceRestart；新增 `_clearBatchSizeRestartFlag` helper；三处 session 创建成功路径调用 clear |
+| `scripts/test-review-batch-size.js` | 新增 E1–E26 共 26 个用例，总计 79 个用例 |
+| `docs/current-phase.md` | 本文档 |
+| `docs/product-features.md` | 更新设置页描述和”每次看几张”生效规则章节 |
+| `docs/release-checklist.md` | 更新十二节设置页验收项 |
+
+### 未改内容
+
+- 后端不改（接口 schema / 数据库 schema / 复习规则 / 调度链不变）
+- `review_state` 枚举（new/reviewing/strengthening/mastered）不变
+- 4 档反馈枚举（forgot/shaky/got_it/fluent）不变
+- 回炉算法（forgot 2次/shaky 1次）不变
+- `ReviewSession` / `daily_suggested` / `new_only` / `free_review` 调度链不变
+- `dailyGoal` storage key / 变量名 / 可选值 3/5/10/15 不变
+- Phase 8L 后端 fill_target / 补位策略不变
+- Add 页输入逻辑不变
+- 反馈按钮文案 / 回炉逻辑不变
+
+### 人工验收清单
+
+**A. 设置 3 改 5，下次查看立即生效**
+1. 设置”每次看几张”为 3 → 进入查看卡片，确认是 3 张 → 不看完，返回
+2. 设置页改为 5 → 只显示”已更新”，不显示额外说明文案
+3. 回首页点击查看卡片 → 进入新一轮 5 张，不继续旧 3 张
+
+**B. 设置不变仍继续原 session**
+1. 设置为 5 → 开始一轮 → 中途退出 → 不修改设置
+2. 点击继续查看 → 应继续原 session，不重开
+
+**C. 创建失败不清除标记**
+1. 设置从 3 改为 5 → 断网 → 点击查看卡片失败
+2. 恢复网络后再次点击 → 仍应按 5 张创建
+
+**D. 设置页文案回归**
+1. 设置页不显示”下次新开始时生效”
+2. 修改后只看到 toast：”已更新”
+
+**E. 回归**
+1. 每次看几张仍可选 3 / 5 / 10 / 15
+2. 反馈按钮仍是：没想起 / 有点模糊 / 记得 / 很熟
+3. Add 页不受影响
 
 ## Recently Completed
 
 | Phase | Type | Backend commit | Frontend commit |
 |---|---|---|---|
+| Phase 8M-review-batch-size-change-takes-effect-next-view | Frontend: 修改”每次看几张”后下次查看即按新数量重开 session；删除设置页”下次新开始时生效”文案；新增 26 个测试用例（总 79 个） | — | pending |
 | Phase 8L-backend-fill-session-to-target-size | Docs sync for backend方案 A：每次看几张为新建 session 目标数量；daily_suggested 可用卡足够时尽量凑满；未完成 session 继续原 session 不扩容；ReviewLog/去重统计/回炉算法语义同步 | pending | pending |
 | Phase 8K-remove-today-review-status-page | Frontend cleanup: 删除 pages/today_review_status/（4 文件 915 行）；app.json 移除注册；review.js / wxml `navigateToTodayReviewStatus` → `navigateToTodayReviewed`；CLAUDE.md / docs 同步解除"不删除 today_review_status"边界 | — | `34c6660`（代码）+ pending（文档） |
 | Phase 8J-action-queue-duplicate-feedback-fix | Frontend hotfix: foreground 反馈失败立即 removeActionFromQueue；submitReview enqueue 前用 removeQueuedFeedbackActionsBySessionItemId 兜底去重；新增 34 个测试用例 | — | `00064cf` |

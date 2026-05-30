@@ -58,9 +58,3 @@
 .settings-item--hover {
   background: rgba(242, 248, 242, 0.96);
 }
-
-.settings-item-hint {
-  font-size: 24rpx;
-  color: #aab8a8;
-  margin: 8rpx 8rpx 0;
-}

@@ -617,6 +617,15 @@ Page({
       });
     }
 
+    // Check batch size changed restart flag set by settings page.
+    // Storage key is NOT cleared here — only cleared after a successful session creation,
+    // so the flag survives network failures and app restarts.
+    var batchSizeChangedNeedsRestart = wx.getStorageSync('batchSizeChangedNeedsRestart');
+    if (batchSizeChangedNeedsRestart) {
+      this._batchSizeChangedNeedsRestart = true;
+      this.setData({ reviewButtonLabel: '查看卡片' });
+    }
+
     await this.loadLocalCache();
     this._updateActionQueueStatus();
     this.triggerBackendLoginAfterHomeReady();
@@ -842,6 +851,11 @@ Page({
       var statusCopy = computeDailyStatusCopy(totalToday, completedToday);
       dailyStatusMessage = statusCopy.dailyStatusMessage;
       reviewButtonLabel = statusCopy.reviewButtonLabel;
+    }
+
+    // Batch size changed: next tap starts a new session, not continues old one
+    if (this._batchSizeChangedNeedsRestart) {
+      reviewButtonLabel = '查看卡片';
     }
 
     console.log('[phase6g-home-state] overview new_only_count', pickNumber(
@@ -1235,6 +1249,7 @@ Page({
       }
 
       this._needsSessionRestart = false;
+      this._clearBatchSizeRestartFlag();
       wx.navigateTo({
         url: '/pages/review/review?session_id=' + sessionId + '&session_type=' + sessionType
       });
@@ -1251,6 +1266,11 @@ Page({
   },
 
   // ========== 4C-1a: New-only Study Entry ==========
+
+  _clearBatchSizeRestartFlag() {
+    this._batchSizeChangedNeedsRestart = false;
+    try { wx.removeStorageSync('batchSizeChangedNeedsRestart'); } catch (_) {}
+  },
 
   /**
    * Extract active session from review overview with multiple field-name fallbacks.
@@ -1395,6 +1415,12 @@ Page({
       return;
     }
 
+    // If batch size changed, start a fresh session with the new size
+    if (this._batchSizeChangedNeedsRestart) {
+      this.startReviewWithFallback('daily_suggested', { forceRestart: true });
+      return;
+    }
+
     // If active session exists, navigate directly — reuse existing logic
     var activeSession = this._getActiveSession();
     if (activeSession && this.data.activeSessionId) {
@@ -1493,6 +1519,7 @@ Page({
         wx.hideLoading();
         this.setData({ reviewEntryLoading: false });
         this._needsSessionRestart = false;
+        this._clearBatchSizeRestartFlag();
         wx.navigateTo({
           url: '/pages/review/review?session_id=' + result.sessionId +
               '&session_type=' + sessionType
@@ -1517,6 +1544,7 @@ Page({
           wx.hideLoading();
           this.setData({ reviewEntryLoading: false });
           this._needsSessionRestart = false;
+          this._clearBatchSizeRestartFlag();
           wx.navigateTo({
             url: '/pages/review/review?session_id=' + retryResult.sessionId +
                 '&session_type=daily_suggested'

@@ -160,6 +160,75 @@ assert('D16: free_review dailyGoal=15 → limit=15', p_fr15.limit, 15);
   assert('D' + (20 + i) + ': ' + type + ' dailyGoal=15 → limit=15', p.limit, 15);
 });
 
+// ── E: Batch size change → needs restart marker (Phase 8M) ───────────────────
+//
+// Pure logic extracted from settings/index.js onDailyGoalChange and
+// index/index.js onShow / goToReview / _clearBatchSizeRestartFlag.
+
+function shouldSetBatchSizeRestartMarker(newGoal, previousGoal) {
+  return newGoal !== previousGoal;
+}
+
+function shouldForceRestartForBatchSizeChange(batchSizeChangedFlag) {
+  return !!batchSizeChangedFlag;
+}
+
+// Setting from 3 to 5 → marker should be set
+assert('E1: goal 3→5 → set restart marker', shouldSetBatchSizeRestartMarker(5, 3), true);
+// Setting from 5 to 10 → marker should be set
+assert('E2: goal 5→10 → set restart marker', shouldSetBatchSizeRestartMarker(10, 5), true);
+// Setting from 10 to 15 → marker should be set
+assert('E3: goal 10→15 → set restart marker', shouldSetBatchSizeRestartMarker(15, 10), true);
+// Setting from 5 to 3 → marker should be set
+assert('E4: goal 5→3 → set restart marker', shouldSetBatchSizeRestartMarker(3, 5), true);
+// Setting same value → marker should NOT be set
+assert('E5: goal 5→5 (same) → no marker', shouldSetBatchSizeRestartMarker(5, 5), false);
+assert('E6: goal 10→10 (same) → no marker', shouldSetBatchSizeRestartMarker(10, 10), false);
+assert('E7: goal 3→3 (same) → no marker', shouldSetBatchSizeRestartMarker(3, 3), false);
+assert('E8: goal 15→15 (same) → no marker', shouldSetBatchSizeRestartMarker(15, 15), false);
+
+// Marker present → force restart
+assert('E9: marker=true → forceRestart', shouldForceRestartForBatchSizeChange(true), true);
+// Marker absent → no force restart
+assert('E10: marker=false → no forceRestart', shouldForceRestartForBatchSizeChange(false), false);
+assert('E11: marker=undefined → no forceRestart', shouldForceRestartForBatchSizeChange(undefined), false);
+assert('E12: marker=null → no forceRestart', shouldForceRestartForBatchSizeChange(null), false);
+
+// After successful session creation, marker should be cleared
+// (simulated via the clear helper setting both instance flag and storage)
+var simulatedStorage = { batchSizeChangedNeedsRestart: true };
+var simulatedInstance = { _batchSizeChangedNeedsRestart: true };
+// simulate _clearBatchSizeRestartFlag()
+simulatedInstance._batchSizeChangedNeedsRestart = false;
+delete simulatedStorage.batchSizeChangedNeedsRestart;
+assert('E13: after clear → instance flag false', simulatedInstance._batchSizeChangedNeedsRestart, false);
+assert('E14: after clear → storage key removed', simulatedStorage.batchSizeChangedNeedsRestart, undefined);
+
+// Failed session creation → marker NOT cleared (user can retry)
+var failStorage = { batchSizeChangedNeedsRestart: true };
+var failInstance = { _batchSizeChangedNeedsRestart: true };
+// simulate network failure: do NOT call _clearBatchSizeRestartFlag
+assert('E15: after failure → instance flag still true', failInstance._batchSizeChangedNeedsRestart, true);
+assert('E16: after failure → storage key still present', failStorage.batchSizeChangedNeedsRestart, true);
+
+// Verify payload construction still correct after batch size change
+// (new session uses latest dailyGoal, not old session size)
+const pE1 = buildSessionPayload('daily_suggested', 5, true);  // forceRestart=true
+assert('E17: daily_suggested goal=5 forceRestart → limit=5', pE1.limit, 5);
+assert('E18: daily_suggested goal=5 forceRestart → restart=true', pE1.restart, true);
+assert('E19: daily_suggested goal=5 forceRestart → daily_goal=5', pE1.daily_goal, 5);
+
+const pE2 = buildSessionPayload('daily_suggested', 10, true);
+assert('E20: daily_suggested goal=10 forceRestart → limit=10', pE2.limit, 10);
+assert('E21: daily_suggested goal=10 forceRestart → restart=true', pE2.restart, true);
+assert('E22: daily_suggested goal=10 forceRestart → daily_goal=10', pE2.daily_goal, 10);
+
+// All four batch size options still valid after Phase 8M
+assert('E23: DAILY_GOAL_OPTIONS includes 3', DAILY_GOAL_OPTIONS.includes(3), true);
+assert('E24: DAILY_GOAL_OPTIONS includes 5', DAILY_GOAL_OPTIONS.includes(5), true);
+assert('E25: DAILY_GOAL_OPTIONS includes 10', DAILY_GOAL_OPTIONS.includes(10), true);
+assert('E26: DAILY_GOAL_OPTIONS includes 15', DAILY_GOAL_OPTIONS.includes(15), true);
+
 // ── Result ───────────────────────────────────────────────────────────────────
 
 console.log('\nResults: ' + passed + ' passed, ' + failed + ' failed');

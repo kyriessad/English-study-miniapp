@@ -49,7 +49,11 @@ Page({
     const idx = Number(e.detail.value);
     if (idx < 0 || idx >= DAILY_GOAL_OPTIONS.length) return;
     const goal = DAILY_GOAL_OPTIONS[idx];
+    const previousGoal = this.data.dailyGoal;
     if (saveDailyGoal(goal)) {
+      if (goal !== previousGoal) {
+        try { wx.setStorageSync('batchSizeChangedNeedsRestart', true); } catch (_) {}
+      }
       this.setData({
         dailyGoal: goal,
         dailyGoalIndex: idx,
