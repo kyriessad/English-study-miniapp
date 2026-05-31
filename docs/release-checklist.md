@@ -2,7 +2,7 @@
 
 > 本清单用于正式提交微信审核前的人工全流程验收。
 > 每次发布前逐项勾选，未勾选项必须解决或在旁边注明豁免理由。
-> 更新时间：2026-05-27
+> 更新时间：2026-05-31
 
 ---
 
@@ -17,45 +17,79 @@
 - [ ] `settings.local.json` 未被提交
 - [ ] 非 docs 代码中无 `127.0.0.1:8001`（`grep -r "127.0.0.1:8001" pages/ utils/` 无输出）
 - [ ] 非 docs 代码中无局域网 IP（`grep -r "192\.168\.\|10\.\." pages/ utils/` 无输出）
-- [ ] 非 docs 代码中无占位符域名 `api.yourdomain.com`（`grep -r "api.yourdomain.com" pages/ utils/` 无输出）
+- [ ] 非 docs 代码中无占位符域名 `api.qingyacard.com`（`grep -r "api.qingyacard.com" pages/ utils/` 无输出）
 - [ ] 非 docs 代码中无密钥值（`HUNYUAN_API_KEY`、`WECHAT_SECRET`、`JWT_SECRET_KEY` 的实际值未出现在代码中）
 
 ---
 
 ## 一、后端部署验证
 
-- [ ] 服务器可 SSH 访问
-- [ ] PostgreSQL 已运行，数据库和用户已创建
-- [ ] 生产 `.env` 已配置：`DATABASE_URL`（PostgreSQL）、`JWT_SECRET_KEY`、`HUNYUAN_API_KEY`、`WECHAT_APPID`、`WECHAT_SECRET`
-- [ ] **人工确认 `DATABASE_URL` 以 `postgresql://` 开头，不是 `sqlite:///`**（`app/database.py` 在 URL 未设置时静默 fallback 到 SQLite，必须人工核查）
-- [ ] `alembic upgrade head` 已运行，输出无 ERROR，所有 migration 已应用
-- [ ] uvicorn 服务已启动，`GET /health` 返回 `{"status":"ok"}`
-- [ ] systemd 服务已启用（`systemctl status english-backend` 为 active (running)），且设置了 `Restart=on-failure`
-- [ ] systemd 服务使用 `EnvironmentFile` 或 `Environment=` 加载 `.env` 中的密钥，而非依赖 shell 环境
-- [ ] Nginx 配置已生效，`curl -I https://api.yourdomain.com/health` 返回 HTTP 200
-- [ ] Nginx 配置包含 `proxy_set_header Host`、`proxy_set_header X-Forwarded-For`、`proxy_set_header X-Forwarded-Proto`
-- [ ] Nginx `proxy_read_timeout` 已设置（建议 60s 以上，AI 分析接口可能较慢）
-- [ ] HTTP 请求自动跳转 HTTPS（`curl -I http://api.yourdomain.com/health` 返回 301/302）
+- [X] 服务器可 SSH 访问
+- [X] 腾讯云轻量应用服务器已配置，公网 IP 为 `49.232.134.229`
+- [X] 服务器基础环境已安装：Python、PostgreSQL、Nginx、Certbot、Git
+- [X] 后端代码已部署到 `/opt/english-backend`
+- [X] 后端代码部署来源为 Gitee（国内服务器访问 GitHub 不稳定）
+- [X] Python 虚拟环境已创建：`/opt/english-backend/.venv`
+- [X] 后端依赖已安装：`pip install -r requirements.txt`
+- [X] PostgreSQL 已运行，数据库和用户已创建
+  - database: `english_study`
+  - user: `english_user`
+- [X] 生产 `.env` 已配置：`DATABASE_URL`（PostgreSQL）、`JWT_SECRET_KEY`、`HUNYUAN_API_KEY`、`WECHAT_APPID`、`WECHAT_SECRET`
+- [X] **人工确认 `DATABASE_URL` 以 `postgresql://` 开头，不是 `sqlite:///`**
+- [X] 已执行 `alembic upgrade heads`，输出无 ERROR，所有 head 已应用
+- [X] 已确认 Alembic 迁移上下文为 `PostgresqlImpl`
+- [X] systemd 服务已启用（`systemctl status english-backend` 为 `active (running)`）
+- [X] 后端本机健康检查通过：`curl http://127.0.0.1:8001/health` 返回 `{"status":"ok"}`
+- [X] systemd 托管后端服务，服务器重启后自动启动
+- [X] Nginx 配置已生效，外部请求转发到 `127.0.0.1:8001`
+- [X] Nginx 配置包含反向代理 header（Host、X-Forwarded-For、X-Forwarded-Proto）
+- [X] HTTP 请求自动跳转 HTTPS（`curl -I http://api.qingyacard.com/health` 返回 301/302）
+- [X] HTTPS 证书已通过 Certbot 部署：`sudo certbot --nginx -d api.qingyacard.com`
+- [X] HTTPS 健康检查通过：`https://api.qingyacard.com/health` 返回 `{"status":"ok"}`
 - [ ] HTTPS 证书有效期 > 30 天（`certbot certificates` 确认）
+- [ ] 生产日志无关键 ERROR（`sudo journalctl -u english-backend --since today --no-pager`）
+- [ ] 数据库备份已至少手动执行一次（见二十一节）
 
----
+维护命令：
+
+```bash
+sudo systemctl status english-backend
+sudo systemctl restart english-backend
+sudo journalctl -u english-backend -n 80 --no-pager
+curl https://api.qingyacard.com/health
+```
+
+注意：生产后端不要手动长期运行 `uvicorn`，应由 systemd 托管。
 
 ## 二、域名与微信平台配置
 
-- [ ] 域名 ICP 备案已完成，可在工信部官网查询到
-- [ ] DNS A 记录指向服务器 IP，`nslookup api.yourdomain.com` 返回正确 IP
-- [ ] 微信公众平台 → 开发管理 → 服务器域名 → **request 合法域名**已添加生产 HTTPS 域名
-- [ ] 微信开发者工具重新编译后，调试面板无"不在以下合法域名列表中"黄色警告
-
----
+- [X] 域名已购买：`qingyacard.com`
+- [X] API 子域名已确定：`api.qingyacard.com`
+- [X] DNS A 记录已配置：`api` → `49.232.134.229`
+- [X] DNS 解析已生效，`api.qingyacard.com` 指向服务器公网 IP
+- [X] 腾讯云轻量应用服务器防火墙已放行：
+  - 80
+  - 443
+- [X] 微信公众平台 → 开发管理 → 服务器域名 → **request 合法域名**已添加：
+  - `https://api.qingyacard.com`
+- [X] request 合法域名只填写根域名，不带 `/health`
+- [X] 不使用裸 IP，不使用 HTTP
+- [X] 微信开发者工具重新编译后，请求可打到 `https://api.qingyacard.com`
+- [ ] ICP 备案状态已人工确认（如微信审核或云服务商要求，应补齐备案信息）
 
 ## 三、前端生产配置
 
-- [ ] `utils/apiClient.js` 中 `BACKEND_BASE_URL` 已改为生产 HTTPS 域名（非 `http://127.0.0.1:8001`）
-- [ ] 已使用微信开发者工具完整编译（无编译错误）
-- [ ] 开发者工具 Network 面板可见接口请求打到生产域名且返回正常
-
----
+- [X] `utils/apiClient.js` 中默认 `BACKEND_BASE_URL` 已改为生产 HTTPS 域名：
+  - `https://api.qingyacard.com`
+- [X] 前端提交已完成：
+  - `70a0fc switch backend base url to production`
+- [X] `utils/localBackendConfig.js` 未提交；该文件仅用于本地调试覆盖
+- [X] 如 `utils/localBackendConfig.js` 存在并设置 `BACKEND_BASE_URL`，已确认不会覆盖成旧本地地址
+- [X] 已使用微信开发者工具完整编译（无编译错误）
+- [X] 开发者工具 Network 面板可见接口请求打到生产域名
+- [X] 真机使用移动数据扫码访问生产后端通过
+- [X] 旧缓存导致的 `401 Unauthorized` 已通过清除微信开发者工具缓存解决
+- [ ] 正式上传体验版前，再次确认非 docs 代码中无 `127.0.0.1`、局域网 IP、裸公网 IP 或 HTTP 后端地址
 
 ## 四、添加卡片
 
@@ -186,12 +220,13 @@
 - [ ] 断网情况下今天看过页显示缓存数据
 - [ ] 断网情况下历史页：有本地缓存时显示缓存数据；无缓存时显示"当前无网络连接，暂时无法查看"
 - [ ] 恢复网络后，pending 卡片自动同步到后端（首页 onShow 触发）
-- [ ] 离线状态下复习反馈无法提交时，弹 toast "网络连接异常，请检查网络后再试"，停留在当前卡片
+- [ ] 离线状态下复习反馈无法提交时，弹 toast "网络不可用，请检查当前网络"，停留在当前卡片
 
 ---
 
 ## 十四、真机扫码验收
 
+- [X] 开发者工具预览二维码真机扫码通过，手机使用移动数据可访问生产 HTTPS 后端
 - [ ] 微信开发者工具上传体验版，使用真实手机微信扫码
 - [ ] 真机登录（微信授权）正常
 - [ ] 真机上添加卡片 → 分析 → 保存全流程正常
@@ -206,15 +241,15 @@
 
 以下接口路径均已通过 grep `app/routers/` 和 `app/main.py` 代码核实。
 
-- [ ] `GET https://api.yourdomain.com/health` → `{"status":"ok"}`
-- [ ] `POST https://api.yourdomain.com/api/auth/wechat-login` → 返回 JWT token（核实：`app/routers/auth.py` `prefix="/api/auth"`）
-- [ ] `GET https://api.yourdomain.com/api/auth/me`（携带 Bearer token）→ 返回用户信息（核实：同上）
-- [ ] `POST https://api.yourdomain.com/api/analyze-english`（传入 `{"text":"clutch","cardType":"word","targetLang":"zh"}`）→ 返回翻译 + 例句（核实：`app/main.py:30`）
-- [ ] `GET https://api.yourdomain.com/api/cards`（携带 Bearer token）→ 返回卡片列表（核实：`app/routers/cards.py` `prefix="/api/cards"`）
-- [ ] `POST https://api.yourdomain.com/api/review-sessions`（携带 Bearer token）→ 创建复习 session 返回 items（核实：`app/routers/reviews.py` `review_sessions_router` `prefix="/api/review-sessions"`）
-- [ ] `GET https://api.yourdomain.com/api/reviews/today-reviewed`（携带 Bearer token）→ 返回今日复习列表（核实：`app/routers/reviews.py:1447`）
-- [ ] `GET https://api.yourdomain.com/api/reviews/history`（携带 Bearer token）→ 返回历史复习列表（核实：`app/routers/reviews.py:838`）
-- [ ] `GET https://api.yourdomain.com/api/reviews/history/summary`（携带 Bearer token）→ 返回历史统计摘要（核实：`app/routers/reviews.py:962`）
+- [X] `GET https://api.qingyacard.com/health` → `{"status":"ok"}`
+- [ ] `POST https://api.qingyacard.com/api/auth/wechat-login` → 返回 JWT token（核实：`app/routers/auth.py` `prefix="/api/auth"`）
+- [ ] `GET https://api.qingyacard.com/api/auth/me`（携带 Bearer token）→ 返回用户信息（核实：同上）
+- [ ] `POST https://api.qingyacard.com/api/analyze-english`（传入 `{"text":"clutch","cardType":"word","targetLang":"zh"}`）→ 返回翻译 + 例句（核实：`app/main.py:30`）
+- [ ] `GET https://api.qingyacard.com/api/cards`（携带 Bearer token）→ 返回卡片列表（核实：`app/routers/cards.py` `prefix="/api/cards"`）
+- [ ] `POST https://api.qingyacard.com/api/review-sessions`（携带 Bearer token）→ 创建复习 session 返回 items（核实：`app/routers/reviews.py` `review_sessions_router` `prefix="/api/review-sessions"`）
+- [ ] `GET https://api.qingyacard.com/api/reviews/today-reviewed`（携带 Bearer token）→ 返回今日复习列表（核实：`app/routers/reviews.py:1447`）
+- [ ] `GET https://api.qingyacard.com/api/reviews/history`（携带 Bearer token）→ 返回历史复习列表（核实：`app/routers/reviews.py:838`）
+- [ ] `GET https://api.qingyacard.com/api/reviews/history/summary`（携带 Bearer token）→ 返回历史统计摘要（核实：`app/routers/reviews.py:962`）
 
 ---
 
@@ -260,7 +295,7 @@
 
 - [ ] 执行 `systemctl restart english-backend` 后，`GET /health` 返回 `{"status":"ok"}`
 - [ ] 重启后已有用户的卡片数据仍可正常访问（数据库持久化正常）
-- [ ] Nginx 仍正常转发请求（`curl -I https://api.yourdomain.com/health` 返回 200）
+- [ ] Nginx 仍正常转发请求（`curl -I https://api.qingyacard.com/health` 返回 200）
 - [ ] systemd 服务设置了 `Restart=on-failure`，确认崩溃后自动拉起
 - [ ] `journalctl -u english-backend --since today` 无 ERROR 级别日志
 

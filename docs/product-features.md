@@ -86,6 +86,7 @@
 首页不再作为"今日目标页"或"任务完成页"，而是轻量的卡片管理与复习入口。
 
 **页面主结构：**
+
 ```
 首页
 ├── 添加卡片（主入口）
@@ -137,16 +138,17 @@
 
 前端本地 error 规则（6 条，均为红色 error，均阻止保存）：
 
-| 情况 | 文案 | 是否阻止保存 |
-|---|---|---|
-| 空内容（trim 后为空） | `英文内容为空` | 是 |
-| 含中文汉字（任何 CJK 表意文字） | `英文内容请只填写英文` | 是 |
-| 无拉丁字母（纯数字/纯符号） | `请输入英文内容` | 是 |
-| >500 字符 | `内容较长，建议拆分后再保存` | 是 |
-| 单词类别多词（category=单词 且词数 ≠ 1） | `单词类别请只填一个词` | 是 |
-| 短语类别单词（category=短语 且词数 < 2） | `短语类别至少需要两个词` | 是 |
+| 情况                                      | 文案                           | 是否阻止保存 |
+| ----------------------------------------- | ------------------------------ | ------------ |
+| 空内容（trim 后为空）                     | `英文内容为空`               | 是           |
+| 含中文汉字（任何 CJK 表意文字）           | `英文内容请只填写英文`       | 是           |
+| 无拉丁字母（纯数字/纯符号）               | `请输入英文内容`             | 是           |
+| >500 字符                                 | `内容较长，建议拆分后再保存` | 是           |
+| 单词类别多词（category=单词 且词数 ≠ 1） | `单词类别请只填一个词`       | 是           |
+| 短语类别单词（category=短语 且词数 < 2）  | `短语类别至少需要两个词`     | 是           |
 
 补充规则：
+
 - 中文检测优先于"无英文"判断：纯中文 → "英文内容请只填写英文"；纯数字/纯符号 → "请输入英文内容"。
 - **红色 error = 只有前端本地 error 才显示**。后端 error 不展示（不透传原文，不降级为 warning）。
 - 后端 warning 正常展示为 warning。
@@ -174,33 +176,33 @@
 
 **会自动做的例子：**
 
-| 输入 | 规范化后 |
-|---|---|
-| ` he ` | `he` |
+| 输入               | 规范化后         |
+| ------------------ | ---------------- |
+| `he`             | `he`           |
 | `good   morning` | `good morning` |
-| `hello\nworld` | `hello world` |
-| `hello\tworld` | `hello world` |
-| `he 's` | `he's` |
-| `don 't` | `don't` |
-| `John 's book` | `John's book` |
-| `I'm happy` | `I'm happy` |
-| `long—term` | `long-term` |
-| `hello，world` | `hello,world` |
-| `hello。` | `hello.` |
-| `hello , world` | `hello, world` |
-| `( hello )` | `(hello)` |
+| `hello\nworld`   | `hello world`  |
+| `hello\tworld`   | `hello world`  |
+| `he 's`          | `he's`         |
+| `don 't`         | `don't`        |
+| `John 's book`   | `John's book`  |
+| `I'm happy`      | `I'm happy`    |
+| `long—term`     | `long-term`    |
+| `hello，world`   | `hello,world`  |
+| `hello。`        | `hello.`       |
+| `hello , world`  | `hello, world` |
+| `( hello )`      | `(hello)`      |
 
 **不会自动做的例子：**
 
-| 输入 | 行为 |
-|---|---|
-| `HELLO` | 不转小写 |
-| `i am happy` | 不自动改成 `I am happy` |
-| `cluch` | 不自动改成 `clutch` |
-| `good job 👍` | 不删除 emoji |
-| `hello!!!` | 不删除感叹号 |
-| `e-mail` ↔ `email` | 不互相转换 |
-| 语法错误 | 不做语法纠错或表达润色 |
+| 输入                    | 行为                      |
+| ----------------------- | ------------------------- |
+| `HELLO`               | 不转小写                  |
+| `i am happy`          | 不自动改成 `I am happy` |
+| `cluch`               | 不自动改成 `clutch`     |
+| `good job 👍`         | 不删除 emoji              |
+| `hello!!!`            | 不删除感叹号              |
+| `e-mail` ↔ `email` | 不互相转换                |
+| 语法错误                | 不做语法纠错或表达润色    |
 
 #### 后端 normalizedText 规则
 
@@ -455,7 +457,7 @@ Hunyuan / TMT 路径有结构化诊断日志，使用 `[hunyuan][diag]` / `[tmt]
 
 ### 离线可看缓存
 
-- 首页卡片列表、今日复习情况、今日复习内容、历史均有本地缓存。
+- 首页卡片列表、今天看过页面、历史记录均有本地缓存。
 - 离线时展示最近一次缓存数据，并显示离线提示。
 
 ### 离线可保存 pending 卡片
@@ -490,6 +492,120 @@ Hunyuan / TMT 路径有结构化诊断日志，使用 `[hunyuan][diag]` / `[tmt]
 
 - **后端**：FastAPI + PostgreSQL，主数据源。
 - **前端**：微信小程序原生框架，本地 `wx.Storage` 作缓存和离线兜底。
+
+### 生产后端与本地调试
+
+#### 生产后端地址
+
+小程序正式环境默认访问生产 HTTPS 后端：
+
+```text
+https://api.qingyacard.com
+```
+
+该域名已完成：
+
+- DNS 解析：`api.qingyacard.com → 49.232.134.229`
+- Nginx 反向代理：外部请求 → Nginx → `127.0.0.1:8001`
+- Certbot HTTPS 证书
+- 腾讯云轻量服务器防火墙 80 / 443 放行
+- 微信小程序 request 合法域名配置
+
+健康检查地址：
+
+```text
+https://api.qingyacard.com/health
+```
+
+预期返回：
+
+```json
+{"status":"ok"}
+```
+
+#### 前端后端地址规则
+
+前端默认后端地址配置在：
+
+```text
+utils/apiClient.js
+```
+
+当前默认值为：
+
+```text
+https://api.qingyacard.com
+```
+
+本地调试覆盖文件为：
+
+```text
+utils/localBackendConfig.js
+```
+
+规则：
+
+- `utils/localBackendConfig.js` 仅用于本地开发和真机调试覆盖。
+- 该文件不应提交。
+- 如果该文件存在并导出 `BACKEND_BASE_URL`，会覆盖 `apiClient.js` 的默认生产地址。
+- 正式发布前，应确认默认地址为 `https://api.qingyacard.com`。
+- 正式发布前，不应依赖 `127.0.0.1`、局域网 IP、裸公网 IP 或 HTTP 地址。
+
+#### 数据库环境差异
+
+本地开发环境可以继续使用 SQLite：
+
+```text
+english_analyzer.db
+```
+
+服务器生产环境使用 PostgreSQL：
+
+```text
+database: english_study
+user: english_user
+```
+
+生产环境通过 `DATABASE_URL` 连接 PostgreSQL。
+
+注意：
+
+- `.env` 不应提交。
+- 文档中不记录真实数据库密码。
+- 文档中不记录 JWT_SECRET_KEY。
+- 文档中不记录微信 Secret。
+- 文档中不记录 HUNYUAN_API_KEY。
+- Alembic 生产迁移使用 `alembic upgrade heads`。
+- Alembic 迁移只负责创建 / 升级表结构，不负责把本地 SQLite 数据导入 PostgreSQL。
+- 如未来需要迁移本地卡片数据，应单独设计数据导入阶段。
+
+#### 生产后端维护命令
+
+查看后端状态：
+
+```bash
+sudo systemctl status english-backend
+```
+
+重启后端：
+
+```bash
+sudo systemctl restart english-backend
+```
+
+查看后端日志：
+
+```bash
+sudo journalctl -u english-backend -n 80 --no-pager
+```
+
+验证生产 HTTPS 后端：
+
+```bash
+curl https://api.qingyacard.com/health
+```
+
+生产环境不要手动长期运行 `uvicorn`，应由 systemd 托管。
 
 ### 核心数据表
 
@@ -530,31 +646,32 @@ Hunyuan / TMT 路径有结构化诊断日志，使用 `[hunyuan][diag]` / `[tmt]
 
 ## 九、当前明确不做 / 未完成
 
-| 边界                                 | 说明                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| AI 例句不持久化到 card               | 例句仅在 Add/Edit 页实时展示，不存入数据库                                 |
-| 不对完整句子生成额外例句             | sentence/paragraph 不进入例句生成链路                                      |
-| 不对不自然表达自动改写               | 如 `commit guilty` 不重写为正确英语                                      |
-| 不做语义纠错替换                     | 不接受纯同义替换冒充原词用法                                               |
-| 不保证所有输入都有例句               | 部分输入 Hunyuan 和 TMT 均无法生成时静默返回 None                          |
-| 不把 History 当成编辑入口            | 历史详情页纯只读，不可编辑                                                 |
-| 不删除后端旧字段                     | `exam_scene` / `exam_module` 保留在后端，前端当前不展示                |
-| 暂不新增 Claude Code skill / command | 等例句链路经多轮人工验收稳定后再考虑                                       |
-| 不做 Sentence 例句生成               | 产品语义保留                                                               |
-| 不保证不规则名词复数                 | 如 analysis→analyses 未单独处理（但 analysis 是 analyses 子串，实际可过） |
-| today_review_status 页面已删除 | Phase 8K (`34c6660`) 已彻底下线并删除目录；复习完成跳转目标改为 today_reviewed |
-| 不改前端复习入口与 fallback 链        | daily_suggested 选卡补位由后端 Phase 8L 调整；前端 fallback 链、new_only / free_review、4 档反馈、回炉逻辑不变 |
-| 不改 review_state 枚举               | 卡片状态枚举值不变，仅前端展示改为图标弱提示                               |
-| 不改 dailyGoal 底层 key              | 底层字段名保持 dailyGoal，用户可见文案改为"每次看几张"                    |
-| 暂不把首页做成复盘页                 | 首页保持"添加卡片 + 看一看 + 今天看过入口"轻量形态                       |
-| 历史页内部逻辑未改                   | history_reviewed / history_detail 基于 ReviewLog 快照，只读，未改动      |
-| 不自动拼写纠错                       | `cluch` 不自动改成 `clutch`，仅显示 hint                                 |
-| 不自动大小写修正                     | `HELLO` 保持大写，不自动变小写                                           |
-| 不自动语法改写                       | 不做语法纠错或表达润色                                                   |
-| 不删除 emoji                         | `good job 👍` 保留 emoji                                                  |
-| 不新增"规范写法建议按钮"             | 当前不做，暂不扩展                                                       |
-| 不让后端 normalizedText 覆盖英文框   | 后端 normalizedText 不回写英文输入框                                     |
-| 不对历史数据做 normalize 迁移        | 仅新保存/编辑的卡片经过 normalize                                        |
+| 边界                                 | 说明                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| AI 例句不持久化到 card               | 例句仅在 Add/Edit 页实时展示，不存入数据库                                                                     |
+| 不对完整句子生成额外例句             | sentence/paragraph 不进入例句生成链路                                                                          |
+| 不对不自然表达自动改写               | 如 `commit guilty` 不重写为正确英语                                                                          |
+| 不做语义纠错替换                     | 不接受纯同义替换冒充原词用法                                                                                   |
+| 不保证所有输入都有例句               | 部分输入 Hunyuan 和 TMT 均无法生成时静默返回 None                                                              |
+| 不把 History 当成编辑入口            | 历史详情页纯只读，不可编辑                                                                                     |
+| 不删除后端旧字段                     | `exam_scene` / `exam_module` 保留在后端，前端当前不展示                                                    |
+| 暂不新增 Claude Code skill / command | 等例句链路经多轮人工验收稳定后再考虑                                                                           |
+| 不做 Sentence 例句生成               | 产品语义保留                                                                                                   |
+| 不保证不规则名词复数                 | 如 analysis→analyses 未单独处理（但 analysis 是 analyses 子串，实际可过）                                     |
+| today_review_status 页面已删除       | Phase 8K (`34c6660`) 已彻底下线并删除目录；复习完成跳转目标改为 today_reviewed                               |
+| 不改前端复习入口与 fallback 链       | daily_suggested 选卡补位由后端 Phase 8L 调整；前端 fallback 链、new_only / free_review、4 档反馈、回炉逻辑不变 |
+| 不改 review_state 枚举               | 卡片状态枚举值不变，仅前端展示改为图标弱提示                                                                   |
+| 不改 dailyGoal 底层 key              | 底层字段名保持 dailyGoal，用户可见文案改为"每次看几张"                                                         |
+| 暂不把首页做成复盘页                 | 首页保持"添加卡片 + 看一看 + 今天看过入口"轻量形态                                                             |
+| 历史页内部逻辑未改                   | history_reviewed / history_detail 基于 ReviewLog 快照，只读，未改动                                            |
+| 不自动拼写纠错                       | `cluch` 不自动改成 `clutch`，仅显示 hint                                                                   |
+| 不自动大小写修正                     | `HELLO` 保持大写，不自动变小写                                                                               |
+| 不自动语法改写                       | 不做语法纠错或表达润色                                                                                         |
+| 不删除 emoji                         | `good job 👍` 保留 emoji                                                                                     |
+| 不新增"规范写法建议按钮"             | 当前不做，暂不扩展                                                                                             |
+| 不让后端 normalizedText 覆盖英文框   | 后端 normalizedText 不回写英文输入框                                                                           |
+| 不对历史数据做 normalize 迁移        | 仅新保存/编辑的卡片经过 normalize                                                                              |
+| 不提交 localBackendConfig.js         | 该文件仅用于本地调试覆盖后端地址，不进入正式发布代码                                                           |
 
 ---
 
