@@ -1439,7 +1439,7 @@ Page({
   /**
    * Phase 6L: Create a review session and return a structured result.
    * Returns { success, sessionId, sessionType } on success,
-   * or { success: false, reason: 'empty' | 'network_error' } on failure.
+   * or { success: false, reason: 'empty' | 'network_error' | 'server_error' } on failure.
    */
   async _tryCreateSession(sessionType, _a) {
     var opts = _a || {};
@@ -1483,8 +1483,19 @@ Page({
       // No session at all — empty
       return { success: false, reason: 'empty' };
     } catch (error) {
-      console.warn('[phase6l-fallback] create session failed for', sessionType, error);
-      return { success: false, reason: 'network_error' };
+      var statusCode = Number(error && error.statusCode) || 0;
+      var errMsg = String((error && error.errMsg) || '');
+      console.warn('[phase6l-fallback] create session failed for', sessionType, JSON.stringify({
+        statusCode: statusCode,
+        errMsg: errMsg,
+        data: error && error.data ? error.data : null
+      }));
+
+      // Only treat genuine transport failures (no HTTP response reached us) as
+      // network errors. A backend response with an HTTP status (e.g. 4xx/5xx)
+      // is a server error and must not be reported as "网络不可用".
+      var isNetworkError = statusCode === 0 || /timeout|request:fail/i.test(errMsg);
+      return { success: false, reason: isNetworkError ? 'network_error' : 'server_error' };
     }
   },
 
@@ -1527,8 +1538,8 @@ Page({
         return;
       }
 
-      if (result.reason === 'network_error') {
-        lastReason = 'network_error';
+      if (result.reason === 'network_error' || result.reason === 'server_error') {
+        lastReason = result.reason;
         break;
       }
 
@@ -1551,8 +1562,8 @@ Page({
           });
           return;
         }
-        if (retryResult.reason === 'network_error') {
-          lastReason = 'network_error';
+        if (retryResult.reason === 'network_error' || retryResult.reason === 'server_error') {
+          lastReason = retryResult.reason;
           break;
         }
         // Retry also returned empty — continue to next in chain
@@ -1566,8 +1577,8 @@ Page({
     wx.hideLoading();
     this.setData({ reviewEntryLoading: false });
 
-    if (lastReason === 'network_error') {
-      this._showNoCardsAvailable('network_error');
+    if (lastReason === 'network_error' || lastReason === 'server_error') {
+      this._showNoCardsAvailable(lastReason);
     } else {
       this._showNoCardsAvailable('all_empty');
     }
@@ -1584,6 +1595,14 @@ Page({
     if (reason === 'network_error') {
       wx.showToast({
         title: '网络不可用，请检查当前网络',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (reason === 'server_error') {
+      wx.showToast({
+        title: '服务暂时不可用，请稍后再试',
         icon: 'none'
       });
       return;
@@ -1617,7 +1636,7 @@ Page({
 
     if (syncedCount === 0) {
       wx.showToast({
-        title: '网络不可用，请检查当前网络',
+        title: '当前没有可查看的卡片，请先添加或等待同步完成',
         icon: 'none'
       });
     } else {
