@@ -1,5 +1,39 @@
 # Current Phase
 
+## 2026-06-28 Local-Only Development Mode
+
+**Status:** Active. The previous public production backend is offline and should be treated as historical only.
+
+Current facts:
+
+- Tencent Cloud Lighthouse server has been returned and destroyed.
+- Production backend, Nginx, systemd, PostgreSQL, and Certbot no longer exist.
+- DNSPod `api.qingyacard.com` A record has been deleted.
+- `https://api.qingyacard.com` is invalid and no longer the default backend.
+- WeChat request legal domain `https://api.qingyacard.com` has been deleted or is no longer used.
+- Tencent Cloud ICP filing subject cancellation has been submitted.
+- Public security network filing is not continuing.
+- `qingyacard.com` is retained but not resolved for this project.
+- Mini Program remains paused; current use is local development through WeChat DevTools.
+
+Current frontend/backend setup:
+
+- `utils/apiClient.js` default `BACKEND_BASE_URL`: `http://127.0.0.1:8000`
+- Ignored local override: `utils/localBackendConfig.js`
+- Analyze endpoint timeout: 60s for local Qwen first-load latency.
+- WeChat DevTools must enable "不校验合法域名、web-view、TLS 版本以及 HTTPS 证书".
+- Real-device public access is not a goal in this phase.
+
+Current backend stack:
+
+- FastAPI at `http://127.0.0.1:8000`
+- SQLite
+- Argos Translate
+- Ollama
+- `qwen3:8b`
+
+Historical production deployment notes below are retained for reference only.
+
 ## Current Phase
 
 Release-P0-production-backend-cutover — 生产后端公网 HTTPS 部署、微信 request 合法域名配置、前端默认后端地址切换。

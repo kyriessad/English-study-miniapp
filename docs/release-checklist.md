@@ -342,3 +342,33 @@ curl https://api.qingyacard.com/health
 - [ ] 本次提交的版本说明已填写（描述本次更新内容）
 - [ ] 审核说明已填写（如有 AI 生成内容，说明 AI 来源和用途；如功能需登录，提供测试账号说明）
 - [ ] 体验版已完成灰度测试，无严重问题（见二十二节）
+## 2026-06-28 Status: Historical Cloud Release Checklist
+
+This checklist is retained as historical release documentation. It is not the active target while the project is local-only.
+
+Current local mode:
+
+- Tencent Cloud Lighthouse server has been returned and destroyed.
+- Production backend, Nginx, systemd, PostgreSQL, and Certbot no longer exist.
+- DNSPod `api.qingyacard.com` A record has been deleted.
+- `https://api.qingyacard.com` is invalid and no longer the default backend.
+- WeChat request legal domain has been deleted or is no longer used.
+- ICP filing subject cancellation has been submitted.
+- Public security network filing is not continuing.
+- Domain is retained but not resolved.
+- Mini Program remains paused.
+
+Local acceptance checklist:
+
+- [ ] Ollama installed and `ollama --version` works.
+- [ ] `ollama pull qwen3:8b` completed and `ollama list` shows `qwen3:8b`.
+- [ ] `Invoke-RestMethod http://127.0.0.1:11434/api/tags` succeeds.
+- [ ] Backend `.venv` has `argostranslate` installed.
+- [ ] Argos en -> zh model installed with backend `tools/install_argos_en_zh.py`.
+- [ ] Backend started with `uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.
+- [ ] `Invoke-RestMethod http://127.0.0.1:8000/health` returns `{"status":"ok"}`.
+- [ ] WeChat DevTools requests `http://127.0.0.1:8000`, not `https://api.qingyacard.com`.
+- [ ] WeChat DevTools enables "不校验合法域名、web-view、TLS 版本以及 HTTPS 证书".
+- [ ] Add-card AI analysis returns `translation`, and word/phrase returns `exampleSentence` / `exampleTranslation` when Ollama validates successfully.
+- [ ] Sentence/paragraph analysis returns base translation without extra example generation.
+- [ ] Tencent TMT and Hunyuan remain default disabled and are not called in normal local analysis.

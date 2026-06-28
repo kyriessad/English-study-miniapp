@@ -113,7 +113,7 @@ function normalizeUnderstandingSource(source, hasUserUnderstanding) {
   }
 
   // 具体供应商 / 机器翻译别名统一归一化为 machine
-  if (['tencent', 'translation', 'translate', 'mt', 'machine_translation'].includes(normalized)) {
+  if (['argos', 'tencent', 'translation', 'translate', 'mt', 'machine_translation'].includes(normalized)) {
     return 'machine';
   }
 
@@ -546,7 +546,7 @@ Page({
         },
         understanding: {
           candidate: backendResp.translation || backendResp.understanding || '',
-          source: backendResp.provider || 'tencent'
+          source: backendResp.provider || 'local'
         },
         cacheKey: cacheKey || `${mappedCategory}::${text.toLowerCase()}::${words.map(function(w) { return normalizeEnglishText(w).toLowerCase(); }).filter(Boolean).join('|')}`,
         fromCache: Boolean(backendResp.cacheHit),
