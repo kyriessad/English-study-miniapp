@@ -19,8 +19,7 @@ const {
 
 const STORAGE_KEY = 'cardsCache';
 const LEGACY_STORAGE_KEY = 'englishKnowledgeCards';
-const COLLECTION_NAME = 'englishKnowledgeCards';
-const FETCH_LIMIT = 20;
+const CARDS_LAST_SYNC_KEY = 'cardsLastSyncAt';
 const REVIEW_BATCH_SIZE = 5;
 
 const SYNC_STATUS_SYNCED = 'synced';
@@ -32,14 +31,12 @@ const BACKEND_SYNC_STATUS_PENDING = 'pending';
 const BACKEND_SYNC_STATUS_SYNCED = 'synced';
 const BACKEND_SYNC_STATUS_FAILED = 'failed';
 
-const cloudSyncTasksByCardId = new Map();
-let backgroundCloudRefreshPromise = null;
 let backgroundBackendRefreshPromise = null;
-let backgroundFlushPromise = null;
-let backgroundRetryTimer = null;
 let pendingSyncInProgress = false;
 
-const BACKGROUND_RETRY_DELAY = 8000;
+// 增量同步游标：上次成功同步服务端的最新 updated_at（ISO 字符串）。
+// null 表示尚未从 storage 恢复，恢复后为 '' 表示无游标（强制全量同步）。
+let lastCardsSync = null;
 
 const BACKEND_CATEGORY_TO_CARD_TYPE = {
   '\u5355\u8bcd': 'word',
@@ -75,174 +72,6 @@ const REVIEW_RECORDS_STORAGE_KEY = 'reviewRecords';
 
 const REVIEW_INTERVAL_DAYS = [1, 2, 4, 7, 15, 30, 60];
 const MAX_MASTERY_LEVEL = REVIEW_INTERVAL_DAYS.length - 1;
-
-// ===== [DEAD-CANDIDATE] 调试工具 / 无页面调用 =====
-async function cleanupDuplicateCardsInCloud() {
-  const db = wx.cloud.database();
-  const collection = db.collection(COLLECTION_NAME);
-  const all = [];
-  let skip = 0;
-  const limit = 20;
-
-  // 1. 拉全量
-  while (true) {
-    const res = await collection
-      .skip(skip)
-      .limit(limit)
-      .get();
-
-    const list = Array.isArray(res.data) ? res.data : [];
-    all.push(...list);
-
-    if (list.length < limit) {
-      break;
-    }
-
-    skip += limit;
-  }
-
-  // 2. 按业务 id 分组
-  const groupMap = {};
-  all.forEach((item) => {
-    const businessId = String((item && item.id) || '').trim();
-
-    if (!businessId) {
-      return;
-    }
-
-    if (!groupMap[businessId]) {
-      groupMap[businessId] = [];
-    }
-
-    groupMap[businessId].push(item);
-  });
-
-  // 3. 找出重复组
-  const duplicateGroups = [];
-  for (const businessId in groupMap) {
-    const group = groupMap[businessId];
-    if (group && group.length > 1) {
-      duplicateGroups.push({
-        id: businessId,
-        records: group
-      });
-    }
-  }
-
-  console.log('总记录数:', all.length);
-  console.log('重复组数:', duplicateGroups.length);
-
-  if (duplicateGroups.length === 0) {
-    console.log('没有重复 id，无需清洗');
-    return {
-      total: all.length,
-      duplicateGroupCount: 0,
-      deletedCount: 0
-    };
-  }
-
-  // 4. 每组保留最新一条，其余删除
-  const deleteIds = [];
-
-  duplicateGroups.forEach((groupItem) => {
-    const records = groupItem.records.slice();
-
-    records.sort((a, b) => {
-      const aUpdated = Number(a.updatedAt || 0);
-      const bUpdated = Number(b.updatedAt || 0);
-
-      if (bUpdated !== aUpdated) {
-        return bUpdated - aUpdated;
-      }
-
-      const aCreated = Number(a.createdAt || 0);
-      const bCreated = Number(b.createdAt || 0);
-
-      if (bCreated !== aCreated) {
-        return bCreated - aCreated;
-      }
-
-      const aId = String(a._id || '');
-      const bId = String(b._id || '');
-      return aId < bId ? -1 : aId > bId ? 1 : 0;
-    });
-
-    const keepRecord = records[0];
-    const removeRecords = records.slice(1);
-
-    console.log('保留记录:', {
-      id: groupItem.id,
-      keepId: keepRecord && keepRecord._id,
-      removeCount: removeRecords.length
-    });
-
-    removeRecords.forEach((item) => {
-      if (item && item._id) {
-        deleteIds.push(item._id);
-      }
-    });
-  });
-
-  // 5. 真正删除
-  let deletedCount = 0;
-
-  for (const docId of deleteIds) {
-    await collection.doc(docId).remove();
-    deletedCount += 1;
-  }
-
-  console.log('清洗完成，删除重复记录数:', deletedCount);
-
-  return {
-    total: all.length,
-    duplicateGroupCount: duplicateGroups.length,
-    deletedCount
-  };
-}
-
-async function checkDuplicateIds() {
-  const db = wx.cloud.database();
-  const all = [];
-  let skip = 0;
-  const limit = 20;
-
-  while (true) {
-    const res = await db.collection('englishKnowledgeCards')
-      .skip(skip)
-      .limit(limit)
-      .get();
-
-    const list = res.data || [];
-    all.push(...list);
-
-    if (list.length < limit) {
-      break;
-    }
-
-    skip += limit;
-  }
-
-  const countMap = {};
-  all.forEach((item) => {
-    const id = String(item.id || '');
-    countMap[id] = (countMap[id] || 0) + 1;
-  });
-
-  const duplicates = [];
-  for (const id in countMap) {
-    if (id && countMap[id] > 1) {
-      duplicates.push({
-        id,
-        count: countMap[id]
-      });
-    }
-  }
-
-  console.log('总记录数:', all.length);
-  console.log('重复 id:', duplicates);
-}
-
-
 
 // ===== [CROSS-ZONE UTILITY] 基础工具函数 =====
 
@@ -1408,136 +1237,12 @@ function getLocalCards(options = {}) {
   return cards.filter((card) => !card.deleted);
 }
 
-// ===== [LEGACY] 旧微信云同步 — mergeCards =====
-function mergeCards(localCards, cloudCards) {
-  const localList = Array.isArray(localCards) ? localCards : [];
-  const cloudList = Array.isArray(cloudCards) ? cloudCards : [];
-
-  // 云端删除墓碑：另一台设备删除过的卡
-  const cloudDeletedIdSet = new Set(
-    cloudList
-      .filter((card) => card && card.deleted)
-      .map((card) => String(card.id))
-      .filter(Boolean)
-  );
-
-  // 本机删除墓碑：本机刚删除但可能还没同步完成的卡
-  const localDeletedIdSet = new Set(
-    localList
-      .filter((card) => card && card.deleted)
-      .map((card) => String(card.id))
-      .filter(Boolean)
-  );
-
-  // 云端仍然有效的卡：排除云端 deleted，也排除本机 deleted
-  const activeCloudCards = cloudList.filter((card) => {
-    const cardId = String(card && card.id || '');
-
-    if (!cardId) {
-      return false;
-    }
-
-    if (card.deleted) {
-      return false;
-    }
-
-    if (localDeletedIdSet.has(cardId)) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const activeCloudIdSet = new Set(
-    activeCloudCards
-      .map((card) => String(card && card.id))
-      .filter(Boolean)
-  );
-
-  const keptLocalCards = localList.filter((card) => {
-    const cardId = String(card && card.id || '');
-
-    if (!cardId) {
-      return false;
-    }
-
-    // 关键：云端明确说这张卡已删除，则本地必须删除。
-    // 即使本地是 pending / failed，也不能再保留，否则会跨设备复活。
-    if (cloudDeletedIdSet.has(cardId)) {
-      return false;
-    }
-
-    // 本机删除墓碑要保留，用来继续压住云端旧数据
-    if (card.deleted) {
-      return true;
-    }
-
-    // 本地未同步的新建/编辑，且云端没有删除墓碑，暂时保留
-    if (isUnsyncedStatus(card.syncStatus)) {
-      return true;
-    }
-
-    // 普通 synced 卡：云端还存在才保留
-    return activeCloudIdSet.has(cardId);
-  });
-
-  return dedupeCards([].concat(activeCloudCards, keptLocalCards));
-}
-
-
 // [CORE] saveLocalCards — 存储基元，全文件依赖
 function saveLocalCards(cards) {
   wx.setStorageSync(STORAGE_KEY, dedupeCards(cards));
 }
 
 
-
-
-
-// ===== [LEGACY] 旧微信云同步 — 云数据库操作 =====
-function canUseCloudDatabase() {
-  return Boolean(wx.cloud && typeof wx.cloud.database === 'function');
-}
-
-function getCollection() {
-  if (!canUseCloudDatabase()) {
-    return null;
-  }
-
-  return wx.cloud.database().collection(COLLECTION_NAME);
-}
-
-
-
-async function fetchAllCloudCards() {
-  const collection = getCollection();
-
-  if (!collection) {
-    throw new Error('cloud_database_unavailable');
-  }
-
-  const cards = [];
-  let skip = 0;
-
-  while (true) {
-    const response = await collection
-      .orderBy('updatedAt', 'desc')
-      .skip(skip)
-      .limit(FETCH_LIMIT)
-      .get();
-
-    const batch = Array.isArray(response.data) ? response.data : [];
-    cards.push(...batch.map(normalizeCard));
-
-    if (batch.length < FETCH_LIMIT) {
-      break;
-    }
-
-    skip += FETCH_LIMIT;
-  }
-
-  return dedupeCards(cards);
-}
 
 
 
@@ -1614,420 +1319,31 @@ function buildCardFields(form, fallbackCard) {
   };
 }
 
-function toCloudCardData(card) {
-  const normalizedCard = normalizeCard(card);
-  const cloudCard = { ...normalizedCard };
-
-  delete cloudCard._id;
-  delete cloudCard._openid;
-
-  return cloudCard;
-}
-
-async function findCloudCardById(cardId) {
-  const collection = getCollection();
-
-  if (!collection) {
-    return null;
-  }
-
-  const cards = [];
-  let skip = 0;
-
-  while (true) {
-    const response = await collection.where({ id: String(cardId) }).skip(skip).limit(FETCH_LIMIT).get();
-    const batch = Array.isArray(response.data) ? response.data : [];
-    cards.push(...batch.map(normalizeCard));
-
-    if (batch.length < FETCH_LIMIT) {
-      break;
-    }
-
-    skip += FETCH_LIMIT;
-  }
-
-  return cards.reduce((bestCard, currentCard) => {
-    return choosePreferredCard(bestCard, currentCard);
-  }, null);
-}
-
-async function createCloudCard(card) {
-  const collection = getCollection();
-
-  if (!collection) {
-    throw new Error('cloud_database_unavailable');
-  }
-
-  const response = await collection.add({
-    data: toCloudCardData(card)
-  });
-
-  return {
-    ...card,
-    _id: response._id
-  };
-}
-
-async function updateCloudCard(cardId, nextCard) {
-  const collection = getCollection();
-
-  if (!collection) {
-    throw new Error('cloud_database_unavailable');
-  }
-
-  const existingCards = [];
-  let skip = 0;
-
-  while (true) {
-    const response = await collection.where({ id: String(cardId) }).skip(skip).limit(FETCH_LIMIT).get();
-    const batch = Array.isArray(response.data) ? response.data : [];
-    existingCards.push(...batch.map(normalizeCard));
-
-    if (batch.length < FETCH_LIMIT) {
-      break;
-    }
-
-    skip += FETCH_LIMIT;
-  }
-
-  const existingCard = (nextCard && nextCard._id)
-    ? existingCards.find((card) => card._id === nextCard._id)
-    : existingCards.reduce((bestCard, currentCard) => choosePreferredCard(bestCard, currentCard), null);
-
-  if (!existingCard || !existingCard._id) {
-    throw new Error('cloud_card_not_found');
-  }
-
-  await collection.doc(existingCard._id).update({
-    data: toCloudCardData(nextCard)
-  });
-
-  return {
-    ...nextCard,
-    _id: existingCard._id
-  };
-}
-
-async function removeCloudCard(cardId) {
-  const collection = getCollection();
-
-  if (!collection) {
-    throw new Error('cloud_database_unavailable');
-  }
-
-  const existingCards = [];
-  let skip = 0;
-  const deletedAt = Date.now();
-
-  while (true) {
-    const response = await collection
-      .where({ id: String(cardId) })
-      .skip(skip)
-      .limit(FETCH_LIMIT)
-      .get();
-
-    const batch = Array.isArray(response.data) ? response.data : [];
-    existingCards.push(...batch.map(normalizeCard));
-
-    if (batch.length < FETCH_LIMIT) {
-      break;
-    }
-
-    skip += FETCH_LIMIT;
-  }
-
-  if (existingCards.length === 0) {
-    return;
-  }
-
-  for (const card of existingCards) {
-    if (!card._id) {
-      continue;
-    }
-
-    await collection.doc(card._id).update({
-      data: {
-        deleted: true,
-        syncStatus: SYNC_STATUS_SYNCED,
-        syncError: '',
-        deletedAt,
-        updatedAt: deletedAt
-      }
-    });
-  }
-}
-
-async function performSyncCardToCloud(card) {
-  const normalizedCard = normalizeCard(card);
-
-  if (!canUseCloudDatabase()) {
-    return {
-      ...normalizedCard,
-      syncStatus: normalizedCard.deleted ? SYNC_STATUS_PENDING_DELETE : SYNC_STATUS_FAILED,
-      syncError: 'cloud_database_unavailable'
-    };
-  }
-
-  try {
-    if (normalizedCard.deleted) {
-      await removeCloudCard(normalizedCard.id);
-      return {
-        ...normalizedCard,
-        syncStatus: SYNC_STATUS_SYNCED,
-        syncError: ''
-      };
-    }
-
-    const existingCard = await findCloudCardById(normalizedCard.id);
-
-    // 关键：如果云端已经有删除墓碑，本地旧卡不能重新上传复活
-    if (existingCard && existingCard.deleted) {
-      return {
-        ...normalizedCard,
-        deleted: true,
-        syncStatus: SYNC_STATUS_SYNCED,
-        syncError: ''
-      };
-    }
-
-    let syncedCard = normalizedCard;
-
-    if (existingCard && existingCard._id) {
-      syncedCard = await updateCloudCard(normalizedCard.id, {
-        ...normalizedCard,
-        _id: existingCard._id
-      });
-    } else {
-      syncedCard = await createCloudCard(normalizedCard);
-    }
-
-    return {
-      ...syncedCard,
-      syncStatus: SYNC_STATUS_SYNCED,
-      syncError: ''
-    };
-  } catch (error) {
-    return {
-      ...normalizedCard,
-      syncStatus: normalizedCard.deleted ? SYNC_STATUS_PENDING_DELETE : SYNC_STATUS_FAILED,
-      syncError: String((error && error.message) || error || 'sync_failed')
-    };
-  }
-}
-
-// ===== [LEGACY] 旧微信云同步 — 同步引擎 =====
-function syncCardToCloud(card) {
-  const cardId = String(card && card.id || '');
-
-  if (!cardId) {
-    return Promise.resolve(normalizeCard(card));
-  }
-
-  if (cloudSyncTasksByCardId.has(cardId)) {
-    return cloudSyncTasksByCardId.get(cardId);
-  }
-
-  const syncPromise = performSyncCardToCloud(card)
-    .finally(() => {
-      cloudSyncTasksByCardId.delete(cardId);
-    });
-
-  cloudSyncTasksByCardId.set(cardId, syncPromise);
-  return syncPromise;
-}
-
-function hasPendingCloudChanges(cards = []) {
-  return (cards || []).some((card) => (
-    card.syncStatus === SYNC_STATUS_PENDING ||
-    card.syncStatus === SYNC_STATUS_FAILED ||
-    card.syncStatus === SYNC_STATUS_PENDING_DELETE
-  ));
-}
-
-function clearBackgroundRetryTimer() {
-  if (backgroundRetryTimer) {
-    clearTimeout(backgroundRetryTimer);
-    backgroundRetryTimer = null;
-  }
-}
-
-function scheduleBackgroundRetry(delay = BACKGROUND_RETRY_DELAY) {
-  if (backgroundRetryTimer) {
-    return;
-  }
-
-  backgroundRetryTimer = setTimeout(async () => {
-    backgroundRetryTimer = null;
-
-    try {
-      const cards = await flushPendingCardsToCloud();
-
-      if (hasPendingCloudChanges(cards)) {
-        scheduleBackgroundRetry();
-      }
-    } catch (error) {
-      scheduleBackgroundRetry();
-    }
-  }, delay);
-}
-
-async function flushPendingCardsToCloud() {
-  if (!canUseCloudDatabase()) {
-    return getStoredCardsRaw();
-  }
-
-  if (backgroundFlushPromise) {
-    return backgroundFlushPromise;
-  }
-
-  backgroundFlushPromise = (async () => {
-    const rawCards = getStoredCardsRaw();
-    const pendingCards = rawCards.filter((card) => (
-      card.syncStatus === SYNC_STATUS_PENDING ||
-      card.syncStatus === SYNC_STATUS_FAILED ||
-      card.syncStatus === SYNC_STATUS_PENDING_DELETE
-    ));
-
-    if (pendingCards.length === 0) {
-      return rawCards;
-    }
-
-    const syncedResults = [];
-
-    for (const card of pendingCards) {
-      const syncedCard = await syncCardToCloud(card);
-      syncedResults.push(syncedCard);
-    }
-
-    const syncedMap = new Map(syncedResults.map((card) => [String(card.id), card]));
-const latestRawCards = getStoredCardsRaw();
-
-const mergedRawCards = latestRawCards
-  .map((card) => {
-    const syncedCard = syncedMap.get(String(card.id));
-
-    if (!syncedCard) {
-      return card;
-    }
-
-    // 如果本地已经标记删除，但这次返回的是旧的非删除同步结果，不能覆盖本地删除状态
-    if (
-      card.syncStatus === SYNC_STATUS_PENDING_DELETE &&
-      !syncedCard.deleted
-    ) {
-      return card;
-    }
-
-    const localUpdatedAt = Number(card.updatedAt || 0);
-    const syncedUpdatedAt = Number(syncedCard.updatedAt || 0);
-
-    const localReviewCount = Number(card.reviewCount || 0);
-    const syncedReviewCount = Number(syncedCard.reviewCount || 0);
-
-    const localLastReviewedAt = new Date(card.lastReviewedAt || 0).getTime() || 0;
-    const syncedLastReviewedAt = new Date(syncedCard.lastReviewedAt || 0).getTime() || 0;
-
-    const localHasNewerReview =
-      localReviewCount > syncedReviewCount ||
-      localLastReviewedAt > syncedLastReviewedAt;
-
-    const localHasNewerEdit =
-      localUpdatedAt > syncedUpdatedAt;
-
-    // 关键修复：
-    // 如果本地在同步过程中又发生了新的复习/编辑，不能用旧同步结果覆盖本地新数据
-    if (
-      isUnsyncedStatus(card.syncStatus) &&
-      (localHasNewerEdit || localHasNewerReview)
-    ) {
-      return card;
-    }
-
-    return syncedCard;
-  })
-  .filter((card) => !(card.deleted && card.syncStatus === SYNC_STATUS_SYNCED));
-
-saveLocalCards(mergedRawCards);
-
-if (!hasPendingCloudChanges(mergedRawCards)) {
-  clearBackgroundRetryTimer();
-}
-
-return mergedRawCards;
-    })().finally(() => {
-      backgroundFlushPromise = null;
-    });
-
-  return backgroundFlushPromise;
-}
-
-function scheduleBackgroundSync() {
-  clearBackgroundRetryTimer();
-
-  flushPendingCardsToCloud()
-    .then((cards) => {
-      if (hasPendingCloudChanges(cards)) {
-        scheduleBackgroundRetry();
-      }
-    })
-    .catch(() => {
-      scheduleBackgroundRetry();
-    });
-}
-
-
-
-// ===== [LEGACY] 旧微信云同步 — syncLocalCacheWithCloud =====
-async function syncLocalCacheWithCloud() {
-  if (!canUseCloudDatabase()) {
-    const localCards = getLocalCards();
-    saveLocalCards(getStoredCardsRaw());
-    return localCards;
-  }
-
-  if (backgroundCloudRefreshPromise) {
-    return backgroundCloudRefreshPromise;
-  }
-
-  backgroundCloudRefreshPromise = (async () => {
-    try {
-      // 这里只拉云端，不要提前固定本地快照。
-      // 因为拉云端期间，用户可能正在复习、删除或编辑卡片。
-      const cloudCards = await fetchAllCloudCards();
-
-      // 关键修复：云端拉完之后，重新读取“最新本地数据”。
-      // 这样复习页刚写入的 reviewState / reviewCount / lastReviewResult 不会被旧快照覆盖。
-      const latestLocalRawCards = getStoredCardsRaw();
-
-      // deleted / pending_delete 是“删除墓碑”，必须参与合并，否则云端旧卡会被重新拉回来。
-      // pending / failed 的本地改动也必须压住云端旧数据。
-      const mergedCards = mergeCards(latestLocalRawCards, cloudCards);
-
-      saveLocalCards(mergedCards);
-      return mergedCards.filter((card) => !card.deleted);
-    } catch (error) {
-      console.error('syncLocalCacheWithCloud failed:', error);
-      const localCards = getLocalCards();
-      saveLocalCards(getStoredCardsRaw());
-      return localCards;
-    } finally {
-      backgroundCloudRefreshPromise = null;
-    }
-  })();
-
-  return backgroundCloudRefreshPromise;
-}
-
 // ===== [CURRENT] 后端数据同步 =====
-async function fetchAllBackendCards() {
+async function fetchBackendCardsSince(updatedSince = null) {
   const allCards = [];
   const limit = 100;
   let offset = 0;
+  let syncCursor = null;
+  let serverTime = null;
 
   while (true) {
-    const response = await listBackendCards({ limit, offset });
+    const params = { limit: limit, offset: offset };
+
+    if (updatedSince) {
+      params.updated_since = updatedSince;
+    }
+
+    const response = await listBackendCards(params);
     const items = Array.isArray(response && response.items) ? response.items : [];
     allCards.push(...items);
+
+    if (response && response.sync_cursor) {
+      syncCursor = response.sync_cursor;
+    }
+    if (response && response.server_time) {
+      serverTime = response.server_time;
+    }
 
     const total = Number(response && response.total || 0);
     offset += items.length;
@@ -2037,7 +1353,44 @@ async function fetchAllBackendCards() {
     }
   }
 
-  return allCards;
+  return { cards: allCards, syncCursor: syncCursor, serverTime: serverTime };
+}
+
+function readLastCardsSync() {
+  try {
+    return wx.getStorageSync(CARDS_LAST_SYNC_KEY) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function saveLastCardsSync(cursor) {
+  const value = trimValue(cursor);
+  lastCardsSync = value;
+
+  try {
+    if (value) {
+      wx.setStorageSync(CARDS_LAST_SYNC_KEY, value);
+    }
+  } catch (error) {
+    // ignore
+  }
+}
+
+// 增量合并：只把「变更集合」叠加到现有本地缓存上。
+// 复用 dedupeCards/choosePreferredCard：删除墓碑携带更新的 updatedAt，会覆盖旧本地卡，
+// 随后在 filter(!deleted) 中被移除；本地 pending 编辑因 choosePreferredCard 优先级而保留。
+function applyIncrementalBackendChanges(existingCards, changedBackendCards) {
+  const changedLocalCards = (changedBackendCards || []).map((backendCard) => {
+    const fallbackCard = getCardByIdFromCards(
+      backendCard && backendCard.id,
+      existingCards
+    ) || {};
+    return normalizeBackendCardToLocal(backendCard, fallbackCard);
+  });
+
+  const mergedCards = dedupeCards([].concat(changedLocalCards, existingCards));
+  return mergedCards.filter((card) => !card.deleted);
 }
 
 async function refreshCardsCacheFromBackend() {
@@ -2046,57 +1399,89 @@ async function refreshCardsCacheFromBackend() {
   }
 
   backgroundBackendRefreshPromise = (async () => {
+    if (lastCardsSync === null) {
+      lastCardsSync = readLastCardsSync();
+    }
+
     const cachedCards = getStoredCardsRaw();
-    const backendCards = await fetchAllBackendCards();
 
-    const nextCards = backendCards
-      .map((backendCard) => {
-        const fallbackCard = getCardByIdFromCards(
-          backendCard && backendCard.id,
-          cachedCards
-        ) || {};
-        return normalizeBackendCardToLocal(backendCard, fallbackCard);
-      })
-      .filter((card) => !card.deleted);
+    // 只有「有游标 且 本地缓存非空」才走增量；缓存缺失/损坏时回退全量同步。
+    const canIncremental = Boolean(lastCardsSync) && cachedCards.length > 0;
 
-    // Preserve pending local cards that have no backend counterpart.
-    // Pending cards are local drafts — they must not be silently overwritten
-    // by a backend card with the same local_temp_id (see Phase 5-7C).
-    const backendIdSet = new Set(
-      backendCards.map((bc) => trimValue(bc && bc.id)).filter(Boolean)
-    );
-    const nextCardIdSet = new Set(
-      nextCards.map((c) => trimValue(c && c.id)).filter(Boolean)
-    );
+    const result = await fetchBackendCardsSince(canIncremental ? lastCardsSync : null);
 
-    const pendingCards = cachedCards.filter((card) => {
-      if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
-      // Pending-update cards (have backend_card_id) — always preserve; dedupeCards will
-      // prefer the locally-edited version over stale backend data via updatedAt timestamp.
-      if (card.backend_card_id) return true;
-      // Pending-create cards (no backend_card_id) — exclude if already in nextCards by local id.
-      if (card.id && nextCardIdSet.has(String(card.id))) return false;
-      return true;
-    });
+    let nextCards;
 
-    // If a pending local card shares local_temp_id with a backend card,
-    // the pending card is the latest local draft — keep it and discard
-    // the stale backend copy to prevent duplicate display and data loss.
-    const pendingLocalTempIdSet = new Set(
-      pendingCards.map((c) => trimValue(c && c.local_temp_id)).filter(Boolean)
-    );
-    const filteredNextCards = pendingLocalTempIdSet.size > 0
-      ? nextCards.filter((card) => {
-          if (card.local_temp_id && pendingLocalTempIdSet.has(String(card.local_temp_id))) {
-            return false;
-          }
-          return true;
+    if (canIncremental) {
+      nextCards = applyIncrementalBackendChanges(cachedCards, result.cards);
+    } else {
+      const backendCards = result.cards;
+
+      nextCards = backendCards
+        .map((backendCard) => {
+          const fallbackCard = getCardByIdFromCards(
+            backendCard && backendCard.id,
+            cachedCards
+          ) || {};
+          return normalizeBackendCardToLocal(backendCard, fallbackCard);
         })
-      : nextCards;
+        .filter((card) => !card.deleted);
 
-    const mergedCards = dedupeCards([].concat(filteredNextCards, pendingCards));
-    saveLocalCards(mergedCards);
-    return mergedCards.filter((card) => !card.deleted);
+      // Preserve pending local cards that have no backend counterpart.
+      // Pending cards are local drafts — they must not be silently overwritten
+      // by a backend card with the same local_temp_id (see Phase 5-7C).
+      const nextCardIdSet = new Set(
+        nextCards.map((c) => trimValue(c && c.id)).filter(Boolean)
+      );
+
+      const pendingCards = cachedCards.filter((card) => {
+        if (card.backend_sync_status !== BACKEND_SYNC_STATUS_PENDING) return false;
+        // Pending-update cards (have backend_card_id) — always preserve; dedupeCards will
+        // prefer the locally-edited version over stale backend data via updatedAt timestamp.
+        if (card.backend_card_id) return true;
+        // Pending-create cards (no backend_card_id) — exclude if already in nextCards by local id.
+        if (card.id && nextCardIdSet.has(String(card.id))) return false;
+        return true;
+      });
+
+      // If a pending local card shares local_temp_id with a backend card,
+      // the pending card is the latest local draft — keep it and discard
+      // the stale backend copy to prevent duplicate display and data loss.
+      const pendingLocalTempIdSet = new Set(
+        pendingCards.map((c) => trimValue(c && c.local_temp_id)).filter(Boolean)
+      );
+      const filteredNextCards = pendingLocalTempIdSet.size > 0
+        ? nextCards.filter((card) => {
+            if (card.local_temp_id && pendingLocalTempIdSet.has(String(card.local_temp_id))) {
+              return false;
+            }
+            return true;
+          })
+        : nextCards;
+
+      nextCards = dedupeCards([].concat(filteredNextCards, pendingCards));
+    }
+
+    saveLocalCards(nextCards);
+
+    // 只在成功后才推进游标。增量时后端已返回不回退的 sync_cursor；
+    // 首次全量时从最新卡的 updated_at 推导游标（无卡则退回 server_time）。
+    let nextCursor = result.syncCursor;
+    if (!nextCursor && !canIncremental) {
+      const newestUpdatedAt = result.cards.reduce((maxIso, backendCard) => {
+        const iso = trimValue(backendCard && backendCard.updated_at);
+        if (!iso) {
+          return maxIso;
+        }
+        return (!maxIso || iso > maxIso) ? iso : maxIso;
+      }, '');
+      nextCursor = newestUpdatedAt || (result.serverTime || '');
+    }
+    if (nextCursor) {
+      saveLastCardsSync(nextCursor);
+    }
+
+    return nextCards.filter((card) => !card.deleted);
   })().finally(() => {
     backgroundBackendRefreshPromise = null;
   });
@@ -2515,34 +1900,6 @@ async function updateCardsMeta(cardIds, updates) {
 }
 
 
-// ===== [LEGACY] 旧微信云同步 — syncDeleteCardsNow（当前 deleteCard / deleteCards 走后端 API）=====
-async function syncDeleteCardsNow(cardIds = []) {
-  const idSet = new Set((cardIds || []).map((item) => String(item)).filter(Boolean));
-
-  if (idSet.size === 0) {
-    return;
-  }
-
-  if (!canUseCloudDatabase()) {
-    throw new Error('cloud_database_unavailable');
-  }
-
-  for (const cardId of idSet) {
-    await removeCloudCard(cardId);
-  }
-
-  const latestCards = getStoredCardsRaw();
-
-  const nextCards = latestCards.filter((card) => {
-    return !idSet.has(String(card.id));
-  });
-
-  saveLocalCards(nextCards);
-
-  return getLocalCards();
-}
-
-
 /**
  * Clear session-related local caches so stale active sessions
  * referencing deleted cards are not reused.
@@ -2711,8 +2068,6 @@ async function updateReviewResult(cardId, reviewState) {
   appendReviewRecord(nextCard, normalizedState, reviewedAt);
   markCardReviewedToday(cardId, reviewedAt);
   markTodayReviewSummary(normalizedState, reviewedAt);
-
-  scheduleBackgroundSync();
 
   return nextCard;
 }
@@ -2951,7 +2306,6 @@ async function getReviewCards() {
 // ===== module.exports — 任何函数实际移除前必须确认所有导入方已迁移 =====
 module.exports = {
   STORAGE_KEY,
-  COLLECTION_NAME,
   DEFAULT_CATEGORY,
   DEFAULT_EXAM_SCENE,
   DEFAULT_EXAM_MODULE,
@@ -2980,7 +2334,6 @@ module.exports = {
   getHistorySummaryStats,
   getCards,
   refreshCardsCacheFromBackend,
-  syncLocalCacheWithCloud,
   saveCards: saveLocalCards,
   getCardById,
   syncPendingCardsToBackend,
@@ -2996,6 +2349,4 @@ module.exports = {
   buildTodayReviewTasksFromCards,
   buildExtraReviewTasksFromCards,
   getReviewCards,
-  checkDuplicateIds,
-  cleanupDuplicateCardsInCloud,
 };

@@ -24,10 +24,14 @@
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "cloudfunctionRoot": "cloudfunctions/",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "/minitest"
+      }
+    ],
     "include": []
   },
   "appid": "wx30095d8f17b88a8c",

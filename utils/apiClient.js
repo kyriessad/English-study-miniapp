@@ -1,16 +1,35 @@
-// Local development default.
-// 127.0.0.1 works in WeChat DevTools on this machine.
-// Override via utils/localBackendConfig.js for another local address (not committed).
-let BACKEND_BASE_URL = 'http://127.0.0.1:8000';
+const { BACKEND_BASE_URL } = require('./localBackendConfig');
 
-try {
-  const localConfig = require('./localBackendConfig');
-  if (localConfig && localConfig.BACKEND_BASE_URL) {
-    BACKEND_BASE_URL = localConfig.BACKEND_BASE_URL;
-  }
-} catch (_) {
-  // localBackendConfig.js is optional and should not be committed.
+let hasLoggedResolvedBackendBaseUrl = false;
+
+function logAiStreamDiagnostic(event, details = {}) {
+  console.log('[AI_STREAM_DIAG]', JSON.stringify({ event, ...details }));
 }
+
+function shouldLogResolvedBackendBaseUrl() {
+  try {
+    if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
+      const accountInfo = wx.getAccountInfoSync();
+      const envVersion = accountInfo && accountInfo.miniProgram && accountInfo.miniProgram.envVersion;
+      return envVersion !== 'release';
+    }
+  } catch (_) {
+    // Keep diagnostics best-effort only.
+  }
+
+  return true;
+}
+
+function logResolvedBackendBaseUrlOnce() {
+  if (hasLoggedResolvedBackendBaseUrl || !shouldLogResolvedBackendBaseUrl()) {
+    return;
+  }
+
+  hasLoggedResolvedBackendBaseUrl = true;
+  console.log(`[apiClient] resolved backend base URL: ${BACKEND_BASE_URL}`);
+}
+
+logResolvedBackendBaseUrlOnce();
 
 const BACKEND_AUTH_STORAGE_KEYS = {
   userId: 'backendUserId',
@@ -19,6 +38,8 @@ const BACKEND_AUTH_STORAGE_KEYS = {
 };
 
 let refreshPromise = null;
+let authGeneration = 0;
+let autoRefreshSuppressed = false;
 
 function buildUrl(path) {
   if (/^https?:\/\//.test(path)) {
@@ -135,10 +156,27 @@ function clearBackendAuth() {
   });
 }
 
+async function logoutBackendAuth() {
+  autoRefreshSuppressed = true;
+  authGeneration += 1;
+  try {
+    if (getAccessToken()) {
+      await sendRequest({
+        url: '/api/auth/logout',
+        method: 'POST',
+        skipAuthRefresh: true
+      });
+    }
+  } finally {
+    clearBackendAuth();
+  }
+}
+
 function buildHeaders(headers, options = {}) {
   const mergedHeaders = Object.assign(
     {
-      'content-type': 'application/json'
+      'content-type': 'application/json',
+      'ngrok-skip-browser-warning': '1'
     },
     headers || {}
   );
@@ -237,9 +275,14 @@ function refreshBackendAuth() {
     return refreshPromise;
   }
 
+  autoRefreshSuppressed = false;
+  const generationAtStart = authGeneration;
   refreshPromise = (async () => {
     const code = await requestWechatLoginCode();
     const authData = await loginWithWechatCode(code);
+    if (generationAtStart !== authGeneration) {
+      throw new Error('Backend auth state changed during login');
+    }
     return saveBackendAuth(authData);
   })()
     .catch((error) => {
@@ -263,7 +306,8 @@ async function request(options) {
       error &&
       error.statusCode === 401 &&
       !requestOptions.skipAuthRefresh &&
-      !requestOptions._hasRetriedAuth
+      !requestOptions._hasRetriedAuth &&
+      !autoRefreshSuppressed
     ) {
       await refreshBackendAuth();
       return sendRequest(Object.assign({}, requestOptions, { _hasRetriedAuth: true }));
@@ -407,17 +451,384 @@ function getTodayReviewed() {
   });
 }
 
-function analyzeEnglishDirect(text, category) {
+function getLexicalInfo(text) {
+  return request({
+    url: `/api/lexical-info${buildQueryString({ text })}`,
+    method: 'GET'
+  });
+}
+
+function buildPronunciationAudioUrl(text, voice) {
+  var params = { text: text };
+  if (voice) {
+    params.voice = voice;
+  }
+  return buildUrl('/api/pronunciation/audio' + buildQueryString(params));
+}
+
+/**
+ * Download pronunciation audio as a local temp file so playback can carry the
+ * Authorization header and bypass ngrok's browser interstitial. InnerAudioContext
+ * cannot send headers, so it must play a downloaded local file instead of a URL.
+ */
+function downloadPronunciationAudio(text, voice) {
+  function attemptDownload() {
+    return new Promise((resolve, reject) => {
+      const headers = { 'ngrok-skip-browser-warning': '1' };
+      const accessToken = getAccessToken();
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      wx.downloadFile({
+        url: buildPronunciationAudioUrl(text, voice),
+        header: headers,
+        timeout: 20000,
+        success(response) {
+          if (response.statusCode === 200) {
+            resolve(response.tempFilePath);
+            return;
+          }
+          reject(normalizeRequestError({
+            errMsg: response.errMsg,
+            statusCode: response.statusCode
+          }));
+        },
+        fail(error) {
+          reject(normalizeRequestError(error));
+        }
+      });
+    });
+  }
+
+  return attemptDownload().catch((error) => {
+    if (error && error.statusCode === 401 && !autoRefreshSuppressed) {
+      return refreshBackendAuth().then(attemptDownload);
+    }
+    throw error;
+  });
+}
+
+function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyKey = '') {
+  const data = {
+    text: text,
+    cardType: category || 'auto',
+    targetLang: 'zh'
+  };
+  if (forceRefresh) {
+    data.forceRefresh = true;
+  }
+  const headers = {};
+  if (idempotencyKey) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
   return request({
     url: '/api/analyze-english',
     method: 'POST',
-    data: {
-      text: text,
-      cardType: category || 'auto',
-      targetLang: 'zh'
-    },
-    skipAuthHeader: true,
+    data: data,
+    headers: headers,
     timeout: 60000
+  });
+}
+
+/**
+ * Byte helpers for the NDJSON streaming client. NDJSON lines are delimited by
+ * "\n" (0x0A), which never appears inside a multi-byte UTF-8 sequence, so we
+ * can buffer raw bytes and only decode whole lines (reassembling any Chinese
+ * character split across chunk boundaries).
+ */
+function toUint8Array(data) {
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+  return null;
+}
+
+function concatUint8(a, b) {
+  if (!a || a.length === 0) {
+    return b || new Uint8Array(0);
+  }
+  if (!b || b.length === 0) {
+    return a;
+  }
+  var out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+function indexOfByte(bytes, target) {
+  for (var i = 0; i < bytes.length; i++) {
+    if (bytes[i] === target) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function utf8BytesToString(bytes) {
+  if (!bytes || bytes.length === 0) {
+    return '';
+  }
+
+  if (typeof TextDecoder !== 'undefined' && TextDecoder) {
+    try {
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch (_) {
+      // fall through to the manual decoder below
+    }
+  }
+
+  var out = '';
+  var i = 0;
+  var n = bytes.length;
+  while (i < n) {
+    var b = bytes[i];
+    var cp;
+    var len;
+    if (b < 0x80) {
+      cp = b;
+      len = 1;
+    } else if ((b & 0xE0) === 0xC0) {
+      cp = b & 0x1F;
+      len = 2;
+    } else if ((b & 0xF0) === 0xE0) {
+      cp = b & 0x0F;
+      len = 3;
+    } else if ((b & 0xF8) === 0xF0) {
+      cp = b & 0x07;
+      len = 4;
+    } else {
+      cp = 0xFFFD;
+      len = 1;
+    }
+
+    if (i + len > n) {
+      out += String.fromCharCode(0xFFFD);
+      i += 1;
+      continue;
+    }
+
+    var valid = true;
+    for (var j = 1; j < len; j++) {
+      var cb = bytes[i + j];
+      if ((cb & 0xC0) !== 0x80) {
+        valid = false;
+        break;
+      }
+      cp = (cp << 6) | (cb & 0x3F);
+    }
+
+    if (!valid) {
+      out += String.fromCharCode(0xFFFD);
+      i += 1;
+      continue;
+    }
+
+    out += String.fromCodePoint(cp);
+    i += len;
+  }
+  return out;
+}
+
+/**
+ * Stream a single /api/analyze-english/stream call as NDJSON.
+ *
+ * ``onEvent(obj)`` is invoked for each complete NDJSON object
+ * ({type:"start"|"delta"|"field"|"reset"|"final"|"done"}). Resolves with ``final.data`` (the
+ * full AnalyzeResponse) when the "done" line arrives; rejects on transport
+ * errors. One request — never retries here.
+ */
+function analyzeEnglishDirectStream(text, category, onEvent, forceRefresh = false, taskHolder = null, idempotencyKey = '', diagnostics = {}) {
+  return new Promise((resolve, reject) => {
+    const generationId = Number(diagnostics.generationId) || 0;
+    const headers = buildHeaders({
+      'content-type': 'application/json',
+      Accept: 'application/x-ndjson'
+      , ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {})
+    });
+
+    let byteBuffer = new Uint8Array(0);
+    let finalData = null;
+    let gotFinal = false;
+    let gotChunkBytes = false;
+    let settled = false;
+
+    function settleFinal(data) {
+      if (settled) return;
+      settled = true;
+      resolve(data);
+    }
+
+    function settleError(error) {
+      if (settled) return;
+      settled = true;
+      const normalized = normalizeRequestError(error);
+      if (error && error.aborted) {
+        normalized.aborted = true;
+      }
+      reject(normalized);
+    }
+
+    function handleLine(line) {
+      if (!line) return;
+      let obj;
+      try {
+        obj = JSON.parse(line);
+      } catch (_) {
+        return; // ignore partial / non-JSON lines
+      }
+      if (!obj || typeof obj !== 'object') return;
+
+      if (obj.type === 'delta') {
+        logAiStreamDiagnostic('stream_delta', {
+          generationId,
+          idempotencyKey,
+          seq: Number(obj.seq) || 0,
+          field: String(obj.field || '')
+        });
+      } else if (obj.type === 'field') {
+        logAiStreamDiagnostic('stream_field', {
+          generationId,
+          idempotencyKey,
+          field: String(obj.field || '')
+        });
+      } else if (obj.type === 'final') {
+        logAiStreamDiagnostic('stream_final', { generationId, idempotencyKey });
+      } else if (obj.type === 'done') {
+        logAiStreamDiagnostic('stream_done', { generationId, idempotencyKey });
+      } else if (obj.type === 'reset') {
+        logAiStreamDiagnostic('stream_reset', {
+          generationId,
+          idempotencyKey,
+          attempt: Number(obj.attempt) || 0
+        });
+      }
+
+      if (obj.type === 'final') {
+        finalData = obj.data;
+        gotFinal = true;
+      }
+      if (typeof onEvent === 'function') {
+        onEvent(obj);
+      }
+      if (obj.type === 'done') {
+        settleFinal(finalData);
+      }
+    }
+
+    function processBytes(bytes) {
+      byteBuffer = concatUint8(byteBuffer, bytes);
+      let idx;
+      while ((idx = indexOfByte(byteBuffer, 0x0A)) >= 0) {
+        const lineBytes = byteBuffer.slice(0, idx);
+        byteBuffer = byteBuffer.slice(idx + 1);
+        handleLine(utf8BytesToString(lineBytes));
+      }
+    }
+
+    function handleChunk(res) {
+      if (settled) return;
+      try {
+        const bytes = toUint8Array(res && res.data);
+        if (bytes && bytes.length) {
+          gotChunkBytes = true;
+          logAiStreamDiagnostic('stream_chunk', {
+            generationId,
+            idempotencyKey,
+            chunkBytes: bytes.length
+          });
+          processBytes(bytes);
+        }
+      } catch (_) {
+        // Ignore a malformed chunk; the request's success/fail callback still
+        // settles the stream and can trigger the existing direct fallback.
+      }
+    }
+
+    try {
+      logAiStreamDiagnostic('stream_http_start', {
+        generationId,
+        idempotencyKey,
+        forceRefresh: Boolean(forceRefresh),
+        endpoint: '/api/analyze-english/stream'
+      });
+      const task = wx.request({
+        url: buildUrl('/api/analyze-english/stream'),
+        method: 'POST',
+        data: {
+          text: text,
+          cardType: category || 'auto',
+          targetLang: 'zh',
+          ...(forceRefresh ? { forceRefresh: true } : {})
+        },
+        header: headers,
+        enableChunked: true,
+        responseType: 'arraybuffer',
+        timeout: 60000,
+        success(response) {
+          if (settled) return;
+
+          // Some runtimes/proxies may deliver the complete body only in the
+          // success callback. Parse it only when no chunk bytes were observed,
+          // otherwise the same NDJSON events could be handled twice.
+          if (!gotChunkBytes) {
+            const responseBytes = toUint8Array(response && response.data);
+            if (responseBytes && responseBytes.length) {
+              processBytes(responseBytes);
+            }
+          }
+
+          // Flush any trailing bytes that did not end with a newline.
+          if (byteBuffer.length) {
+            const trailing = utf8BytesToString(byteBuffer);
+            byteBuffer = new Uint8Array(0);
+            handleLine(trailing);
+          }
+
+          if (gotFinal && finalData !== null) {
+            settleFinal(finalData);
+            return;
+          }
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            settleError({ errMsg: 'stream ended without final data', statusCode: response.statusCode });
+            return;
+          }
+          settleError({
+            errMsg: response.errMsg,
+            statusCode: response.statusCode,
+            data: response.data
+          });
+        },
+        fail(error) {
+          const errMsg = error && error.errMsg ? String(error.errMsg) : '';
+          if (errMsg.indexOf('abort') >= 0) {
+            settleError(Object.assign({}, error, { aborted: true }));
+            return;
+          }
+          settleError(error);
+        }
+      });
+
+      if (taskHolder) {
+        taskHolder.task = task;
+      }
+
+
+      // WeChat exposes chunk delivery on the RequestTask returned by
+      // wx.request, not as an option callback.
+      if (task && typeof task.onChunkReceived === 'function') {
+        task.onChunkReceived(handleChunk);
+      }
+    } catch (error) {
+      settleError(error);
+    }
   });
 }
 
@@ -425,6 +836,7 @@ module.exports = {
   BACKEND_BASE_URL,
   BACKEND_AUTH_STORAGE_KEYS,
   clearBackendAuth,
+  logoutBackendAuth,
   getAccessToken,
   getCurrentBackendUser,
   getReviewHistoryDetail,
@@ -444,6 +856,10 @@ module.exports = {
   createReviewSession,
   getReviewOverview,
   getTodayReview,
+  getLexicalInfo,
+  buildPronunciationAudioUrl,
+  downloadPronunciationAudio,
   submitReviewFeedback,
-  analyzeEnglishDirect
+  analyzeEnglishDirect,
+  analyzeEnglishDirectStream
 };

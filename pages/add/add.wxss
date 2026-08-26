@@ -193,6 +193,157 @@
   color: #d92d20;
 }
 
+/* 「AI 分析」按钮：输入只做本地检查，点击后才启动后端正式分析 */
+.ai-analyze-row {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+}
+
+.ai-analyze-btn {
+  flex-shrink: 0;
+  padding: 12rpx 32rpx;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #ffffff;
+  background: #3f7449;
+}
+
+.ai-analyze-btn-active {
+  color: #b7c9ba;
+  background: #e3ece2;
+}
+
+.ai-analyze-cancel {
+  flex-shrink: 0;
+  margin-left: 24rpx;
+  padding: 12rpx 20rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
+  color: #667085;
+}
+
+/* Edit-mode pronunciation section */
+.edit-lexical-section {
+  margin-top: 16rpx;
+  padding: 16rpx 18rpx;
+  background: #f6faf7;
+  border-radius: 14rpx;
+  border: 1rpx solid #dce8df;
+}
+
+.edit-lexical-main {
+  min-height: 36rpx;
+  margin-bottom: 8rpx;
+}
+
+.edit-phonetic {
+  font-size: 26rpx;
+  color: #5f7569;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.edit-phonetic-empty {
+  font-size: 22rpx;
+  color: #9ba8a0;
+  line-height: 1.4;
+}
+
+.edit-voice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.edit-voice-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 22rpx;
+  color: #8ea798;
+  line-height: 1;
+}
+
+.edit-voice-option {
+  padding: 2rpx 8rpx;
+  color: #8ea798;
+  font-size: 22rpx;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.edit-voice-active {
+  color: #35b779;
+  font-weight: 800;
+}
+
+.edit-voice-sep {
+  color: #c8d6cd;
+  font-size: 20rpx;
+  padding: 0 2rpx;
+}
+
+.edit-pronunciation-btn {
+  width: 112rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0;
+  margin: 0;
+  border-radius: 999rpx;
+  border: 1rpx solid #cfe6d6;
+  background: #f5fbf7;
+  color: #3f8b61;
+  font-size: 24rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.edit-pronunciation-btn::after {
+  border: none;
+}
+
+.edit-pronunciation-btn[disabled] {
+  color: #a8b4ad;
+  background: #f3f5f4;
+}
+
+.edit-pronunciation-btn-active {
+  color: #ffffff;
+  background: #35b779;
+}
+
+.notes-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.notes-label-row .label {
+  margin-bottom: 0;
+}
+
+.notes-example-pronounce-btn {
+  flex-shrink: 0;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #cfe6d6;
+  background: #f5fbf7;
+  color: #3f8b61;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.notes-example-pronounce-btn-active {
+  color: #ffffff;
+  background: #35b779;
+}
+
 .switch-row {
   display: flex;
   align-items: center;
@@ -574,6 +725,33 @@
   color: #8a9689;
 }
 
+.reference-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 4rpx;
+}
+
+.reference-spinner {
+  width: 28rpx;
+  height: 28rpx;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3rpx solid #dcebd8;
+  border-top-color: #5eaa64;
+  box-sizing: border-box;
+  animation: reference-spin 0.8s linear infinite;
+}
+
+@keyframes reference-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .reference-row {
   margin-bottom: 10rpx;
 }
@@ -590,6 +768,53 @@
   color: #344036;
   line-height: 1.65;
   word-break: break-word;
+}
+
+.reference-label-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-bottom: 4rpx;
+}
+
+.reference-label-row .reference-label {
+  margin-bottom: 0;
+}
+
+.reference-type-tag {
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #3f7449;
+  background: #e7f5ea;
+  border: 1rpx solid #ccebd8;
+}
+
+.reference-alt-item {
+  margin-bottom: 8rpx;
+}
+
+.reference-alt-item:last-child {
+  margin-bottom: 0;
+}
+
+.reference-alt-note {
+  font-size: 22rpx;
+  color: #8a9689;
+  line-height: 1.5;
+  margin-top: 2rpx;
+}
+
+.reference-dialogue {
+  margin-bottom: 4rpx;
+}
+
+.reference-dialogue-zh {
+  margin-top: 10rpx;
+  padding-top: 10rpx;
+  border-top: 1rpx dashed #dcebd8;
 }
 
 .reference-translation {
@@ -618,6 +843,25 @@
 }
 
 .reference-fill-btn-applied {
+  color: #8a9689;
+  background: #f7faf5;
+  border-color: #e7eee4;
+}
+
+.reference-regenerate-btn {
+  flex-shrink: 0;
+  margin-left: 16rpx;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #3f7449;
+  background: #ffffff;
+  border: 1rpx solid #dcebd8;
+}
+
+.reference-regenerate-btn-disabled {
   color: #8a9689;
   background: #f7faf5;
   border-color: #e7eee4;

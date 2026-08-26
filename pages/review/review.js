@@ -26,6 +26,12 @@ const {
   getCache,
 } = require('../../utils/sessionProgressCache');
 
+const {
+  createPronunciationController,
+  getStoredVoice,
+  DEFAULT_VOICE
+} = require('../../utils/pronunciation');
+
 const DEFAULT_REVIEW_BATCH_SIZE = 5;
 const VALID_REVIEW_BATCH_SIZES = [5, 10, 15];
 
@@ -187,9 +193,21 @@ Page({
     needStrengthenPercentText: '0%',
     hasMoreExtraTasks: false,
     reviewMode: 'today',
+    lexicalInfoLoaded: false,
+    lexicalInfoLoading: false,
+    phoneticDisplay: '',
+    phoneticSource: '',
+    pronunciationAvailable: false,
+    pronunciationText: '',
+    pronunciationLoading: false,
+    pronunciationPlaying: false,
+    pronunciationVoice: DEFAULT_VOICE,
   },
 
   onLoad(options) {
+    this.pronunciationController = createPronunciationController(this);
+    this.setData({ pronunciationVoice: getStoredVoice() });
+
     const sessionId = (options && (options.session_id || options.sessionId)) || '';
     const sessionType = (options && (options.session_type || options.sessionType)) || '';
     const source = (options && options.source) || '';
@@ -216,6 +234,38 @@ Page({
     this.loadBackendReviewSession({
       sessionType: effectiveSessionType
     });
+  },
+
+  onUnload() {
+    if (this.pronunciationController) {
+      this.pronunciationController.destroy();
+      this.pronunciationController = null;
+    }
+  },
+
+  loadLexicalInfoForCard(card) {
+    if (!this.pronunciationController) return;
+    const text = card && (card.englishText || card.content) ? (card.englishText || card.content) : '';
+    this.pronunciationController.load(text);
+  },
+
+  onPronunciationTap() {
+    if (!this.pronunciationController) return;
+    const card = this.data.currentCard || {};
+    const text = card.englishText || card.content || '';
+    this.pronunciationController.play(text);
+  },
+
+  onVoiceSwitchMale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('male');
+    this.setData({ pronunciationVoice: 'male' });
+  },
+
+  onVoiceSwitchFemale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('female');
+    this.setData({ pronunciationVoice: 'female' });
   },
 
   onShow() {
@@ -345,6 +395,7 @@ Page({
         backendReviewSummary: normalizeSummary({}),
         summaryTip: '',
       });
+      this.loadLexicalInfoForCard(currentCard);
     } catch (error) {
       console.warn('[review] load backend review session failed', error);
       const isNetworkError = (
@@ -552,6 +603,7 @@ Page({
       displayCurrentNo: progress.reviewed + 1,
       displayTotal: progress.total,
     });
+    this.loadLexicalInfoForCard(nextCard);
   },
 
   /**
@@ -615,6 +667,7 @@ Page({
         // Phase 6L-hotfix-3: Use backend total for denominator (includes reappear items).
         displayTotal: (progress && progress.total) || batchItems.length,
       });
+      this.loadLexicalInfoForCard(nextCard);
     } else {
       this.loadBackendReviewSession({ restart: false });
     }
@@ -723,6 +776,7 @@ Page({
 
           needsRecovery: false,
         });
+        this.loadLexicalInfoForCard(currentCard);
 
         // If there are reappeared items, show a tip
         if (currentCard && pendingCount > 0) {
@@ -750,6 +804,7 @@ Page({
           pendingActionCount: 0,
           progress: { reviewed: 0, total: 0 },
         });
+        this.loadLexicalInfoForCard(null);
       }
     } catch (error) {
       console.warn('[review] session recovery failed', error);
@@ -777,6 +832,7 @@ Page({
       remainingCount: 0,
       currentTaskIndex: progress.reviewed,
     });
+    this.loadLexicalInfoForCard(null);
   },
 
   _showCompletedFromResponse(todayResponse) {
@@ -796,6 +852,7 @@ Page({
       remainingCount: 0,
       currentTaskIndex: progress.reviewed,
     });
+    this.loadLexicalInfoForCard(null);
   },
 
   // ========== Navigation / Retry ==========
@@ -867,6 +924,11 @@ Page({
         'currentCard.translation': newTranslation,
       };
       this.setData(updates);
+      this.loadLexicalInfoForCard({
+        ...currentCard,
+        englishText: newEnglishText,
+        content: newContent,
+      });
 
       console.log('[phase6g-review-refresh] updated current card');
 

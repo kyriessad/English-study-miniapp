@@ -70,6 +70,34 @@
         </view>
       </view>
 
+      <view class="task-lexical-row">
+        <view class="task-lexical-main">
+          <text wx:if="{{phoneticDisplay}}" class="task-phonetic">{{phoneticDisplay}}</text>
+          <text wx:elif="{{lexicalInfoLoaded}}" class="task-phonetic-empty">暂无音标</text>
+          <text wx:else class="task-phonetic-empty">音标加载中...</text>
+        </view>
+        <view class="task-voice-row">
+          <view class="task-voice-toggle">
+            <text
+              class="task-voice-option {{pronunciationVoice === 'male' ? 'task-voice-active' : ''}}"
+              bindtap="onVoiceSwitchMale"
+            >男声</text>
+            <text class="task-voice-sep">|</text>
+            <text
+              class="task-voice-option {{pronunciationVoice === 'female' ? 'task-voice-active' : ''}}"
+              bindtap="onVoiceSwitchFemale"
+            >女声</text>
+          </view>
+          <button
+            class="task-pronunciation-btn {{pronunciationPlaying ? 'task-pronunciation-btn-active' : ''}}"
+            disabled="{{pronunciationLoading || !pronunciationAvailable}}"
+            bindtap="onPronunciationTap"
+          >
+            {{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}
+          </button>
+        </view>
+      </view>
+
       <view class="task-answer-slot">
         <block wx:if="{{answerVisible}}">
           <view class="task-answer-scroll">

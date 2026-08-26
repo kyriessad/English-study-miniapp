@@ -1,7 +1,6 @@
 // 阶段 B 安全版 app.js：
-// 1. 恢复 wx.cloud.init
-// 2. 恢复 backendAccessToken 从 Storage 到 globalData
-// 3. 暂时不在启动阶段自动请求 Python 后端登录
+// 1. 恢复 backendAccessToken 从 Storage 到 globalData
+// 2. 暂时不在启动阶段自动请求 Python 后端登录
 
 const {
   BACKEND_AUTH_STORAGE_KEYS,
@@ -11,20 +10,6 @@ const { runLegacyStorageCleanup } = require('./utils/legacyStorageCleanup');
 
 App({
   onLaunch() {
-    try {
-      if (!wx.cloud) {
-        console.warn('[app] wx.cloud unavailable, continue with local flow');
-      } else {
-        wx.cloud.init({
-          env: 'cloud1-d7g2b18cze398305e',
-          traceUser: true
-        });
-        console.log('[app] cloud init called');
-      }
-    } catch (error) {
-      console.warn('[app] Cloud init failed, continuing with local miniapp flow', error);
-    }
-
     this.restoreBackendAuthFromStorage();
     runLegacyStorageCleanup();
 

@@ -149,7 +149,7 @@
 
 /* 未查看理解：白卡变短，英文在卡片视觉中心 */
 .task-card-closed {
-  height: 430rpx;
+  height: 500rpx;
 }
 
 /* 查看理解后：白卡自然撑高，由页面整体滚动 */
@@ -209,6 +209,105 @@
   text-align: center;
   line-height: 1.28;
   word-break: break-word;
+}
+
+.task-lexical-row {
+  min-height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+  padding: 0 6rpx 10rpx;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.task-lexical-main {
+  min-width: 0;
+  max-width: 420rpx;
+}
+
+.task-phonetic {
+  display: block;
+  color: #5f7569;
+  font-size: 28rpx;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+}
+
+.task-phonetic-empty {
+  display: block;
+  color: #9ba8a0;
+  font-size: 24rpx;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.task-pronunciation-btn {
+  width: 112rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0;
+  margin: 0;
+  border-radius: 999rpx;
+  border: 1rpx solid #cfe6d6;
+  background: #f5fbf7;
+  color: #3f8b61;
+  font-size: 24rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.task-pronunciation-btn::after {
+  border: none;
+}
+
+.task-pronunciation-btn[disabled] {
+  color: #a8b4ad;
+  background: #f3f5f4;
+}
+
+.task-pronunciation-btn-active {
+  color: #ffffff;
+  background: #35b779;
+}
+
+/* 声音切换 */
+.task-voice-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  flex-shrink: 0;
+}
+
+.task-voice-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 24rpx;
+  color: #8ea798;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.task-voice-option {
+  padding: 4rpx 8rpx;
+  color: #8ea798;
+  font-size: 24rpx;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.task-voice-active {
+  color: #35b779;
+  font-weight: 800;
+}
+
+.task-voice-sep {
+  color: #c8d6cd;
+  font-size: 22rpx;
+  padding: 0 2rpx;
 }
 
 /* 答案区 */

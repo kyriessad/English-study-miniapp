@@ -31,6 +31,33 @@
         <view class="info-label">英文内容</view>
         <view class="info-value">{{detail.card.content}}</view>
       </view>
+      <view class="lexical-row">
+        <view class="lexical-main">
+          <text wx:if="{{phoneticDisplay}}" class="phonetic-text">{{phoneticDisplay}}</text>
+          <text wx:elif="{{lexicalInfoLoaded}}" class="phonetic-empty">暂无音标</text>
+          <text wx:else class="phonetic-empty">音标加载中...</text>
+        </view>
+        <view class="voice-row">
+          <view class="voice-toggle">
+            <text
+              class="voice-option {{pronunciationVoice === 'male' ? 'voice-active' : ''}}"
+              bindtap="onVoiceSwitchMale"
+            >男声</text>
+            <text class="voice-sep">|</text>
+            <text
+              class="voice-option {{pronunciationVoice === 'female' ? 'voice-active' : ''}}"
+              bindtap="onVoiceSwitchFemale"
+            >女声</text>
+          </view>
+          <button
+            class="pronunciation-btn {{pronunciationPlaying ? 'pronunciation-btn-active' : ''}}"
+            disabled="{{pronunciationLoading || !pronunciationAvailable}}"
+            bindtap="onPronunciationTap"
+          >
+            {{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}
+          </button>
+        </view>
+      </view>
       <view class="info-row">
         <view class="info-label">我的理解</view>
         <view class="info-value">{{detail.card.understanding}}</view>

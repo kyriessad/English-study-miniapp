@@ -1,3 +1,5 @@
+const { logoutBackendAuth } = require('../../utils/apiClient');
+
 const DAILY_GOAL_KEY = 'dailyGoal';
 const DAILY_GOAL_DEFAULT = 5;
 const DAILY_GOAL_OPTIONS = [3, 5, 10, 15];
@@ -43,6 +45,22 @@ Page({
 
   goToAbout() {
     wx.navigateTo({ url: '/pages/about/index' });
+  },
+
+  logoutBackend() {
+    wx.showModal({
+      title: '退出登录',
+      content: '退出后需要重新登录才能继续同步数据。',
+      success: async (response) => {
+        if (!response.confirm) return;
+        try {
+          await logoutBackendAuth();
+          wx.showToast({ title: '已退出登录', icon: 'none' });
+        } catch (error) {
+          wx.showToast({ title: '退出失败，请重试', icon: 'none' });
+        }
+      }
+    });
   },
 
   onDailyGoalChange(e) {

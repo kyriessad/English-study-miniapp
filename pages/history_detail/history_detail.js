@@ -1,4 +1,9 @@
 const { getReviewHistoryDetail } = require('../../utils/apiClient');
+const {
+  createPronunciationController,
+  getStoredVoice,
+  DEFAULT_VOICE
+} = require('../../utils/pronunciation');
 
 function formatDateTime(isoStr) {
   if (!isoStr) return '-';
@@ -71,13 +76,24 @@ Page({
     refreshing: false,
     hasLoaded: false,
     error: false,
-    errorMessage: ''
+    errorMessage: '',
+    lexicalInfoLoaded: false,
+    lexicalInfoLoading: false,
+    phoneticDisplay: '',
+    phoneticSource: '',
+    pronunciationAvailable: false,
+    pronunciationText: '',
+    pronunciationLoading: false,
+    pronunciationPlaying: false,
+    pronunciationVoice: DEFAULT_VOICE
   },
 
   onLoad: function (options) {
     this._isUnmounted = false;
+    this.pronunciationController = createPronunciationController(this);
 
     var logId = options.id || options.log_id || '';
+    this.setData({ pronunciationVoice: getStoredVoice() });
 
     if (!logId) {
       this.setData({
@@ -98,6 +114,10 @@ Page({
 
   onUnload: function () {
     this._isUnmounted = true;
+    if (this.pronunciationController) {
+      this.pronunciationController.destroy();
+      this.pronunciationController = null;
+    }
   },
 
   async loadDetailData() {
@@ -124,6 +144,11 @@ Page({
         error: false,
         errorMessage: ''
       });
+
+      if (this.pronunciationController) {
+        const cardText = detail && detail.card ? detail.card.content : '';
+        this.pronunciationController.load(cardText);
+      }
     } catch (err) {
       if (this._isUnmounted) return;
 
@@ -144,5 +169,25 @@ Page({
         this.setData({ loading: false, refreshing: false });
       }
     }
+  },
+
+  onPronunciationTap() {
+    if (!this.pronunciationController) return;
+    const text = this.data.detail && this.data.detail.card
+      ? this.data.detail.card.content
+      : '';
+    this.pronunciationController.play(text);
+  },
+
+  onVoiceSwitchMale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('male');
+    this.setData({ pronunciationVoice: 'male' });
+  },
+
+  onVoiceSwitchFemale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('female');
+    this.setData({ pronunciationVoice: 'female' });
   }
 });

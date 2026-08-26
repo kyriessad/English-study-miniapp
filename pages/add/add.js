@@ -8,7 +8,17 @@ const {
   DEFAULT_EXAM_MODULE
 } = require('../../utils/cardStorageFacade');
 
-const { updateBackendCard, analyzeEnglishDirect } = require('../../utils/apiClient');
+const {
+  updateBackendCard,
+  analyzeEnglishDirect,
+  analyzeEnglishDirectStream
+} = require('../../utils/apiClient');
+
+const {
+  createPronunciationController,
+  getStoredVoice,
+  DEFAULT_VOICE
+} = require('../../utils/pronunciation');
 
 const {
   CARD_CATEGORIES
@@ -22,7 +32,9 @@ const PAGE_ANIMATION_SAFE_DELAY = 0;
 const ANALYZE_CACHE_STORAGE_KEY = 'englishAnalyzeCache_v2';
 const ANALYZE_CACHE_MAX_ITEMS = 200;
 const ANALYZE_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 30; // 30 天
+const STREAM_DIAGNOSTIC_VERSION = 'ai-stream-diag-20260824-1';
 
+const LAST_ENCOUNTER_CONTEXT_KEY = 'englishCard.lastEncounterContext.v1';
 const BACKEND_CARD_TYPE_MAP = {
   '单词': 'word',
   '短语': 'phrase',
@@ -31,6 +43,10 @@ const BACKEND_CARD_TYPE_MAP = {
 
 const BACKEND_ANALYSIS_STATUSES = ['pending', 'done', 'failed'];
 const BACKEND_UNDERSTANDING_SOURCES = ['local', 'machine', 'ai', 'user'];
+
+function logAiStreamDiagnostic(event, details = {}) {
+  console.log('[AI_STREAM_DIAG]', JSON.stringify({ event, ...details }));
+}
 
 
 
@@ -93,6 +109,117 @@ function normalizeEnglishText(text) {
 
 function normalizePlainText(text) {
   return String(text || '').trim();
+}
+
+/**
+ * Format a synonym/similarPhrase pair list into a display string:
+ * "gathering 聚会  party 派对" (joined by two spaces, no punctuation).
+ */
+function formatPairList(list) {
+  if (!Array.isArray(list)) return '';
+  return list
+    .map(function (item) {
+      const english = normalizePlainText(item && item.english);
+      const chinese = normalizePlainText(item && item.chinese);
+      if (!english) return '';
+      return chinese ? (english + ' ' + chinese) : english;
+    })
+    .filter(Boolean)
+    .join('  ');
+}
+
+/**
+ * Map a backend expressionType enum to a light Chinese display tag.
+ * literal and unknown/empty return '' (no tag shown).
+ */
+var EXPRESSION_TYPE_LABELS = {
+  idiom: '习语',
+  slang: '俚语',
+  phrasal_verb: '短语动词',
+  fixed_expression: '固定表达',
+  colloquial: '口语',
+  polysemy: '多义'
+};
+
+function getExpressionTypeLabel(type) {
+  var key = String(type || '').trim().toLowerCase();
+  return EXPRESSION_TYPE_LABELS[key] || '';
+}
+
+/**
+ * Normalize alternativeMeanings into display-safe items (meaning / note as text).
+ */
+function normalizeAlternativeMeanings(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(function (item) {
+      if (!item || typeof item !== 'object') return null;
+      return {
+        meaning: normalizePlainText(item.meaning),
+        note: normalizePlainText(item.note)
+      };
+    })
+    .filter(function (item) {
+      return item && item.meaning;
+    })
+    .slice(0, 2);
+}
+
+/**
+ * Normalize a backend dialogue {english: [...], chinese: [...]} into two display-safe
+ * string arrays (max 3 turns each). Returns {english: [], chinese: []} when unusable.
+ */
+function normalizeDialogue(dialogue) {
+  if (!dialogue || typeof dialogue !== 'object') {
+    return { english: [], chinese: [] };
+  }
+
+  function lines(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map(normalizePlainText)
+      .filter(Boolean)
+      .slice(0, 3);
+  }
+
+  var english = lines(dialogue.english);
+  var chinese = lines(dialogue.chinese);
+
+  if (!english.length || !chinese.length) {
+    return { english: [], chinese: [] };
+  }
+
+  return { english: english, chinese: chinese };
+}
+
+/**
+ * Merge synonyms + similarPhrases into one "近义表达" display list (max 5 items).
+ */
+function buildRelatedDisplay(synonyms, similarPhrases) {
+  var list = []
+    .concat(Array.isArray(synonyms) ? synonyms : [])
+    .concat(Array.isArray(similarPhrases) ? similarPhrases : [])
+    .slice(0, 5);
+
+  return formatPairList(list);
+}
+
+/**
+ * Extract the English example sentence from a "补充备注" notes string.
+ * The example is stored as "exampleSentence\nexampleTranslation" (written by
+ * adoptAllReference), so we return the first English-looking line (letters +
+ * space, no CJK) as a best-effort pronunciation target.
+ */
+function extractEnglishExampleFromNotes(notes) {
+  const lines = String(notes || '').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    if (trimmed.indexOf(' ') > 0 && /[A-Za-z]/.test(trimmed) && !/[㐀-鿿]/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return '';
 }
 
 function mapBackendCardType(category) {
@@ -361,6 +488,21 @@ function buildRecentWhereEncounteredOptions() {
   return result;
 }
 
+function getLastEncounterContext() {
+  try {
+    const value = wx.getStorageSync(LAST_ENCOUNTER_CONTEXT_KEY);
+    return normalizePlainText(value);
+  } catch (_) {
+    return '';
+  }
+}
+
+function saveLastEncounterContext(value) {
+  try {
+    wx.setStorageSync(LAST_ENCOUNTER_CONTEXT_KEY, normalizePlainText(value));
+  } catch (_) {}
+}
+
 function createEmptyForm() {
   return {
     category: '单词',
@@ -499,6 +641,8 @@ Page({
     suggestionSourceText: '',
     showSuggestion: false,
     translating: false,
+    isAnalyzing: false,
+    isRegenerating: false,
     autoFocusUnderstanding: false,
     isUnderstandingFocused: false,
     deferNonCriticalReady: false,
@@ -518,57 +662,484 @@ Page({
     recentSources: [],
     aiExampleSentence: '',
     aiExampleTranslation: '',
-    referenceApplied: false
+    aiSynonymsDisplay: '',
+    aiSimilarPhrasesDisplay: '',
+    aiExpressionTypeLabel: '',
+    aiAlternativeMeanings: [],
+    aiUsageScenario: '',
+    aiDialogueEnglish: [],
+    aiDialogueChinese: [],
+    aiRelatedDisplay: '',
+    aiAnalysisSource: '',
+    aiAnalysisModel: '',
+    notesExamplePlaying: false,
+    notesExampleLoading: false,
+    notesExampleAvailable: false,
+    referenceApplied: false,
+    editPhoneticDisplay: '',
+    editPhoneticLoading: false,
+    editPhoneticLoaded: false,
+    editPronunciationAvailable: false,
+    editPronunciationLoading: false,
+    editPronunciationPlaying: false,
+    editPronunciationVoice: DEFAULT_VOICE,
+    editPronunciationText: '',
 
 
 
 
   },
 
-  async callBackendAnalyzeDirect(text, category, cacheKey) {
-    try {
-      const backendResp = await analyzeEnglishDirect(text, category);
+  mapBackendAnalyzeResult(backendResp, text, category, cacheKey) {
+    const categoryMap = { word: '单词', phrase: '短语', sentence: '句子', paragraph: '句子', unknown: '' };
+    const mappedCategory = categoryMap[backendResp.category] || category;
+    const words = getNormalizedWordList(text);
 
-      const categoryMap = { word: '单词', phrase: '短语', sentence: '句子', paragraph: '句子', unknown: '' };
-      const mappedCategory = categoryMap[backendResp.category] || category;
-      const words = getNormalizedWordList(text);
+    var analysisSource = normalizePlainText(backendResp.analysisSource || '');
+    var analysisModel = normalizePlainText(backendResp.analysisModel || '');
+    var expressionType = normalizePlainText(backendResp.expressionType || '');
 
-      return {
-        ok: backendResp.ok !== false,
-        text: backendResp.normalizedText || text,
-        normalizedText: backendResp.normalizedText || text,
-        category: mappedCategory,
-        analysisStatus: backendResp.level === 'failed' ? 'failed' : 'done',
-        validation: {
-          errors: Array.isArray(backendResp.errors) ? backendResp.errors : [],
-          warnings: Array.isArray(backendResp.warnings) ? backendResp.warnings : [],
-          normalizedText: backendResp.normalizedText || text
-        },
-        understanding: {
-          candidate: backendResp.translation || backendResp.understanding || '',
-          source: backendResp.provider || 'local'
-        },
-        cacheKey: cacheKey || `${mappedCategory}::${text.toLowerCase()}::${words.map(function(w) { return normalizeEnglishText(w).toLowerCase(); }).filter(Boolean).join('|')}`,
-        fromCache: Boolean(backendResp.cacheHit),
-        backend: {
-          level: backendResp.level || '',
-          category: backendResp.category || '',
-          provider: backendResp.provider || '',
-          translation: backendResp.translation || '',
-          understanding: backendResp.understanding || ''
-        },
-        exampleSentence: normalizePlainText(backendResp.exampleSentence || ''),
-        exampleTranslation: normalizePlainText(backendResp.exampleTranslation || '')
-      };
-    } catch (error) {
-      return null;
+    console.log(
+      '[English Analysis]\n' +
+      'input: ' + text + '\n' +
+      'category: ' + (backendResp.category || '') + '\n' +
+      'source: ' + analysisSource + '\n' +
+      'model: ' + analysisModel + '\n' +
+      'expressionType: ' + expressionType
+    );
+    console.log('[AI TRACE 8] frontend response.data =', JSON.stringify(backendResp));
+
+    return {
+      ok: backendResp.ok !== false,
+      text: backendResp.normalizedText || text,
+      normalizedText: backendResp.normalizedText || text,
+      category: mappedCategory,
+      analysisStatus: backendResp.level === 'failed' ? 'failed' : 'done',
+      validation: {
+        errors: Array.isArray(backendResp.errors) ? backendResp.errors : [],
+        warnings: Array.isArray(backendResp.warnings) ? backendResp.warnings : [],
+        normalizedText: backendResp.normalizedText || text
+      },
+      understanding: {
+        candidate: backendResp.translation || backendResp.understanding || '',
+        source: backendResp.provider || 'local'
+      },
+      cacheKey: cacheKey || `${mappedCategory}::${text.toLowerCase()}::${words.map(function(w) { return normalizeEnglishText(w).toLowerCase(); }).filter(Boolean).join('|')}`,
+      fromCache: Boolean(backendResp.cacheHit),
+      backend: {
+        level: backendResp.level || '',
+        category: backendResp.category || '',
+        provider: backendResp.provider || '',
+        translation: backendResp.translation || '',
+        understanding: backendResp.understanding || ''
+      },
+      exampleSentence: normalizePlainText(backendResp.exampleSentence || ''),
+      exampleTranslation: normalizePlainText(backendResp.exampleTranslation || ''),
+      synonyms: Array.isArray(backendResp.synonyms) ? backendResp.synonyms : [],
+      similarPhrases: Array.isArray(backendResp.similarPhrases) ? backendResp.similarPhrases : [],
+      expressionType: expressionType,
+      alternativeMeanings: Array.isArray(backendResp.alternativeMeanings) ? backendResp.alternativeMeanings : [],
+      usageScenario: normalizePlainText(backendResp.usageScenario || ''),
+      dialogue: normalizeDialogue(backendResp.dialogue),
+      analysisSource: analysisSource,
+      analysisModel: analysisModel
+    };
+  },
+
+  async callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh = false, idempotencyKey = '') {
+    // Let errors propagate so the caller can tell a busy backend (503) or a
+    // network outage (statusCode 0) apart from a real AI failure, instead of
+    // collapsing every failure into a generic "网络暂时不稳".
+    const backendResp = await analyzeEnglishDirect(text, category, forceRefresh, idempotencyKey);
+    return this.mapBackendAnalyzeResult(backendResp, text, category, cacheKey);
+  },
+
+  _isCurrentStreamPreview(sourceText, requestGeneration) {
+    if (this.data.isLeavingPage) {
+      return false;
     }
+
+    if (
+      typeof requestGeneration === 'number' &&
+      requestGeneration !== this.analysisGeneration
+    ) {
+      return false;
+    }
+
+    const normalizedText = normalizeEnglishText(sourceText);
+    const currentRaw = this.data.form.englishText;
+    if (endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== normalizedText) {
+      return false;
+    }
+
+    return true;
+  },
+
+  _clearStreamPreviewTimer() {
+    if (this._streamPreviewTimer) {
+      clearTimeout(this._streamPreviewTimer);
+      this._streamPreviewTimer = null;
+    }
+  },
+
+  _beginStreamPreview(sourceText, requestGeneration, startedAt) {
+    this._clearStreamPreviewTimer();
+    this._streamProvisional = Object.create(null);
+    this._streamPendingFields = Object.create(null);
+    this._streamLastDeltaSeq = Object.create(null);
+    this._streamAttempt = 0;
+    this._streamPreviewSourceText = normalizeEnglishText(sourceText);
+    this._streamPreviewGeneration = requestGeneration;
+    this._streamPreviewStartedAt = startedAt || Date.now();
+    this._streamFirstVisibleTextLogged = false;
+    this._streamFirstVisibleTextPending = false;
+  },
+
+  _discardStreamPreview() {
+    this._clearStreamPreviewTimer();
+    this._streamProvisional = Object.create(null);
+    this._streamPendingFields = Object.create(null);
+    this._streamLastDeltaSeq = Object.create(null);
+    this._streamAttempt = 0;
+  },
+
+  _emptyAiAnalysisDisplayPatch() {
+    const notes = this.data && this.data.form ? this.data.form.notes : '';
+    return {
+      validationResult: null,
+      englishValidationMessage: '',
+      englishValidationType: 'hint',
+      suggestionText: '',
+      suggestionSourceText: '',
+      showSuggestion: false,
+      understandingSuggestion: '',
+      understandingVisible: false,
+      aiExampleSentence: '',
+      aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      aiAnalysisSource: '',
+      aiAnalysisModel: '',
+      notesExampleAvailable: Boolean(extractEnglishExampleFromNotes(notes)),
+      referenceApplied: false
+    };
+  },
+
+  _resetStreamPreview(sourceText, requestGeneration, attempt) {
+    if (!this._isCurrentStreamPreview(sourceText, requestGeneration)) {
+      return;
+    }
+
+    this._clearStreamPreviewTimer();
+    this._streamProvisional = Object.create(null);
+    this._streamPendingFields = Object.create(null);
+    this._streamLastDeltaSeq = Object.create(null);
+    this._streamAttempt = Number(attempt) || 0;
+    this._streamRawSynonyms = [];
+    this._streamRawSimilarPhrases = [];
+
+    // Retry attempt 2 must not visually inherit any provisional content from
+    // attempt 1. Loading flags stay unchanged while the same request continues.
+    this.setData(this._emptyAiAnalysisDisplayPatch());
+  },
+
+  applyStreamFieldPreview(field, value, sourceText, requestGeneration, meta) {
+    if (!this._isCurrentStreamPreview(sourceText, requestGeneration)) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'setData_preview'
+      });
+      return;
+    }
+
+    var patch = {};
+    var visibleText = '';
+    const isDeltaPreview = meta && meta.eventType === 'delta';
+    const displayText = function (rawValue) {
+      const text = String(rawValue || '');
+      // Keep a trailing space while more deltas are arriving; trimming it on
+      // every 60ms flush can make word boundaries briefly disappear.
+      return isDeltaPreview ? text.replace(/^\s+/, '') : text.trim();
+    };
+
+    if (field === 'meaning') {
+      const meaning = displayText(value);
+      patch.suggestionText = meaning;
+      patch.showSuggestion = Boolean(meaning);
+      visibleText = meaning;
+    } else if (field === 'expressionType') {
+      patch.aiExpressionTypeLabel = getExpressionTypeLabel(value);
+    } else if (field === 'alternativeMeanings') {
+      patch.aiAlternativeMeanings = normalizeAlternativeMeanings(value);
+    } else if (field === 'usageScenario') {
+      patch.aiUsageScenario = displayText(value);
+      visibleText = patch.aiUsageScenario;
+    } else if (field === 'exampleSentence') {
+      patch.aiExampleSentence = displayText(value);
+      visibleText = patch.aiExampleSentence;
+    } else if (field === 'exampleTranslation') {
+      patch.aiExampleTranslation = displayText(value);
+      visibleText = patch.aiExampleTranslation;
+    } else if (field === 'dialogue') {
+      const dialogue = normalizeDialogue(value);
+      patch.aiDialogueEnglish = dialogue.english;
+      patch.aiDialogueChinese = dialogue.chinese;
+    } else if (field === 'synonyms') {
+      const synonyms = Array.isArray(value) ? value : [];
+      this._streamRawSynonyms = synonyms;
+      patch.aiSynonymsDisplay = formatPairList(synonyms);
+      patch.aiRelatedDisplay = buildRelatedDisplay(
+        synonyms,
+        Array.isArray(this._streamRawSimilarPhrases) ? this._streamRawSimilarPhrases : []
+      );
+    } else if (field === 'similarPhrases') {
+      const similarPhrases = Array.isArray(value) ? value : [];
+      this._streamRawSimilarPhrases = similarPhrases;
+      patch.aiSimilarPhrasesDisplay = formatPairList(similarPhrases);
+      patch.aiRelatedDisplay = buildRelatedDisplay(
+        Array.isArray(this._streamRawSynonyms) ? this._streamRawSynonyms : [],
+        similarPhrases
+      );
+    }
+
+    if (Object.keys(patch).length > 0) {
+      const shouldLogFirstVisible = Boolean(visibleText) &&
+        !this._streamFirstVisibleTextLogged &&
+        !this._streamFirstVisibleTextPending;
+      if (shouldLogFirstVisible) {
+        this._streamFirstVisibleTextPending = true;
+      }
+
+      this.setData(patch, () => {
+        if (!shouldLogFirstVisible) return;
+        this._streamFirstVisibleTextPending = false;
+        if (
+          this._streamFirstVisibleTextLogged ||
+          !this._isCurrentStreamPreview(sourceText, requestGeneration)
+        ) {
+          return;
+        }
+        this._streamFirstVisibleTextLogged = true;
+        const startedAt = meta && meta.startedAt ? meta.startedAt : this._streamPreviewStartedAt;
+        logAiStreamDiagnostic('first_visible_text', {
+          generationId: requestGeneration,
+          field,
+          elapsedMs: Date.now() - startedAt
+        });
+        console.log(
+          '[stream perf] first_visible_text=' + (Date.now() - startedAt) + 'ms' +
+          ' | field=' + field +
+          ' | attempt=' + ((meta && meta.attempt) || this._streamAttempt || 1) +
+          ' | input=' + normalizeEnglishText(sourceText)
+        );
+      });
+    }
+  },
+
+  _flushStreamPreview(sourceText, requestGeneration, meta) {
+    this._streamPreviewTimer = null;
+    if (!this._isCurrentStreamPreview(sourceText, requestGeneration)) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'flush_timer'
+      });
+      this._streamPendingFields = Object.create(null);
+      return;
+    }
+
+    const pendingFields = this._streamPendingFields || Object.create(null);
+    this._streamPendingFields = Object.create(null);
+    Object.keys(pendingFields).forEach((field) => {
+      this.applyStreamFieldPreview(
+        field,
+        this._streamProvisional[field] || '',
+        sourceText,
+        requestGeneration,
+        meta
+      );
+    });
+  },
+
+  _scheduleStreamPreviewFlush(sourceText, requestGeneration, meta) {
+    if (this._streamPreviewTimer) {
+      return;
+    }
+    this._streamPreviewTimer = setTimeout(() => {
+      this._flushStreamPreview(sourceText, requestGeneration, meta);
+    }, 60);
+  },
+
+  handleStreamAnalysisEvent(event, sourceText, requestGeneration, startedAt) {
+    if (!event || typeof event !== 'object') return;
+    if (!this._isCurrentStreamPreview(sourceText, requestGeneration)) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: String(event.type || 'stream_event')
+      });
+      return;
+    }
+
+    const attempt = Number(event.attempt) || this._streamAttempt || 1;
+    const meta = { startedAt: startedAt, attempt: attempt, eventType: event.type };
+
+    if (event.type === 'reset') {
+      this._resetStreamPreview(sourceText, requestGeneration, attempt);
+      return;
+    }
+
+    if (event.type === 'delta') {
+      const field = String(event.field || '');
+      if (
+        field !== 'meaning' &&
+        field !== 'usageScenario' &&
+        field !== 'exampleSentence' &&
+        field !== 'exampleTranslation'
+      ) {
+        return;
+      }
+
+      if (this._streamAttempt && attempt > this._streamAttempt) {
+        // Defensive compatibility if a backend retry omits the reset event.
+        this._resetStreamPreview(sourceText, requestGeneration, attempt);
+      }
+      this._streamAttempt = attempt;
+
+      const seq = Number(event.seq);
+      if (Number.isFinite(seq)) {
+        const seqKey = attempt + ':' + field;
+        if (Number.isFinite(this._streamLastDeltaSeq[seqKey]) && seq <= this._streamLastDeltaSeq[seqKey]) {
+          return;
+        }
+        this._streamLastDeltaSeq[seqKey] = seq;
+      }
+
+      const text = typeof event.text === 'string' ? event.text : '';
+      if (!text) return;
+      this._streamProvisional[field] = (this._streamProvisional[field] || '') + text;
+      this._streamPendingFields[field] = true;
+      this._scheduleStreamPreviewFlush(sourceText, requestGeneration, meta);
+      return;
+    }
+
+    if (event.type === 'field') {
+      const field = String(event.field || '');
+      if (
+        field === 'meaning' ||
+        field === 'usageScenario' ||
+        field === 'exampleSentence' ||
+        field === 'exampleTranslation'
+      ) {
+        this._streamProvisional[field] = typeof event.value === 'string' ? event.value : '';
+        delete this._streamPendingFields[field];
+      }
+      this.applyStreamFieldPreview(field, event.value, sourceText, requestGeneration, meta);
+      return;
+    }
+
+    if (event.type === 'final' || event.type === 'done') {
+      // The authoritative result is applied by applyAnalysisToPage after done.
+      // Stop any older throttled provisional update from racing with it.
+      this._clearStreamPreviewTimer();
+      this._streamPendingFields = Object.create(null);
+    }
+  },
+
+  async callBackendAnalyzeStream(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '') {
+    const startedAt = Date.now();
+    this._beginStreamPreview(text, requestGeneration, startedAt);
+    this._streamRawSynonyms = [];
+    this._streamRawSimilarPhrases = [];
+    let gotFinal = false;
+    let gotAnyField = false;
+    let finalResult = null;
+    let aborted = false;
+    let errorStatus = 0;
+
+    const taskHolder = {
+      task: null,
+      cacheKey: cacheKey,
+      generationId: requestGeneration,
+      idempotencyKey: idempotencyKey
+    };
+    this._activeStreamTask = taskHolder;
+    this._activeStreamText = normalizeEnglishText(text);
+    this._activeStreamCategory = category || '';
+
+    try {
+      const finalData = await analyzeEnglishDirectStream(text, category, (event) => {
+        if (!event || typeof event !== 'object') return;
+        if (event.type === 'field' || event.type === 'delta') {
+          gotAnyField = true;
+        }
+        if (typeof onStreamEvent === 'function') {
+          onStreamEvent(event, startedAt);
+        }
+      }, forceRefresh, taskHolder, idempotencyKey, { generationId: requestGeneration });
+
+      gotFinal = finalData !== null && typeof finalData === 'object';
+      if (gotFinal) {
+        finalResult = this.mapBackendAnalyzeResult(finalData, text, category, cacheKey);
+        console.log(
+          '[stream perf] input: ' + text +
+          ' | first_field=' + (gotAnyField ? 'yes' : 'no') +
+          ' | elapsed=' + (Date.now() - startedAt) + 'ms'
+        );
+      }
+    } catch (error) {
+      if (error && error.aborted) {
+        aborted = true;
+      } else {
+        errorStatus = error && error.statusCode ? error.statusCode : 0;
+        console.warn('[add] stream analyze failed:', error);
+      }
+    } finally {
+      // A cancelled request can settle after the user has already started a
+      // new stream. Only the holder that still owns the page state may clear
+      // the active preview/task; stale finally blocks must not erase the new
+      // request's provisional buffer or timer.
+      if (this._activeStreamTask === taskHolder) {
+        this._discardStreamPreview();
+        this._activeStreamTask = null;
+        this._activeStreamText = '';
+        this._activeStreamCategory = '';
+      } else {
+        logAiStreamDiagnostic('stale_callback_ignored', {
+          oldGenerationId: requestGeneration,
+          currentGenerationId: this.analysisGeneration || 0,
+          callbackType: 'stream_finally'
+        });
+      }
+    }
+
+    return {
+      ok: gotFinal && !!finalResult,
+      result: finalResult,
+      gotAnyField: gotAnyField,
+      aborted: aborted,
+      errorStatus: errorStatus
+    };
   },
 
   async callAnalyzeEnglish(englishText, category, options = {}) {
     const text = normalizeEnglishText(englishText);
-    const useCache = options.useCache !== false;
+    const forceRefresh = options.forceRefresh === true;
+    const useCache = options.useCache !== false && !forceRefresh;
     const cacheKey = this.makeAnalyzeCacheKey(text, category);
+    logAiStreamDiagnostic('frontend_cache_lookup', {
+      generationId: Number(options.requestGeneration) || 0,
+      idempotencyKey: options.idempotencyKey || '',
+      result: useCache ? 'lookup' : 'bypass',
+      forceRefresh
+    });
 
     if (!text) {
       return {
@@ -589,105 +1160,174 @@ Page({
       const cached = this.getAnalyzeCacheItem(cacheKey);
 
       if (cached) {
+        logAiStreamDiagnostic('frontend_cache_lookup', {
+          generationId: Number(options.requestGeneration) || 0,
+          idempotencyKey: options.idempotencyKey || '',
+          result: 'hit',
+          forceRefresh
+        });
         return {
           ...cached,
           fromCache: true,
           cacheKey
         };
       }
-    }
 
-    if (!wx.cloud) {
-      try {
-        const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey);
-        if (directResult) {
-          console.log('[add] analyze source: direct backend');
-          if (directResult.ok !== false) {
-            this.setAnalyzeCacheItem(cacheKey, directResult);
-          }
-          return directResult;
-        }
-      } catch (directError) {
-        // direct backend failed, fall through to offline
+      // In-flight dedup: blur + save can both call analyzeEnglish for the same
+      // text before the first request finishes. Without this, concurrent calls
+      // fire duplicate backend requests and hit 429 (rate limit) / 503
+      // (ai_global_concurrency=1 queue timeout), then each fails over to the
+      // cloud function. Share one in-flight request per cacheKey instead.
+      if (this._inflightAnalyze && this._inflightAnalyze[cacheKey]) {
+        logAiStreamDiagnostic('frontend_inflight_reuse', {
+          generationId: Number(options.requestGeneration) || 0,
+          idempotencyKey: options.idempotencyKey || '',
+          result: 'reused'
+        });
+        return this._inflightAnalyze[cacheKey];
       }
-
-      return {
-        ok: false,
-        validation: {
-          errors: [],
-          warnings: ['网络暂时不稳，可以先保存']
-        },
-        understanding: {
-          candidate: '',
-          source: 'local'
-        },
-        cacheKey
-      };
     }
 
-    // Try direct backend first (bypass 3s cloud function timeout)
+    const promise = this._performAnalyzeEnglish(
+      text,
+      category,
+      cacheKey,
+      options.onStreamEvent,
+      options.requestGeneration,
+      forceRefresh,
+      options.idempotencyKey || ''
+    );
+    if (!this._inflightAnalyze) {
+      this._inflightAnalyze = Object.create(null);
+    }
+    this._inflightAnalyze[cacheKey] = promise;
+
     try {
-      const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey);
+      return await promise;
+    } finally {
+      if (this._inflightAnalyze[cacheKey] === promise) {
+        delete this._inflightAnalyze[cacheKey];
+      }
+    }
+  },
+
+  async _performAnalyzeEnglish(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '') {
+    let streamErrorStatus = 0;
+
+    // Interactive auto-analysis uses the streaming endpoint so the reference
+    // area fills in progressively from a single qwen3:8b request. Save paths
+    // (no onStreamEvent) skip streaming and keep the existing direct chain.
+    if (typeof onStreamEvent === 'function') {
+      const streamOutcome = await this.callBackendAnalyzeStream(
+        text,
+        category,
+        cacheKey,
+        onStreamEvent,
+        requestGeneration,
+        forceRefresh,
+        idempotencyKey
+      );
+      const staleGeneration =
+        typeof requestGeneration === 'number' &&
+        requestGeneration !== this.analysisGeneration;
+      if (streamOutcome.aborted || staleGeneration) {
+        // The request was cancelled (newer analysis or page unload). Don't fall
+        // back to direct even if this WeChat runtime reports abort as a generic
+        // transport failure, and don't treat the cancel as an AI error.
+        console.log('[add] stream analyze aborted, skipping fallback');
+        logAiStreamDiagnostic('direct_fallback', {
+          generationId: Number(requestGeneration) || 0,
+          idempotencyKey,
+          result: 'skipped',
+          reason: streamOutcome.aborted ? 'aborted' : 'stale_generation'
+        });
+        return {
+          ok: false,
+          aborted: true,
+          validation: {
+            errors: [],
+            warnings: []
+          },
+          understanding: {
+            candidate: '',
+            source: 'local'
+          },
+          cacheKey
+        };
+      }
+      if (streamOutcome.ok) {
+        console.log('[add] analyze source: stream backend');
+        if (
+          streamOutcome.result.ok !== false &&
+          (typeof requestGeneration !== 'number' || requestGeneration === this.analysisGeneration)
+        ) {
+          this.setAnalyzeCacheItem(cacheKey, streamOutcome.result);
+        }
+        return streamOutcome.result;
+      }
+      streamErrorStatus = streamOutcome.errorStatus || 0;
+      // Stream failed → fall through to the existing direct chain once
+      // (never retries the stream again, so at most one extra fallback request).
+      console.log('[add] stream backend unavailable, falling back to direct');
+      logAiStreamDiagnostic('direct_fallback', {
+        generationId: Number(requestGeneration) || 0,
+        idempotencyKey,
+        result: 'started',
+        streamErrorStatus
+      });
+    }
+
+    // Try direct backend (the only AI path now that cloud functions are removed).
+    let directErrorStatus = 0;
+    try {
+      const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh, idempotencyKey);
       if (directResult) {
         console.log('[add] analyze source: direct backend');
         console.log('[add] exampleSentence received:', Boolean(directResult.exampleSentence));
-        if (directResult.ok !== false) {
+        if (
+          directResult.ok !== false &&
+          (typeof requestGeneration !== 'number' || requestGeneration === this.analysisGeneration)
+        ) {
           this.setAnalyzeCacheItem(cacheKey, directResult);
         }
         return directResult;
       }
     } catch (directError) {
-      console.log('[add] direct backend unavailable, falling back to cloud function');
+      directErrorStatus = directError && directError.statusCode ? directError.statusCode : 0;
+      console.log('[add] direct backend unavailable');
     }
 
-    console.log('[add] analyze source: cloud fallback');
-    try {
-      const response = await wx.cloud.callFunction({
-        name: 'analyzeEnglish',
-        data: {
-          text,
-          category,
-          words: getNormalizedWordList(text),
-          cacheKey
-        }
-      });
+    // Unified failure handling: keep the user's input and don't fake an AI
+    // result, but tell the caller WHY it failed so the UI can show an accurate
+    // message (busy vs network vs AI) instead of a blanket "网络暂时不稳".
+    return this._buildAnalysisUnavailableResult(cacheKey, streamErrorStatus, directErrorStatus);
+  },
 
-      const result = response && response.result ? response.result : {};
-
-      const normalizedResult = {
-        ...result,
-        cacheKey
-      };
-
-      // 归一化云函数返回的 understanding.source，防止 tencent 等供应商名透传到后端
-      if (normalizedResult.understanding && normalizedResult.understanding.source) {
-        normalizedResult.understanding = {
-          ...normalizedResult.understanding,
-          source: normalizeUnderstandingSource(normalizedResult.understanding.source, false)
-        };
-      }
-
-      if (normalizedResult.ok !== false) {
-        this.setAnalyzeCacheItem(cacheKey, normalizedResult);
-      }
-
-      return normalizedResult;
-    } catch (error) {
-      console.error('analyzeEnglish 调用失败:', error);
-
-      return {
-        ok: false,
-        validation: {
-          errors: [],
-          warnings: ['网络暂时不稳，可以先保存']
-        },
-        understanding: {
-          candidate: '',
-          source: 'local'
-        },
-        cacheKey
-      };
+  _buildAnalysisUnavailableResult(cacheKey, streamErrorStatus, directErrorStatus) {
+    // statusCode 0    -> request never reached the backend (network / ngrok)
+    // statusCode 503  -> backend reachable but the single AI slot was busy
+    // other 4xx/5xx   -> backend reachable but the AI service failed
+    const status = directErrorStatus || streamErrorStatus || 0;
+    let failureKind = 'network';
+    if (status === 503) {
+      failureKind = 'busy';
+    } else if (status > 0) {
+      failureKind = 'ai';
     }
+
+    return {
+      ok: false,
+      failureKind: failureKind,
+      validation: {
+        errors: [],
+        warnings: []
+      },
+      understanding: {
+        candidate: '',
+        source: 'local'
+      },
+      cacheKey
+    };
   },
 
 
@@ -746,16 +1386,17 @@ Page({
       return null;
     }
 
-    // Discard stale word/phrase entries that have no example sentence.
-    // These were written before the Phase 8D-hotfix and would permanently hide
-    // examples that have since started generating successfully.
+    // Discard stale word/phrase/sentence entries that have no example sentence.
+    // Word/phrase ones were written before the Phase 8D-hotfix; sentence ones were
+    // written before sentences started routing to Qwen. Either would permanently hide
+    // the example + usage scenario + dialogue + synonyms that now generate.
     var backendCategory = String((item.backend && item.backend.category) || '');
     var frontendCategory = String(item.category || '');
-    var itemIsWordOrPhrase = (
-      backendCategory === 'word' || backendCategory === 'phrase' ||
-      frontendCategory === '单词' || frontendCategory === '短语'
+    var itemNeedsExample = (
+      backendCategory === 'word' || backendCategory === 'phrase' || backendCategory === 'sentence' ||
+      frontendCategory === '单词' || frontendCategory === '短语' || frontendCategory === '句子'
     );
-    if (itemIsWordOrPhrase && !normalizePlainText(item.exampleSentence || '')) {
+    if (itemNeedsExample && !normalizePlainText(item.exampleSentence || '')) {
       delete cache[cacheKey];
       wx.setStorageSync(ANALYZE_CACHE_STORAGE_KEY, cache);
       return null;
@@ -769,16 +1410,17 @@ Page({
       return;
     }
 
-    // Don't cache word/phrase results that have no example sentence.
-    // A temporary Hunyuan failure would otherwise seal an empty-example result
-    // for the full 30-day TTL, hiding successfully-generated examples after recovery.
+    // Don't cache word/phrase/sentence results that have no example sentence.
+    // A temporary Ollama/Hunyuan failure would otherwise seal an empty-example result
+    // for the full 30-day TTL, hiding successfully-generated examples (and the
+    // scenario/dialogue/synonyms that come with them) after recovery.
     var backendCategory = String((result.backend && result.backend.category) || '');
     var frontendCategory = String(result.category || '');
-    var isWordOrPhrase = (
-      backendCategory === 'word' || backendCategory === 'phrase' ||
-      frontendCategory === '单词' || frontendCategory === '短语'
+    var itemNeedsExample = (
+      backendCategory === 'word' || backendCategory === 'phrase' || backendCategory === 'sentence' ||
+      frontendCategory === '单词' || frontendCategory === '短语' || frontendCategory === '句子'
     );
-    if (isWordOrPhrase && !normalizePlainText(result.exampleSentence || '')) {
+    if (itemNeedsExample && !normalizePlainText(result.exampleSentence || '')) {
       return;
     }
 
@@ -832,6 +1474,7 @@ Page({
       suggestionSourceText: '',
       showSuggestion: false,
       translating: false,
+      isAnalyzing: false,
       autoFocusUnderstanding: false,
       isUnderstandingFocused: false,
       deferNonCriticalReady: false,
@@ -854,6 +1497,7 @@ Page({
 
   getDefaultFormState() {
     const inputContext = getInputContext();
+    const lastEncounterContext = getLastEncounterContext();
   
     return {
       cardId: '',
@@ -863,7 +1507,8 @@ Page({
       form: {
         ...createEmptyForm(),
         examScene: inputContext.examScene,
-        examModule: inputContext.examModule
+        examModule: inputContext.examModule,
+        whereEncountered: lastEncounterContext
       }
     };
   },
@@ -883,6 +1528,7 @@ Page({
       categoryIndex: Math.max(CARD_CATEGORIES.indexOf(category), 0),
       inheritedContextText: '',
       showNotesField: Boolean(notes),
+      notesExampleAvailable: Boolean(extractEnglishExampleFromNotes(notes)),
       form: {
         category,
         examScene,
@@ -895,7 +1541,23 @@ Page({
     };
   },
 
+  // ===== Edit pronunciation helpers =====
+
+  _getCurrentEditEnglish() {
+    return String(
+      this.data.form && this.data.form.englishText
+        ? this.data.form.englishText
+        : this.data.editPronunciationText || ''
+    ).trim();
+  },
+
   onLoad(options) {
+    logAiStreamDiagnostic('frontend_code_identity', {
+      diagnosticVersion: STREAM_DIAGNOSTIC_VERSION
+    });
+    console.log('[edit-pronunciation] implementation version: edit-audio-fix-20260704-2');
+    console.log('[edit-pronunciation] onLoad options', JSON.stringify(options));
+
     this.pageOptions = options || {};
     this.suggestionCache = Object.create(null);
     this.englishValidationTimer = null;
@@ -903,6 +1565,15 @@ Page({
     this.postRenderTimer = null;
     this.delayedLoadCardTimer = null;
     this.deferNonCriticalTimer = null;
+    this.analysisGeneration = 0;
+    this._editPhoneticRequestId = 0;
+    this._editPhoneticTimer = null;
+    this._editPronunciationSafetyTimer = null;
+
+    // Only create pronunciation controller for edit mode
+    if (Boolean(options.id)) {
+      this.pronunciationController = createPronunciationController(this);
+    }
 
     const isFromReviewMode = isFromReviewPage(this.pageOptions);
     const isFromTodayReviewedMode = isFromTodayReviewedPage(this.pageOptions);
@@ -916,9 +1587,10 @@ Page({
       isFromHistoryMode
     });
 
+    var cachedCard = null;
     if (isEdit) {
       const app = getApp();
-      const cachedCard = app.globalData && app.globalData.pendingEditCard;
+      cachedCard = app.globalData && app.globalData.pendingEditCard;
 
       if (cachedCard && String(cachedCard.id) === String(options.id)) {
         initialData = {
@@ -944,6 +1616,9 @@ Page({
     }
 
     initialData.recentSources = buildRecentWhereEncounteredOptions();
+    if (isEdit) {
+      initialData.editPronunciationVoice = getStoredVoice();
+    }
 
     this.setData(initialData, () => {
       this.setNavigationTitle();
@@ -955,10 +1630,30 @@ Page({
         ? initialData.form.category
         : '单词';
 
-        if (englishText && !this.data.isReadonlyDetailMode) {
-          setTimeout(() => {
-            this.runInputAnalysis(englishText, category);
-          }, 0);
+      console.log('[edit-pronunciation] onLoad setData callback', {
+        isEdit: isEdit,
+        cardId: options.id || '',
+        formEnglish: englishText || '(empty)',
+        isReadonlyDetailMode: initialData.isReadonlyDetailMode,
+        hasCachedCard: Boolean(cachedCard)
+      });
+
+        // Always keep editPronunciationText in sync with form English text
+        // so the pronunciation button is never disabled due to stale data
+        if (englishText && isEdit) {
+          var patch = { editPronunciationText: englishText };
+          this.setData(patch);
+          console.log('[edit-pronunciation] onLoad: synced editPronunciationText from form', { editPronunciationText: englishText });
+        }
+
+        // 不再自动调用 AI 分析：等用户点击「AI 分析」按钮。编辑模式下保留原有发音初始化。
+
+        // Edit mode: load phonetics for the initial English text
+        if (isEdit && englishText && !initialData.isReadonlyDetailMode) {
+          console.log('[edit-pronunciation] calling _loadEditPhonetic from onLoad, text:', englishText);
+          this._loadEditPhonetic(englishText);
+        } else if (isEdit && !englishText && !initialData.isReadonlyDetailMode) {
+          console.log('[edit-pronunciation] onLoad: englishText empty, deferring to loadCard');
         }
     });
   },
@@ -970,6 +1665,15 @@ Page({
   },
 
   onUnload() {
+    this.invalidatePendingAnalysis();
+    this.abortActiveAnalysis();
+    this._destroyEditAudio();
+
+    if (this.pronunciationController) {
+      this.pronunciationController.destroy();
+      this.pronunciationController = null;
+    }
+
     if (this.englishValidationTimer) {
       clearTimeout(this.englishValidationTimer);
       this.englishValidationTimer = null;
@@ -1032,18 +1736,47 @@ Page({
     });
   },
 
-  scheduleSuggestionUpdate(englishText, category, delay) {
+  invalidatePendingAnalysis() {
+    this.analysisGeneration = (this.analysisGeneration || 0) + 1;
+  },
+
+  abortActiveAnalysis() {
+    const holder = this._activeStreamTask;
+    this._activeStreamTask = null;
+    this._activeStreamText = '';
+    this._activeStreamCategory = '';
+    this._discardStreamPreview();
+
+    // wx.request abort settles asynchronously. Remove the exact cancelled
+    // request from page-level in-flight dedup immediately, otherwise a rapid
+    // second click for the same text reuses the aborted Promise and never
+    // creates a new RequestTask. The old Promise's identity-checked finally
+    // cannot delete a newer request that is installed under the same key.
+    const cacheKey = holder && holder.cacheKey;
+    if (cacheKey && this._inflightAnalyze && this._inflightAnalyze[cacheKey]) {
+      delete this._inflightAnalyze[cacheKey];
+    }
+
+    if (holder && holder.task && typeof holder.task.abort === 'function') {
+      try {
+        holder.task.abort();
+      } catch (_) {
+        // Ignore abort errors — the request is already settling via its fail callback.
+      }
+    }
+  },
+
+  clearAnalysisTimers() {
+    if (this.englishValidationTimer) {
+      clearTimeout(this.englishValidationTimer);
+      this.englishValidationTimer = null;
+    }
+
     if (this.suggestionTimer) {
       clearTimeout(this.suggestionTimer);
       this.suggestionTimer = null;
     }
-
-    this.suggestionTimer = setTimeout(() => {
-      this.suggestionTimer = null;
-      this.runInputAnalysis(englishText, category);
-    }, delay);
   },
-
 
   async setDefaultForm() {
     const nextData = {
@@ -1074,11 +1807,22 @@ Page({
       validationResult: null,
       aiExampleSentence: '',
       aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      notesExampleAvailable: false,
       referenceApplied: false
     });
   },
 
   clearTransientFeedbackBeforeLeave() {
+    this.invalidatePendingAnalysis();
+
     if (this.englishValidationTimer) {
       clearTimeout(this.englishValidationTimer);
       this.englishValidationTimer = null;
@@ -1109,6 +1853,15 @@ Page({
       latestEnglishForSuggest: '',
       aiExampleSentence: '',
       aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      notesExampleAvailable: false,
       referenceApplied: false
     });
   },
@@ -1119,7 +1872,8 @@ Page({
     cloudWarnings = [],
     spellHints = [],
     cloudInfo = [],
-    onlineValidationUnavailable = false
+    onlineValidationUnavailable = false,
+    unavailableMessage = ''
   } = {}) {
     // 只有前端本地 error 才真正阻止保存，显示红色
     if (localErrors.length > 0) {
@@ -1155,7 +1909,7 @@ Page({
 
     if (onlineValidationUnavailable) {
       return {
-        displayMessage: '网络暂时不稳，可以先保存',
+        displayMessage: unavailableMessage || '网络或分析服务暂时不可用',
         displayMessageType: 'hint'
       }
     }
@@ -1166,9 +1920,40 @@ Page({
     }
   },
 
+  _classifyUnavailableMessage(analyzeResult) {
+    // Map an analysis failure to an accurate, non-technical message instead of
+    // a blanket "网络暂时不稳":
+    //   aborted           -> cancelled by a newer input, not an error
+    //   failureKind=busy  -> backend reachable but the single AI slot was busy
+    //   failureKind=ai    -> backend reachable but the AI service failed
+    //   failureKind=network -> request never reached the backend
+    //   ok:false + errors -> Qwen/analyzer's own clean user-facing message
+    if (!analyzeResult || analyzeResult.ok !== false || analyzeResult.aborted) {
+      return '';
+    }
+    if (analyzeResult.failureKind === 'busy') {
+      return '分析服务暂时繁忙，请稍后重试';
+    }
+    if (analyzeResult.failureKind === 'ai') {
+      return 'AI 分析暂时不可用，请稍后重试';
+    }
+    if (analyzeResult.failureKind === 'network') {
+      return '网络或分析服务暂时不可用';
+    }
+    const errors = analyzeResult.validation && analyzeResult.validation.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return errors[0];
+    }
+    return '网络或分析服务暂时不可用';
+  },
+
   async analyzeEnglishInput(text, category, {
     needSuggestion = true,
-    needCloudValidation = true
+    needCloudValidation = true,
+    onStreamEvent = null,
+    requestGeneration = null,
+    forceRefresh = false,
+    idempotencyKey = ''
   } = {}) {
     const normalizedText = normalizeEnglishText(text)
 
@@ -1200,13 +1985,29 @@ Page({
     let spellHints = []
     let cloudInfo = []
     let onlineValidationUnavailable = false
+    let unavailableMessage = ''
     let suggestion = ''
     let backendNormalizedText = normalizedText
     let aiExampleSentence = ''
     let aiExampleTranslation = ''
+    let aiSynonymsDisplay = ''
+    let aiSimilarPhrasesDisplay = ''
+    let aiExpressionTypeLabel = ''
+    let aiAlternativeMeanings = []
+    let aiUsageScenario = ''
+    let aiDialogueEnglish = []
+    let aiDialogueChinese = []
+    let aiRelatedDisplay = ''
+    let aiAnalysisSource = ''
+    let aiAnalysisModel = ''
 
     if ((needCloudValidation || needSuggestion) && localErrors.length === 0) {
-      const analyzeResult = await this.callAnalyzeEnglish(normalizedText, category)
+      const analyzeResult = await this.callAnalyzeEnglish(normalizedText, category, {
+        onStreamEvent,
+        requestGeneration,
+        forceRefresh,
+        idempotencyKey
+      })
 
       const validation = analyzeResult.validation || {}
       const understanding = analyzeResult.understanding || {}
@@ -1247,9 +2048,21 @@ Page({
       )
 
       onlineValidationUnavailable = analyzeResult.ok === false
+      unavailableMessage = this._classifyUnavailableMessage(analyzeResult)
 
       aiExampleSentence = normalizePlainText(analyzeResult.exampleSentence || '')
       aiExampleTranslation = normalizePlainText(analyzeResult.exampleTranslation || '')
+      aiSynonymsDisplay = formatPairList(analyzeResult.synonyms || [])
+      aiSimilarPhrasesDisplay = formatPairList(analyzeResult.similarPhrases || [])
+      aiExpressionTypeLabel = getExpressionTypeLabel(analyzeResult.expressionType || '')
+      aiAlternativeMeanings = normalizeAlternativeMeanings(analyzeResult.alternativeMeanings || [])
+      aiUsageScenario = normalizePlainText(analyzeResult.usageScenario || '')
+      var dialogueResult = normalizeDialogue(analyzeResult.dialogue)
+      aiDialogueEnglish = dialogueResult.english
+      aiDialogueChinese = dialogueResult.chinese
+      aiRelatedDisplay = buildRelatedDisplay(analyzeResult.synonyms, analyzeResult.similarPhrases)
+      aiAnalysisSource = normalizePlainText(analyzeResult.analysisSource || '')
+      aiAnalysisModel = normalizePlainText(analyzeResult.analysisModel || '')
     }
 
     const hasDictionaryWarning = cloudWarnings.some((item) => {
@@ -1287,7 +2100,8 @@ Page({
       cloudWarnings,
       spellHints,
       cloudInfo,
-      onlineValidationUnavailable
+      onlineValidationUnavailable,
+      unavailableMessage
     })
 
     return {
@@ -1305,17 +2119,55 @@ Page({
       onlineValidationUnavailable,
       aiExampleSentence,
       aiExampleTranslation,
+      aiSynonymsDisplay,
+      aiSimilarPhrasesDisplay,
+      aiExpressionTypeLabel,
+      aiAlternativeMeanings,
+      aiUsageScenario,
+      aiDialogueEnglish,
+      aiDialogueChinese,
+      aiRelatedDisplay,
+      aiAnalysisSource,
+      aiAnalysisModel,
       displayMessage: displayState.displayMessage,
       displayMessageType: displayState.displayMessageType
     }
   },
 
-  applyAnalysisToPage(analysis, sourceText) {
+  applyAnalysisToPage(analysis, sourceText, requestGeneration) {
     if (this.data.isLeavingPage) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'final_page_leaving'
+      });
+      return
+    }
+
+    if (
+      typeof requestGeneration === 'number' &&
+      requestGeneration !== this.analysisGeneration
+    ) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'final_setData'
+      });
       return
     }
 
     var normalizedText = normalizeEnglishText(sourceText)
+    var currentRaw = this.data.form.englishText
+    if (endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== normalizedText) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'final_input_changed'
+      });
+      return
+    }
+
+    this._discardStreamPreview()
 
     var nextData = {
       validationResult: {
@@ -1336,26 +2188,141 @@ Page({
       understandingVisible: analysis.shouldShowSuggestion,
       aiExampleSentence: analysis.aiExampleSentence || '',
       aiExampleTranslation: analysis.aiExampleTranslation || '',
+      aiSynonymsDisplay: analysis.aiSynonymsDisplay || '',
+      aiSimilarPhrasesDisplay: analysis.aiSimilarPhrasesDisplay || '',
+      aiExpressionTypeLabel: analysis.aiExpressionTypeLabel || '',
+      aiAlternativeMeanings: analysis.aiAlternativeMeanings || [],
+      aiUsageScenario: analysis.aiUsageScenario || '',
+      aiDialogueEnglish: analysis.aiDialogueEnglish || [],
+      aiDialogueChinese: analysis.aiDialogueChinese || [],
+      aiRelatedDisplay: analysis.aiRelatedDisplay || '',
+      aiAnalysisSource: analysis.aiAnalysisSource || '',
+      aiAnalysisModel: analysis.aiAnalysisModel || '',
+      notesExampleAvailable: this.computeNotesExampleAvailable(
+        analysis.aiExampleSentence || '',
+        this.data.form.notes
+      ),
       referenceApplied: this.computeReferenceApplied(
         analysis.shouldShowSuggestion ? analysis.suggestion : '',
         analysis.aiExampleSentence || '',
         analysis.aiExampleTranslation || ''
       ),
       translating: false,
+      isAnalyzing: false,
       isValidatingEnglish: false,
       validateLoading: false,
       suggestLoading: false
     }
 
-    this.setData(nextData)
+    console.log('[AI TRACE 9] reference data before render =', JSON.stringify({
+      suggestionText: nextData.suggestionText,
+      aiExampleSentence: nextData.aiExampleSentence,
+      aiExampleTranslation: nextData.aiExampleTranslation,
+      aiUsageScenario: nextData.aiUsageScenario,
+      aiDialogueEnglish: nextData.aiDialogueEnglish,
+      aiDialogueChinese: nextData.aiDialogueChinese,
+      aiRelatedDisplay: nextData.aiRelatedDisplay,
+      aiAlternativeMeanings: nextData.aiAlternativeMeanings,
+      aiAnalysisSource: nextData.aiAnalysisSource,
+      aiAnalysisModel: nextData.aiAnalysisModel
+    }));
+
+    this.setData(nextData, () => {
+      logAiStreamDiagnostic('final_visible', {
+        generationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0
+      });
+    })
+  },
+
+  _createIdempotencyKey() {
+    return 'ai-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  },
+
+  onAnalyzeTap() {
+    if (this.data.isReadonlyDetailMode || this.data.isAnalyzing) {
+      return;
+    }
+
+    const englishText = normalizeEnglishText(this.data.form.englishText || '');
+    const category = this.data.form.category || '单词';
+
+    if (!englishText) {
+      this.setData({
+        englishValidationMessage: '英文内容为空',
+        englishValidationType: 'error'
+      });
+      return;
+    }
+
+    const localResult = getLocalValidationResult(englishText, category);
+    if (localResult.errors.length > 0) {
+      this.setData({
+        englishValidationMessage: localResult.errors[0],
+        englishValidationType: 'error'
+      });
+      return;
+    }
+
+    this.runInputAnalysis(englishText, category);
+  },
+
+  onCancelAnalyzeTap() {
+    // 用户主动取消：作废当前 generation 和所有临时/旧结果，回到干净的 idle 状态。
+    const holder = this._activeStreamTask;
+    logAiStreamDiagnostic('stream_cancel', {
+      generationId: holder && holder.generationId
+        ? holder.generationId
+        : (this.analysisGeneration || 0),
+      idempotencyKey: holder && holder.idempotencyKey ? holder.idempotencyKey : ''
+    });
+    this.invalidatePendingAnalysis();
+    this.abortActiveAnalysis();
+    this.setData({
+      ...this._emptyAiAnalysisDisplayPatch(),
+      isAnalyzing: false,
+      translating: false,
+      suggestLoading: false,
+      isValidatingEnglish: false,
+      validateLoading: false,
+      isRegenerating: false
+    });
   },
 
   async runInputAnalysis(englishText, category) {
     const normalizedText = normalizeEnglishText(englishText)
 
+    // A blur (or save) for the exact same text+category that is already
+    // streaming must not abort the in-flight request and re-run it. Doing so
+    // aborts a healthy request, reuses the already-aborted promise via the
+    // in-flight dedup, and surfaces a false "网络暂时不稳" without ever firing
+    // a new request. Let the in-flight analysis finish and apply itself.
+    if (
+      this._activeStreamTask &&
+      normalizedText &&
+      normalizedText === this._activeStreamText &&
+      (category || '') === (this._activeStreamCategory || '')
+    ) {
+      return;
+    }
+
+    this.abortActiveAnalysis();
+    const requestGeneration = (this.analysisGeneration || 0) + 1
+    this.analysisGeneration = requestGeneration
+    const idempotencyKey = this._createIdempotencyKey();
+    logAiStreamDiagnostic('generation_start', {
+      generationId: requestGeneration,
+      idempotencyKey,
+      forceRefresh: true,
+      action: 'analyze'
+    });
+
     var patch = {
+      ...this._emptyAiAnalysisDisplayPatch(),
       latestEnglishForSuggest: normalizedText,
       translating: !!normalizedText,
+      isAnalyzing: !!normalizedText,
+      isRegenerating: false,
       isValidatingEnglish: !!normalizedText,
       suggestLoading: !!normalizedText
     }
@@ -1365,6 +2332,7 @@ Page({
     if (!normalizedText) {
       this.clearSuggestion()
       this.setData({
+        isAnalyzing: false,
         englishValidationMessage: '',
         englishValidationType: 'hint',
         isValidatingEnglish: false,
@@ -1374,21 +2342,134 @@ Page({
       return
     }
 
+    const t0 = Date.now()
+    const perf = { firstDelta: null, firstField: null, meaning: null, exampleSentence: null }
+
+    const onStreamEvent = (event, startedAt) => {
+      const now = Date.now()
+      const field = event && event.field
+      if (event && event.type === 'delta' && perf.firstDelta === null) {
+        perf.firstDelta = now
+      }
+      if (event && event.type === 'field' && perf.firstField === null) {
+        perf.firstField = now
+      }
+      if (field === 'meaning' && perf.meaning === null) {
+        perf.meaning = now
+      }
+      if (field === 'exampleSentence' && perf.exampleSentence === null) {
+        perf.exampleSentence = now
+      }
+      this.handleStreamAnalysisEvent(event, normalizedText, requestGeneration, startedAt || t0)
+    }
+
     const analysis = await this.analyzeEnglishInput(normalizedText, category, {
       needSuggestion: true,
-      needCloudValidation: true
+      needCloudValidation: true,
+      onStreamEvent,
+      requestGeneration,
+      forceRefresh: true,
+      idempotencyKey
     })
-    
-    if (this.data.isLeavingPage) {
+
+    if (perf.firstDelta !== null || perf.firstField !== null) {
+      const sec = (ms) => ((ms - t0) / 1000).toFixed(2)
+      console.log(
+        '[stream perf] ' + normalizedText +
+        ' | first_delta=' + (perf.firstDelta ? sec(perf.firstDelta) + 's' : 'n/a') +
+        ' | first_field=' + (perf.firstField ? sec(perf.firstField) + 's' : 'n/a') +
+        ' | primary_meaning=' + (perf.meaning ? sec(perf.meaning) + 's' : 'n/a') +
+        ' | example_sentence=' + (perf.exampleSentence ? sec(perf.exampleSentence) + 's' : 'n/a') +
+        ' | complete=' + ((Date.now() - t0) / 1000).toFixed(2) + 's'
+      )
+    }
+
+    if (this.data.isLeavingPage || requestGeneration !== this.analysisGeneration) {
+      logAiStreamDiagnostic('stale_callback_ignored', {
+        oldGenerationId: requestGeneration,
+        currentGenerationId: this.analysisGeneration || 0,
+        callbackType: 'analysis_complete'
+      });
       return
     }
-    
+
     const currentRaw = this.data.form.englishText
     if (endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== normalizedText) {
       return
     }
 
-    this.applyAnalysisToPage(analysis, normalizedText)
+    this.applyAnalysisToPage(analysis, normalizedText, requestGeneration)
+  },
+
+  async regenerateAnalysis() {
+    // 重新生成：跳过前端 + 后端缓存，强制重新调用 AI，保留英文输入并显示加载中。
+    if (this.data.isRegenerating || this.data.translating) {
+      return;
+    }
+
+    const englishText = normalizeEnglishText(this.data.form.englishText || '');
+    const category = this.data.form.category || '单词';
+
+    if (!englishText) {
+      return;
+    }
+
+    this.abortActiveAnalysis();
+    const requestGeneration = (this.analysisGeneration || 0) + 1;
+    this.analysisGeneration = requestGeneration;
+    // 重新分析属于新的用户操作：生成全新的 Idempotency-Key，允许真正重新生成。
+    const idempotencyKey = this._createIdempotencyKey();
+    logAiStreamDiagnostic('generation_start', {
+      generationId: requestGeneration,
+      idempotencyKey,
+      forceRefresh: true,
+      action: 'regenerate'
+    });
+
+    this.setData({
+      ...this._emptyAiAnalysisDisplayPatch(),
+      translating: true,
+      isAnalyzing: true,
+      isRegenerating: true,
+      isValidatingEnglish: true,
+      suggestLoading: true
+    });
+
+    const streamStartedAt = Date.now();
+    const onStreamEvent = (event, startedAt) => {
+      this.handleStreamAnalysisEvent(event, englishText, requestGeneration, startedAt || streamStartedAt);
+    };
+
+    try {
+      const analysis = await this.analyzeEnglishInput(englishText, category, {
+        needSuggestion: true,
+        needCloudValidation: true,
+        onStreamEvent,
+        requestGeneration,
+        forceRefresh: true,
+        idempotencyKey
+      });
+
+      if (this.data.isLeavingPage || requestGeneration !== this.analysisGeneration) {
+        logAiStreamDiagnostic('stale_callback_ignored', {
+          oldGenerationId: requestGeneration,
+          currentGenerationId: this.analysisGeneration || 0,
+          callbackType: 'regenerate_complete'
+        });
+        return;
+      }
+
+      const currentRaw = this.data.form.englishText;
+      if (endsWithWhitespace(currentRaw) || normalizeEnglishText(currentRaw) !== englishText) {
+        return;
+      }
+
+      this.applyAnalysisToPage(analysis, englishText, requestGeneration);
+    } finally {
+      if (requestGeneration === this.analysisGeneration) {
+        this.setData({ isRegenerating: false });
+      }
+    }
   },
 
 
@@ -1439,16 +2520,31 @@ Page({
     const englishText = nextData.form.englishText || '';
     const category = nextData.form.category || '单词';
 
+    console.log('[edit-pronunciation] loadCard completed', {
+      cardId: cardId,
+      formEnglish: englishText || '(empty)',
+      editPronunciationText: this.data.editPronunciationText || '(empty)',
+      isReadonlyDetailMode: this.data.isReadonlyDetailMode
+    });
+
     if (this.data.isReadonlyDetailMode) {
       return;
     }
 
-    const runHeavyTasks = () => {
-      this.runInputAnalysis(englishText, category);
-    };
-
     if (englishText) {
-      runHeavyTasks();
+      // Sync editPronunciationText immediately so the button is never disabled
+      this.setData({ editPronunciationText: englishText });
+      console.log('[edit-pronunciation] loadCard: synced editPronunciationText from form', { editPronunciationText: englishText });
+
+      // 不再自动调用 AI 分析：等用户点击「AI 分析」按钮。
+
+      // Initialize pronunciation: ensure editPronunciationText is set and load phonetics
+      if (!this.data.isReadonlyDetailMode) {
+        console.log('[edit-pronunciation] loadCard calling _loadEditPhonetic, text:', englishText);
+        this._loadEditPhonetic(englishText);
+      }
+    } else {
+      console.log('[edit-pronunciation] loadCard: englishText empty, skipping pronunciation init');
     }
   },
 
@@ -1476,17 +2572,42 @@ Page({
     if (this.data.isReadonlyDetailMode) return;
     const categoryIndex = Number(event.detail.value) || 0;
     const category = CARD_CATEGORIES[categoryIndex] || CARD_CATEGORIES[0];
-  
+    this.invalidatePendingAnalysis();
+    // 类别变化：取消在途分析，不自动重新分析，等用户再次点击「AI 分析」。
+    this.abortActiveAnalysis();
+
+    const englishText = normalizeEnglishText(this.data.form.englishText || '');
+    const localResult = englishText ? getLocalValidationResult(englishText, category) : null;
+    const hasLocalError = !!localResult && localResult.errors.length > 0;
+
     this.setData({
       categoryIndex,
       'form.category': category,
       hasUserChangedCategory: true,
-      englishValidationMessage: '正在检查英文内容...',
-      englishValidationType: 'hint',
-      isValidatingEnglish: true
+      suggestionText: '',
+      suggestionSourceText: '',
+      showSuggestion: false,
+      understandingSuggestion: '',
+      understandingVisible: false,
+      validationResult: null,
+      aiExampleSentence: '',
+      aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      notesExampleAvailable: false,
+      referenceApplied: false,
+      englishValidationMessage: hasLocalError ? localResult.errors[0] : '输入有效，可点击「AI 分析」',
+      englishValidationType: hasLocalError ? 'error' : 'hint',
+      isValidatingEnglish: false,
+      isAnalyzing: false,
+      translating: false
     });
-  
-    this.scheduleSuggestionUpdate(this.data.form.englishText, category, 200);
   },
 
 
@@ -1494,6 +2615,19 @@ Page({
     if (this.data.isReadonlyDetailMode) return;
     const nextValue = event.detail.value;
     const normalizedNextText = normalizeEnglishText(nextValue);
+    const previousText = normalizeEnglishText(this.data.form.englishText);
+
+    const nextData = {
+      'form.englishText': nextValue
+    };
+
+    if (normalizedNextText !== previousText) {
+      this.invalidatePendingAnalysis();
+      // 用户修改已提交分析的英文内容：取消旧分析，不自动分析新内容，等用户再次点击「AI 分析」。
+      this.abortActiveAnalysis();
+      nextData.isAnalyzing = false;
+      nextData.translating = false;
+    }
 
     // 新增卡片时，英文内容每次变化都按内容自动识别类别，不被 hasUserChangedCategory 阻止
     let categoryForAnalysis = this.data.form.category;
@@ -1503,10 +2637,6 @@ Page({
       autoCategory &&
       autoCategory !== this.data.form.category
     );
-
-    const nextData = {
-      'form.englishText': nextValue
-    };
 
     if (shouldAutoUpdateCategory) {
       categoryForAnalysis = autoCategory;
@@ -1521,10 +2651,24 @@ Page({
       nextData.understandingSuggestion = '';
       nextData.understandingVisible = false;
       nextData.validationResult = null;
-      nextData.translating = Boolean(normalizedNextText);
+      nextData.aiExampleSentence = '';
+      nextData.aiExampleTranslation = '';
+      nextData.aiExpressionTypeLabel = '';
+      nextData.aiAlternativeMeanings = [];
+      nextData.aiUsageScenario = '';
+      nextData.aiDialogueEnglish = [];
+      nextData.aiDialogueChinese = [];
+      nextData.aiRelatedDisplay = '';
+      nextData.referenceApplied = false;
+      nextData.translating = false;
     }
 
     this.setData(nextData);
+
+    // Edit mode: schedule phonetic lookup on text change
+    if (this.data.isEdit) {
+      this._scheduleEditPhonetic(normalizedNextText);
+    }
 
     if (!normalizedNextText) {
       if (this.englishValidationTimer) {
@@ -1539,6 +2683,7 @@ Page({
 
       this.clearSuggestion();
       this.setData({
+        isAnalyzing: false,
         englishValidationMessage: '英文内容为空',
         englishValidationType: 'error',
         isValidatingEnglish: false
@@ -1546,27 +2691,22 @@ Page({
       return;
     }
 
-    // 末尾有空白时跳过自动分析，等待用户继续输入、blur 或保存
-    if (endsWithWhitespace(nextValue)) {
-      if (this.suggestionTimer) {
-        clearTimeout(this.suggestionTimer);
-        this.suggestionTimer = null;
-      }
+    // 输入过程中只做轻量本地检查（空内容 / 无英文字符 / 长度限制等），不调用 Qwen；
+    // 用户点击「AI 分析」才启动后端正式分析。
+    const localResult = getLocalValidationResult(normalizedNextText, categoryForAnalysis);
+    if (localResult.errors.length > 0) {
       this.setData({
-        isValidatingEnglish: false,
-        translating: false,
-        suggestLoading: false
+        englishValidationMessage: localResult.errors[0],
+        englishValidationType: 'error',
+        isValidatingEnglish: false
       });
-      return;
+    } else {
+      this.setData({
+        englishValidationMessage: '输入有效，可点击「AI 分析」',
+        englishValidationType: 'hint',
+        isValidatingEnglish: false
+      });
     }
-
-    this.setData({
-      englishValidationMessage: '正在检查英文内容...',
-      englishValidationType: 'hint',
-      isValidatingEnglish: true
-    });
-
-    this.scheduleSuggestionUpdate(nextValue, categoryForAnalysis, 500);
   },
 
   onEnglishBlur(event) {
@@ -1588,7 +2728,25 @@ Page({
       this.setData({ 'form.englishText': normalizedText });
     }
 
-    this.runInputAnalysis(normalizedText, this.data.form.category);
+    // 失焦也不再自动调用 AI：只保留轻量本地检查状态，分析由「AI 分析」按钮触发。
+    if (!normalizedText) {
+      this.setData({
+        isAnalyzing: false,
+        englishValidationMessage: '英文内容为空',
+        englishValidationType: 'error',
+        isValidatingEnglish: false
+      });
+      return;
+    }
+
+    const localResult = getLocalValidationResult(normalizedText, this.data.form.category);
+    if (localResult.errors.length > 0) {
+      this.setData({
+        englishValidationMessage: localResult.errors[0],
+        englishValidationType: 'error',
+        isValidatingEnglish: false
+      });
+    }
   },
 
   onUnderstandingInput(event) {
@@ -1597,6 +2755,305 @@ Page({
       'form.myUnderstanding': event.detail.value
     });
     this.refreshReferenceApplied();
+  },
+
+  // ===== Edit-mode pronunciation (only active when isEdit && !isReadonlyDetailMode) =====
+
+  _loadEditPhonetic(text) {
+    var cardId = this.data.cardId || (this.data.form && this.data.form.cardId) || '';
+    console.log('[edit-pronunciation] _loadEditPhonetic entered', {
+      cardId: cardId || '(unknown)',
+      text: String(text || '').trim() || '(empty)',
+      hasController: Boolean(this.pronunciationController),
+      isEdit: this.data.isEdit,
+      isReadonlyDetailMode: this.data.isReadonlyDetailMode
+    });
+
+    if (!this.pronunciationController || !this.data.isEdit || this.data.isReadonlyDetailMode) {
+      console.log('[edit-pronunciation] _loadEditPhonetic blocked by guard');
+      return;
+    }
+
+    var normalizedText = String(text || '').trim();
+    // Use a dedicated request ID to prevent stale responses
+    this._editPhoneticRequestId += 1;
+    var requestId = this._editPhoneticRequestId;
+
+    if (!normalizedText) {
+      console.log('[edit-pronunciation] _loadEditPhonetic: empty text, clearing');
+      this.setData({
+        editPhoneticDisplay: '',
+        editPhoneticLoaded: true,
+        editPhoneticLoading: false,
+        editPronunciationAvailable: false,
+        editPronunciationText: ''
+      });
+      return;
+    }
+
+    console.log('[edit-pronunciation] lexical request', { text: normalizedText, requestId: requestId });
+
+    this.setData({
+      editPhoneticLoading: true,
+      editPhoneticLoaded: false,
+      editPhoneticDisplay: '',
+      editPronunciationAvailable: false,
+      editPronunciationText: normalizedText
+    });
+
+    console.log('[edit-pronunciation] after setData (before API)', {
+      editPronunciationText: this.data.editPronunciationText,
+      editPronunciationLoading: this.data.editPronunciationLoading,
+      editPronunciationAvailable: this.data.editPronunciationAvailable
+    });
+
+    // Use the controller's internal load (but map to edit-prefixed data keys)
+    // We need to directly call getLexicalInfo to get edit-specific keys
+    var self = this;
+    var getLexicalInfo = require('../../utils/apiClient').getLexicalInfo;
+    var resolvePhoneticDisplay = require('../../utils/pronunciation').resolvePhoneticDisplay;
+
+    getLexicalInfo(normalizedText).then(function (info) {
+      if (requestId !== self._editPhoneticRequestId) {
+        console.log('[edit-pronunciation] lexical response stale, requestId:', requestId, 'current:', self._editPhoneticRequestId);
+        return;
+      }
+
+      console.log('[edit-pronunciation] lexical response', {
+        text: (info && info.text) || normalizedText,
+        phonetic: (info && info.phonetic) || '(none)',
+        wordPhonetics: (info && info.wordPhonetics) ? JSON.stringify(info.wordPhonetics) : '(none)',
+        pronunciationAvailable: Boolean(info && info.pronunciationAvailable)
+      });
+
+      var resolved = resolvePhoneticDisplay(info);
+      self.setData({
+        editPhoneticDisplay: resolved.phoneticDisplay,
+        editPhoneticLoaded: true,
+        editPhoneticLoading: false,
+        editPronunciationAvailable: Boolean(info && info.pronunciationAvailable),
+        editPronunciationText: (info && info.text) || normalizedText
+      });
+
+      console.log('[edit-pronunciation] after API success setData', {
+        editPhoneticDisplay: self.data.editPhoneticDisplay || '(empty)',
+        editPronunciationText: self.data.editPronunciationText,
+        editPronunciationAvailable: self.data.editPronunciationAvailable
+      });
+    }).catch(function (err) {
+      if (requestId !== self._editPhoneticRequestId) {
+        console.log('[edit-pronunciation] lexical error stale, requestId:', requestId);
+        return;
+      }
+
+      console.log('[edit-pronunciation] lexical error', String(err && err.errMsg || err || 'unknown'));
+      self.setData({
+        editPhoneticDisplay: '',
+        editPhoneticLoaded: true,
+        editPhoneticLoading: false,
+        editPronunciationAvailable: false,
+        editPronunciationText: normalizedText
+      });
+
+      console.log('[edit-pronunciation] after API error setData', {
+        editPronunciationText: self.data.editPronunciationText,
+        editPronunciationAvailable: self.data.editPronunciationAvailable
+      });
+    });
+  },
+
+  _scheduleEditPhonetic(text) {
+    if (!this.data.isEdit || this.data.isReadonlyDetailMode) return;
+
+    if (this._editPhoneticTimer) {
+      clearTimeout(this._editPhoneticTimer);
+      this._editPhoneticTimer = null;
+    }
+
+    // Clear old phonetics immediately
+    var normalizedText = String(text || '').trim();
+    console.log('[edit-pronunciation] _scheduleEditPhonetic', { text: normalizedText || '(empty)' });
+
+    if (!normalizedText) {
+      this.setData({
+        editPhoneticDisplay: '',
+        editPhoneticLoaded: false,
+        editPhoneticLoading: false,
+        editPronunciationAvailable: false,
+        editPronunciationText: ''
+      });
+      console.log('[edit-pronunciation] _scheduleEditPhonetic: text empty, button now disabled');
+      return;
+    }
+
+    // Clear old display while waiting for debounce, but update text immediately
+    this.setData({
+      editPhoneticDisplay: '',
+      editPhoneticLoaded: false,
+      editPhoneticLoading: true,
+      editPronunciationText: normalizedText
+    });
+
+    var self = this;
+    this._editPhoneticTimer = setTimeout(function () {
+      self._editPhoneticTimer = null;
+      self._loadEditPhonetic(text);
+    }, 400);
+  },
+
+  onEditPronunciationTap() {
+    var text = this._getCurrentEditEnglish();
+    var cardId = this.data.cardId || (this.data.form && this.data.form.cardId) || '';
+    var voice = this.data.editPronunciationVoice || DEFAULT_VOICE;
+
+    console.log('[edit-pronunciation] tap entered', {
+      cardId: cardId || '(unknown)',
+      text: text || '(empty)',
+      editPronunciationText: this.data.editPronunciationText || '(empty)',
+      formEnglishText: (this.data.form && this.data.form.englishText) || '(empty)',
+      editPronunciationAvailable: this.data.editPronunciationAvailable,
+      editPronunciationLoading: this.data.editPronunciationLoading,
+      editPronunciationPlaying: this.data.editPronunciationPlaying,
+      voice: voice
+    });
+
+    if (!this.pronunciationController) {
+      console.log('[edit-pronunciation] tap blocked: no pronunciationController');
+      return;
+    }
+    if (!text) {
+      console.log('[edit-pronunciation] tap blocked: text is empty');
+      return;
+    }
+
+    console.log('[edit-pronunciation] proceeding to play', { text: text, voice: voice });
+
+    // ---- loading safety timeout: prevent permanent "加载中" ----
+    var self = this;
+    if (this._editPronunciationSafetyTimer) {
+      clearTimeout(this._editPronunciationSafetyTimer);
+      this._editPronunciationSafetyTimer = null;
+    }
+    this._editPronunciationSafetyTimer = setTimeout(function () {
+      self._editPronunciationSafetyTimer = null;
+      if (self.data.editPronunciationLoading) {
+        console.log('[edit-pronunciation] SAFETY: loading timeout, forcing reset');
+        self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        wx.showToast({ title: '发音加载超时，请重试', icon: 'none' });
+      }
+    }, 15000);
+    // --------------------------------------------------------
+
+    try {
+      var downloadPronunciationAudio = require('../../utils/apiClient').downloadPronunciationAudio;
+      var audioContext = null;
+
+      // Create a temporary audio context for edit playback
+      if (!this._editAudioContext) {
+        console.log('[edit-pronunciation] creating new _editAudioContext');
+        this._editAudioContext = wx.createInnerAudioContext();
+        this._editAudioContext.obeyMuteSwitch = false;
+
+        this._editAudioContext.onPlay(function () {
+          console.log('[edit-pronunciation] audio onPlay fired');
+          if (self._editPronunciationSafetyTimer) {
+            clearTimeout(self._editPronunciationSafetyTimer);
+            self._editPronunciationSafetyTimer = null;
+          }
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: true });
+        });
+        this._editAudioContext.onEnded(function () {
+          console.log('[edit-pronunciation] audio onEnded fired');
+          if (self._editPronunciationSafetyTimer) {
+            clearTimeout(self._editPronunciationSafetyTimer);
+            self._editPronunciationSafetyTimer = null;
+          }
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+        this._editAudioContext.onStop(function () {
+          console.log('[edit-pronunciation] audio onStop fired');
+          if (self._editPronunciationSafetyTimer) {
+            clearTimeout(self._editPronunciationSafetyTimer);
+            self._editPronunciationSafetyTimer = null;
+          }
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+        this._editAudioContext.onError(function (err) {
+          console.log('[edit-pronunciation] audio onError fired', String(err && err.errMsg || err || 'unknown'));
+          if (self._editPronunciationSafetyTimer) {
+            clearTimeout(self._editPronunciationSafetyTimer);
+            self._editPronunciationSafetyTimer = null;
+          }
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+          wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+        });
+      }
+
+      audioContext = this._editAudioContext;
+
+      if (this.data.editPronunciationPlaying || this.data.editPronunciationLoading) {
+        console.log('[edit-pronunciation] stopping previous playback');
+        try { audioContext.stop(); } catch (_) {}
+      }
+
+      this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
+      downloadPronunciationAudio(text, voice)
+        .then(function (tempFilePath) {
+          audioContext.src = tempFilePath;
+          audioContext.play();
+        })
+        .catch(function (err) {
+          console.log('[edit-pronunciation] audio download failed', String(err && err.errMsg || err || 'unknown'));
+          if (self._editPronunciationSafetyTimer) {
+            clearTimeout(self._editPronunciationSafetyTimer);
+            self._editPronunciationSafetyTimer = null;
+          }
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+          wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+        });
+    } catch (err) {
+      console.log('[edit-pronunciation] exception during playback setup', String(err && err.message || err));
+      if (this._editPronunciationSafetyTimer) {
+        clearTimeout(this._editPronunciationSafetyTimer);
+        this._editPronunciationSafetyTimer = null;
+      }
+      this.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+      wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+    }
+  },
+
+  onEditVoiceSwitchMale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('male');
+    this.setData({ editPronunciationVoice: 'male' });
+  },
+
+  onEditVoiceSwitchFemale() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.setVoice('female');
+    this.setData({ editPronunciationVoice: 'female' });
+  },
+
+  _destroyEditAudio() {
+    this._editPhoneticRequestId += 1;
+    if (this._editPhoneticTimer) {
+      clearTimeout(this._editPhoneticTimer);
+      this._editPhoneticTimer = null;
+    }
+    if (this._editPronunciationSafetyTimer) {
+      clearTimeout(this._editPronunciationSafetyTimer);
+      this._editPronunciationSafetyTimer = null;
+    }
+    if (this._editAudioContext) {
+      try { this._editAudioContext.stop(); } catch (_) {}
+      try { this._editAudioContext.destroy(); } catch (_) {}
+      this._editAudioContext = null;
+    }
+    if (this._notesExampleAudioContext) {
+      try { this._notesExampleAudioContext.stop(); } catch (_) {}
+      try { this._notesExampleAudioContext.destroy(); } catch (_) {}
+      this._notesExampleAudioContext = null;
+    }
   },
 
   onUnderstandingFocus() {},
@@ -1674,9 +3131,71 @@ Page({
   onNotesInput(event) {
     if (this.data.isReadonlyDetailMode) return;
     this.setData({
-      'form.notes': event.detail.value
+      'form.notes': event.detail.value,
+      notesExampleAvailable: this.computeNotesExampleAvailable(
+        this.data.aiExampleSentence,
+        event.detail.value
+      )
     });
     this.refreshReferenceApplied();
+  },
+
+  computeNotesExampleAvailable(exampleSentence, notes) {
+    return Boolean(normalizePlainText(exampleSentence) || extractEnglishExampleFromNotes(notes));
+  },
+
+  getExampleSentenceForPronunciation() {
+    const fromAnalysis = normalizePlainText(this.data.aiExampleSentence);
+    if (fromAnalysis) return fromAnalysis;
+    return extractEnglishExampleFromNotes(this.data.form.notes || '');
+  },
+
+  onNotesExamplePronunciationTap() {
+    const exampleSentence = this.getExampleSentenceForPronunciation();
+    if (!exampleSentence) {
+      wx.showToast({ title: '暂无英文例句可发音', icon: 'none' });
+      return;
+    }
+
+    const voice = this.data.editPronunciationVoice || getStoredVoice() || DEFAULT_VOICE;
+    const self = this;
+    const downloadPronunciationAudio = require('../../utils/apiClient').downloadPronunciationAudio;
+
+    // Reuse the same download → local temp file → InnerAudioContext pattern as the
+    // word pronunciation (onEditPronunciationTap). No second TTS, no direct URL playback.
+    if (!this._notesExampleAudioContext) {
+      this._notesExampleAudioContext = wx.createInnerAudioContext();
+      this._notesExampleAudioContext.obeyMuteSwitch = false;
+      this._notesExampleAudioContext.onPlay(function () {
+        self.setData({ notesExampleLoading: false, notesExamplePlaying: true });
+      });
+      this._notesExampleAudioContext.onEnded(function () {
+        self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
+      });
+      this._notesExampleAudioContext.onStop(function () {
+        self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
+      });
+      this._notesExampleAudioContext.onError(function () {
+        self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
+        wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+      });
+    }
+
+    const audioContext = this._notesExampleAudioContext;
+    if (this.data.notesExamplePlaying || this.data.notesExampleLoading) {
+      try { audioContext.stop(); } catch (_) {}
+    }
+
+    this.setData({ notesExampleLoading: true, notesExamplePlaying: false });
+    downloadPronunciationAudio(exampleSentence, voice)
+      .then(function (tempFilePath) {
+        audioContext.src = tempFilePath;
+        audioContext.play();
+      })
+      .catch(function () {
+        self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
+        wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+      });
   },
 
   onWhereEncounteredInput(event) {
@@ -1695,13 +3214,16 @@ Page({
 
 
   resetFormForContinuousAdd(savedForm) {
+    this.invalidatePendingAnalysis();
+    this.clearAnalysisTimers();
+
     const nextForm = {
       ...createEmptyForm(),
       category: savedForm.category,
       examScene: savedForm.examScene,
       examModule: savedForm.examModule,
       englishText: '',
-      whereEncountered: '',
+      whereEncountered: normalizePlainText(savedForm.whereEncountered || ''),
       myUnderstanding: '',
       notes: ''
     };
@@ -1726,6 +3248,18 @@ Page({
       validateLoading: false,
       suggestLoading: false,
       latestEnglishForSuggest: '',
+      aiExampleSentence: '',
+      aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      notesExampleAvailable: false,
+      referenceApplied: false,
       isLeavingPage: false,
       isSaving: false,
       recentSources: buildRecentWhereEncounteredOptions(),
@@ -1750,6 +3284,7 @@ Page({
           examModule: nextForm.examModule
         });
       }
+      saveLastEncounterContext(nextForm.whereEncountered);
       pendingSync = savedCard && savedCard.backend_sync_status === 'pending';
     } catch (error) {
       wx.showToast({
@@ -1980,8 +3515,14 @@ Page({
           analyzedAt: new Date().toISOString()
         };
       } else {
+        // A transient failure (network down / AI slot busy) must not be
+        // persisted as a permanent "failed" analysis status. Keep it "pending"
+        // so it re-evaluates on the next edit/save, without auto-retrying
+        // infinitely here. A real AI failure (Qwen down) stays "failed".
+        const failureKind = result.error && result.error.failureKind;
+        const isTransient = failureKind === 'network' || failureKind === 'busy';
         analysisLocalPatch = {
-          analysisStatus: 'failed',
+          analysisStatus: isTransient ? 'pending' : 'failed',
           analysisWarnings: [],
           analysisErrors: [],
           analysisSource: 'analyzeEnglish',

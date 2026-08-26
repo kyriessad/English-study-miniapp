@@ -39,19 +39,78 @@
     <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && englishValidationMessage}}" class="validation-text validation-{{englishValidationType}}">
       {{englishValidationMessage}}
     </view>
+
+    <!-- 输入只做轻量本地检查；点击「AI 分析」才启动后端正式分析 -->
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && form.englishText}}" class="ai-analyze-row">
+      <view
+        class="ai-analyze-btn {{isAnalyzing ? 'ai-analyze-btn-active' : ''}}"
+        bindtap="onAnalyzeTap"
+      >{{isAnalyzing ? '分析中...' : 'AI 分析'}}</view>
+      <view wx:if="{{isAnalyzing}}" class="ai-analyze-cancel" bindtap="onCancelAnalyzeTap">取消分析</view>
+    </view>
+
+    <!-- Edit-mode pronunciation (only for edit, not add/readonly) -->
+    <view wx:if="{{deferNonCriticalReady && isEdit && !isReadonlyDetailMode}}" class="edit-lexical-section">
+      <view class="edit-lexical-main">
+        <text wx:if="{{editPhoneticDisplay}}" class="edit-phonetic">{{editPhoneticDisplay}}</text>
+        <text wx:elif="{{editPhoneticLoading}}" class="edit-phonetic-empty">音标加载中...</text>
+        <text wx:elif="{{editPhoneticLoaded}}" class="edit-phonetic-empty">暂无音标</text>
+      </view>
+      <view class="edit-voice-row">
+        <view class="edit-voice-toggle">
+          <text
+            class="edit-voice-option {{editPronunciationVoice === 'male' ? 'edit-voice-active' : ''}}"
+            bindtap="onEditVoiceSwitchMale"
+          >男声</text>
+          <text class="edit-voice-sep">|</text>
+          <text
+            class="edit-voice-option {{editPronunciationVoice === 'female' ? 'edit-voice-active' : ''}}"
+            bindtap="onEditVoiceSwitchFemale"
+          >女声</text>
+        </view>
+        <button
+          class="edit-pronunciation-btn {{editPronunciationPlaying ? 'edit-pronunciation-btn-active' : ''}}"
+          disabled="{{editPronunciationLoading || !editPronunciationText}}"
+          bindtap="onEditPronunciationTap"
+        >
+          {{editPronunciationLoading ? '加载中' : (editPronunciationPlaying ? '播放中' : '发音')}}
+        </button>
+      </view>
+    </view>
 </view>
 
       <view
-        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && !translating && (suggestionText || aiExampleSentence)}}"
-        class="form-item reference-box"
+        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && (translating || suggestionText || aiExampleSentence)}}"
+        class="form-item reference-box {{translating ? 'reference-box-loading' : ''}}"
       >
       <view class="reference-header">
         <view class="reference-title">参考</view>
       </view>
 
+      <view wx:if="{{translating}}" class="reference-loading-row">
+        <view class="reference-spinner"></view>
+        <text class="reference-loading-text">AI 正在分析...</text>
+      </view>
+
       <view wx:if="{{suggestionText}}" class="reference-row">
-        <view class="reference-label">理解</view>
+        <view class="reference-label-row">
+          <view class="reference-label">主要含义</view>
+          <text wx:if="{{aiExpressionTypeLabel}}" class="reference-type-tag">{{aiExpressionTypeLabel}}</text>
+        </view>
         <view class="reference-value">{{suggestionText}}</view>
+      </view>
+
+      <view wx:if="{{aiAlternativeMeanings.length > 0}}" class="reference-row">
+        <view class="reference-label">也可表示</view>
+        <view wx:for="{{aiAlternativeMeanings}}" wx:key="index" class="reference-alt-item">
+          <view class="reference-value">{{item.meaning}}</view>
+          <view wx:if="{{item.note}}" class="reference-alt-note">{{item.note}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{aiUsageScenario}}" class="reference-row">
+        <view class="reference-label">常见场景</view>
+        <view class="reference-value">{{aiUsageScenario}}</view>
       </view>
 
       <view wx:if="{{aiExampleSentence}}" class="reference-row">
@@ -64,22 +123,31 @@
         <view class="reference-value reference-translation">{{aiExampleTranslation}}</view>
       </view>
 
-      <view class="reference-fill-row">
+      <view wx:if="{{aiDialogueEnglish.length > 0}}" class="reference-row">
+        <view class="reference-label">小对话</view>
+        <view class="reference-dialogue">
+          <view class="reference-value" wx:for="{{aiDialogueEnglish}}" wx:key="index">{{item}}</view>
+        </view>
+        <view class="reference-dialogue reference-dialogue-zh">
+          <view class="reference-value reference-translation" wx:for="{{aiDialogueChinese}}" wx:key="index">{{item}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{aiRelatedDisplay}}" class="reference-row">
+        <view class="reference-label">近义表达</view>
+        <view class="reference-value">{{aiRelatedDisplay}}</view>
+      </view>
+
+      <view wx:if="{{!translating}}" class="reference-fill-row">
         <view
           class="reference-fill-btn {{referenceApplied ? 'reference-fill-btn-applied' : ''}}"
           bindtap="adoptAllReference"
         >{{referenceApplied ? '已填入' : '填入理解和例句'}}</view>
+        <view
+          class="reference-regenerate-btn {{isRegenerating ? 'reference-regenerate-btn-disabled' : ''}}"
+          bindtap="regenerateAnalysis"
+        >{{isRegenerating ? '生成中...' : '重新生成'}}</view>
       </view>
-    </view>
-
-    <view
-      wx:elif="{{deferNonCriticalReady && !isReadonlyDetailMode && translating}}"
-      class="form-item reference-box reference-box-loading"
-    >
-      <view class="reference-header">
-        <view class="reference-title">参考</view>
-      </view>
-      <view class="reference-loading-text">正在分析...</view>
     </view>
 
     <view class="form-item">
@@ -124,7 +192,14 @@
 </view>
 
     <view wx:if="{{deferNonCriticalReady}}" class="form-item">
-      <view class="label">补充备注</view>
+      <view class="notes-label-row">
+        <view class="label">补充备注</view>
+        <view
+          wx:if="{{notesExampleAvailable && !isReadonlyDetailMode}}"
+          class="notes-example-pronounce-btn {{notesExamplePlaying ? 'notes-example-pronounce-btn-active' : ''}}"
+          bindtap="onNotesExamplePronunciationTap"
+        >{{notesExampleLoading ? '加载中' : (notesExamplePlaying ? '播放中' : '例句发音')}}</view>
+      </view>
 
       <textarea
         class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"

@@ -85,6 +85,96 @@ page {
   padding: 6rpx 0;
 }
 
+.lexical-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 8rpx 0 14rpx 180rpx;
+  border-top: 1rpx solid var(--border-color-muted);
+  box-sizing: border-box;
+}
+
+.lexical-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.phonetic-text {
+  font-size: 27rpx;
+  color: #5f7569;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.phonetic-empty {
+  font-size: 24rpx;
+  color: #9ba8a0;
+  line-height: 1.4;
+}
+
+.pronunciation-btn {
+  width: 112rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0;
+  margin: 0;
+  border-radius: 999rpx;
+  border: 1rpx solid #cfe6d6;
+  background: #f5fbf7;
+  color: #3f8b61;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.pronunciation-btn::after {
+  border: none;
+}
+
+.pronunciation-btn[disabled] {
+  color: #a8b4ad;
+  background: #f3f5f4;
+}
+
+.pronunciation-btn-active {
+  color: #ffffff;
+  background: #35b779;
+}
+
+/* 声音切换 */
+.voice-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.voice-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 22rpx;
+  color: #8ea798;
+  line-height: 1;
+}
+
+.voice-option {
+  padding: 2rpx 6rpx;
+  color: #8ea798;
+  font-size: 22rpx;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.voice-active {
+  color: #35b779;
+  font-weight: 800;
+}
+
+.voice-sep {
+  color: #c8d6cd;
+  font-size: 20rpx;
+  padding: 0 2rpx;
+}
+
 .info-value--source {
   font-size: 24rpx;
   color: #9ba8a0;
