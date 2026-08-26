@@ -33,13 +33,13 @@ Clone this repository after the backend is configured and running:
     git clone https://github.com/kyriessad/English-study-miniapp.git
     cd English-study-miniapp
 
-This repository currently tracks utils/localBackendConfig.js and it may contain
-another developer's local address. Replace it in your local worktree with the
-address reachable by the client:
+Create your ignored local backend configuration from the tracked template:
 
-    module.exports = {
-      BACKEND_BASE_URL: 'http://127.0.0.1:8000'
-    };
+    Copy-Item .\utils\localBackendConfig.example.js .\utils\localBackendConfig.js
+
+For WeChat DevTools on this computer, keep `http://127.0.0.1:8000`. For a
+phone, replace it with your own HTTPS ngrok or production URL. Do not commit
+`utils/localBackendConfig.js`.
 
 For a phone, use the HTTPS ngrok URL or future production domain instead of
 127.0.0.1. The backend must include that host in ALLOWED_HOSTS.
@@ -81,6 +81,5 @@ test file.
 
 Do not commit a real AppSecret, backend JWT/session secret, database password,
 token, cookie, or private key. project.config.json contains an AppID but never
-an AppSecret. utils/localBackendConfig.js should be environment-specific, but it
-is currently tracked; ensure its URL is your own before committing and do not
-publish private LAN addresses or temporary tunnel URLs.
+an AppSecret. utils/localBackendConfig.js is environment-specific and ignored;
+do not publish private LAN addresses or temporary tunnel URLs.
