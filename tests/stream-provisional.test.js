@@ -50,10 +50,16 @@ function createPage(text = "I'm down.") {
   page.data = {
     isLeavingPage: false,
     form: {
+      category: '句子',
       englishText: text,
       myUnderstanding: '',
       notes: ''
-    }
+    },
+    validationStatus: 'pass',
+    validationIssues: [],
+    validationVisibleIssues: [],
+    validationInputKey: `句子\u0000${text}`,
+    validationNormalizedText: text
   };
   page.analysisGeneration = 1;
   page.setDataCalls = [];

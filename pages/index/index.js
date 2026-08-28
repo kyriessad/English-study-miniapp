@@ -1973,6 +1973,9 @@ Page({
             session_id: action.payload.session_id,
             session_item_id: action.payload.session_item_id,
             card_id: action.payload.card_id,
+            question_id: action.payload.question_id,
+            selected_option_id: action.payload.selected_option_id,
+            response_time_ms: action.payload.response_time_ms,
             result: action.payload.result
           });
         },

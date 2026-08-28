@@ -193,6 +193,112 @@
   color: #d92d20;
 }
 
+.textarea-english-invalid {
+  border-color: #d8a6aa;
+  background: #fffafa;
+  box-shadow: 0 0 0 3rpx rgba(189, 107, 116, 0.08);
+}
+
+.validation-checking,
+.validation-format-hint,
+.validation-unavailable,
+.ai-service-message {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: #89948b;
+}
+
+.validation-list {
+  margin-top: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.validation-issue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 14rpx;
+  box-sizing: border-box;
+}
+
+.validation-issue-high {
+  color: #775726;
+  background: #fff8e9;
+  border: 1rpx solid #ead9ae;
+}
+
+.validation-issue-medium {
+  color: #697269;
+  background: #f7faf5;
+  border: 1rpx solid #e1e9de;
+}
+
+.validation-issue-light {
+  padding-top: 6rpx;
+  padding-bottom: 6rpx;
+  color: #89948b;
+  background: transparent;
+}
+
+.validation-issue-invalid {
+  color: #94545c;
+  background: #fff4f4;
+  border: 1rpx solid #eccfd2;
+}
+
+.validation-issue-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.validation-issue-message {
+  font-size: 23rpx;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.validation-issue-detail {
+  margin-top: 3rpx;
+  font-size: 22rpx;
+  line-height: 1.4;
+  font-weight: 400;
+  opacity: 0.86;
+  word-break: break-word;
+}
+
+.validation-action {
+  flex-shrink: 0;
+  padding: 7rpx 14rpx;
+  border: 1rpx solid #bcdcc7;
+  border-radius: 999rpx;
+  color: #3f8b61;
+  background: #ffffff;
+  font-size: 21rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.validation-more {
+  padding-left: 16rpx;
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: #89948b;
+}
+
+.validation-format-hint {
+  color: #7f9385;
+}
+
+.validation-unavailable,
+.ai-service-message {
+  color: #8a7764;
+}
+
 /* 「AI 分析」按钮：输入只做本地检查，点击后才启动后端正式分析 */
 .ai-analyze-row {
   display: flex;
@@ -214,6 +320,10 @@
 .ai-analyze-btn-active {
   color: #b7c9ba;
   background: #e3ece2;
+}
+
+.ai-analyze-btn-disabled {
+  opacity: 0.45;
 }
 
 .ai-analyze-cancel {

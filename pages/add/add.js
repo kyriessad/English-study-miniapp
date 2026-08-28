@@ -1,4 +1,4 @@
-const {
+﻿const {
   addCard,
   getCardById,
   updateCard,
@@ -10,8 +10,12 @@ const {
 
 const {
   updateBackendCard,
+  validateEnglish,
   analyzeEnglishDirect,
-  analyzeEnglishDirectStream
+  analyzeEnglishDirectStream,
+  downloadDiagnosticTestAudio,
+  getLastTtsRequestId,
+  logTtsDiagnostic
 } = require('../../utils/apiClient');
 
 const {
@@ -27,12 +31,34 @@ const {
   getInputContext,
   saveInputContext
 } = require('../../utils/inputContext');
+const {
+  buildValidationView,
+  makeValidationKey,
+  validationResponseFromCardError
+} = require('../../utils/englishValidation');
 const PAGE_ANIMATION_SAFE_DELAY = 0;
+const ENGLISH_VALIDATION_DELAY_MS = 1000;
+const LIGHT_VALIDATION_VISIBLE_MS = 5000;
+const FORMAT_HINT_VISIBLE_MS = 2500;
 
 const ANALYZE_CACHE_STORAGE_KEY = 'englishAnalyzeCache_v2';
 const ANALYZE_CACHE_MAX_ITEMS = 200;
-const ANALYZE_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 30; // 30 天
+const ANALYZE_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
 const STREAM_DIAGNOSTIC_VERSION = 'ai-stream-diag-20260824-1';
+
+function audioState(audio) {
+  if (!audio) {
+    return {};
+  }
+  return {
+    requestId: getLastTtsRequestId(),
+    src: String(audio.src || ''),
+    volume: Number(audio.volume),
+    duration: Number(audio.duration),
+    currentTime: Number(audio.currentTime),
+    paused: Boolean(audio.paused)
+  };
+}
 
 const LAST_ENCOUNTER_CONTEXT_KEY = 'englishCard.lastEncounterContext.v1';
 const BACKEND_CARD_TYPE_MAP = {
@@ -60,51 +86,49 @@ function endsWithWhitespace(text) {
 function normalizeEnglishText(text) {
   var result = String(text || '');
 
-  // 1. 弯引号 → 直引号
-  result = result.replace(/[‘’]/g, '\'');
-  result = result.replace(/[“”]/g, '"');
+  if (typeof result.normalize === 'function') {
+    result = result.normalize('NFKC');
+  }
 
-  // 2. 各种 dash → 英文连字符
-  result = result.replace(/[‐-―−–—]/g, '-');
+  result = result.replace(/[\u2018\u2019\u201B\u2032`]/g, '\'');
+  result = result.replace(/[\u201C\u201D\u201F\u2033]/g, '"');
+  result = result.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, '-');
+  result = result.replace(/\u3002/g, '.');
+  result = result.replace(/[\uFF0C\u3001]/g, ',');
+  result = result.replace(/\uFF01/g, '!');
+  result = result.replace(/\uFF1F/g, '?');
+  result = result.replace(/\uFF1B/g, ';');
+  result = result.replace(/\uFF1A/g, ':');
 
-  // 3. 中文标点 → 英文标点
-  result = result.replace(/，/g, ',');
-  result = result.replace(/。/g, '.');
-  result = result.replace(/！/g, '!');
-  result = result.replace(/？/g, '?');
-  result = result.replace(/；/g, ';');
-  result = result.replace(/：/g, ':');
-
-  // 4. 特殊空白 → 普通空格
   result = result.replace(/\u00A0/g, ' ');
   result = result.replace(/\u3000/g, ' ');
   result = result.replace(/[\t\n\r]+/g, ' ');
-
-  // 5. 合并连续空白
+  result = result.replace(/\s{2,}/g, ' ');
+  result = result.replace(/\b([A-Za-z]+s)\s+'\s+(?=[A-Za-z])/g, "$1' ");
+  result = result.replace(/\b([A-Za-z]+)\s*'\s+(s|m|t|ve|ll|re|d)\b/gi, "$1'$2");
+  result = result.replace(/\b([A-Za-z]+)\s+'\s*(s|m|t|ve|ll|re|d)\b/gi, "$1'$2");
+  result = result.replace(/,{2,}/g, ',');
+  result = result.replace(/(?<!\.)\.\.(?!\.)/g, '.');
+  result = result.replace(/\s+([,.;:?!)\]}])/g, '$1');
+  result = result.replace(/([\[({])\s+/g, '$1');
+  result = result.replace(/\s+([\])}])/g, '$1');
+  result = result.replace(/([,;:])([A-Za-z0-9])/g, function(_, punctuation, nextChar, offset, source) {
+    var previousChar = offset > 0 ? source.charAt(offset - 1) : '';
+    if ((punctuation === ',' || punctuation === ':') && /\d/.test(previousChar) && /\d/.test(nextChar)) {
+      return punctuation + nextChar;
+    }
+    return punctuation + ' ' + nextChar;
+  });
+  result = result.replace(/([.!?])([A-Z])/g, function(_, punctuation, nextChar, offset, source) {
+    var previousChar = offset > 0 ? source.charAt(offset - 1) : '';
+    if (punctuation === '.' && /[A-Z]/.test(previousChar) && /[A-Z]/.test(nextChar)) {
+      return punctuation + nextChar;
+    }
+    return punctuation + ' ' + nextChar;
+  });
   result = result.replace(/\s{2,}/g, ' ');
 
-  // 5b. 修复分裂缩写中间空格（he ' s → he 's）
-  result = result.replace(/'\s+(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
-
-  // 6. 修复分裂缩写 / 所有格（he 's → he's）
-  result = result.replace(/\s+'(s|m|t|ve|ll|re|d)\b/gi, '\'$1');
-
-  // 7. 删除标点前多余空格
-  result = result.replace(/\s+([,.!?;:])/g, '$1');
-
-  // 8. 清理括号内侧多余空格
-  result = result.replace(/\(\s+/g, '(');
-  result = result.replace(/\s+\)/g, ')');
-  result = result.replace(/\[\s+/g, '[');
-  result = result.replace(/\s+\]/g, ']');
-
-  // 9. 再次合并连续空白
-  result = result.replace(/\s{2,}/g, ' ');
-
-  // 10. 去除前后空格
-  result = result.trim();
-
-  return result;
+  return result.trim();
 }
 
 function normalizePlainText(text) {
@@ -113,7 +137,7 @@ function normalizePlainText(text) {
 
 /**
  * Format a synonym/similarPhrase pair list into a display string:
- * "gathering 聚会  party 派对" (joined by two spaces, no punctuation).
+ * "gathering 鑱氫細  party 娲惧" (joined by two spaces, no punctuation).
  */
 function formatPairList(list) {
   if (!Array.isArray(list)) return '';
@@ -193,7 +217,7 @@ function normalizeDialogue(dialogue) {
 }
 
 /**
- * Merge synonyms + similarPhrases into one "近义表达" display list (max 5 items).
+ * Merge synonyms + similarPhrases into one "杩戜箟琛ㄨ揪" display list (max 5 items).
  */
 function buildRelatedDisplay(synonyms, similarPhrases) {
   var list = []
@@ -205,7 +229,7 @@ function buildRelatedDisplay(synonyms, similarPhrases) {
 }
 
 /**
- * Extract the English example sentence from a "补充备注" notes string.
+ * Extract the English example sentence from a "琛ュ厖澶囨敞" notes string.
  * The example is stored as "exampleSentence\nexampleTranslation" (written by
  * adoptAllReference), so we return the first English-looking line (letters +
  * space, no CJK) as a best-effort pronunciation target.
@@ -215,7 +239,7 @@ function extractEnglishExampleFromNotes(notes) {
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (!trimmed) continue;
-    if (trimmed.indexOf(' ') > 0 && /[A-Za-z]/.test(trimmed) && !/[㐀-鿿]/.test(trimmed)) {
+    if (trimmed.indexOf(' ') > 0 && /[A-Za-z]/.test(trimmed) && !/[\u4E00-\u9FFF]/.test(trimmed)) {
       return trimmed;
     }
   }
@@ -239,7 +263,7 @@ function normalizeUnderstandingSource(source, hasUserUnderstanding) {
     return normalized;
   }
 
-  // 具体供应商 / 机器翻译别名统一归一化为 machine
+  // 鍏蜂綋渚涘簲鍟?/ 鏈哄櫒缈昏瘧鍒悕缁熶竴褰掍竴鍖栦负 machine
   if (['argos', 'tencent', 'translation', 'translate', 'mt', 'machine_translation'].includes(normalized)) {
     return 'machine';
   }
@@ -332,6 +356,14 @@ function formatBackendCardSyncError(error) {
   }
 }
 
+function getBackendEnglishValidationMessage(error) {
+  const detail = error && error.data && error.data.detail;
+  if (!detail || typeof detail !== 'object' || detail.code !== 'invalid_english_content') {
+    return '';
+  }
+  return normalizePlainText(detail.message || (Array.isArray(detail.errors) && detail.errors[0]) || '');
+}
+
 function saveBackendCardSyncSuccess(card, backendCardId) {
   if (!card || !card.id) {
     return;
@@ -365,7 +397,7 @@ function saveBackendCardSyncFailure(card, error) {
 }
 
 function getLatinLetterPattern() {
-  // A-Za-z + 常见拉丁扩展字符，用于兼容 Beyoncé / José / São Paulo 等专名
+  // A-Za-z plus common Latin accented letters used by names and loanwords.
   return 'A-Za-zÀ-ÖØ-öø-ÿ';
 }
 
@@ -393,8 +425,7 @@ function detectEnglishCategory(text) {
   }
 
   if (/[.!?]$/.test(normalizedText)) {
-    // 末尾标点可能是句末标点，也可能是缩写句点（U.S. / e.g. / Dr.）
-    // 去掉末尾标点后如果无空格 → 单词/缩写，否则 → 句子
+    // 鏈熬鏍囩偣鍙兘鏄彞鏈爣鐐癸紝涔熷彲鑳芥槸缂╁啓鍙ョ偣锛圲.S. / e.g. / Dr.锛?    // 鍘绘帀鏈熬鏍囩偣鍚庡鏋滄棤绌烘牸 鈫?鍗曡瘝/缂╁啓锛屽惁鍒?鈫?鍙ュ瓙
     var withoutEnding = normalizedText.replace(/[.!?]+$/, '');
     if (withoutEnding && withoutEnding.indexOf(' ') === -1) {
       return '单词';
@@ -423,11 +454,11 @@ function isDictionaryUnrecognizedWarning(message) {
   const text = String(message || '');
 
   return (
-    text.includes('词典未收录') ||
-    text.includes('部分词未识别') ||
-    text.includes('未识别到') ||
-    text.includes('词典里没有找到') ||
-    (text.includes('检查') && text.includes('专有名词'))
+    text.includes('\u8bcd\u5178\u672a\u6536\u5f55') ||
+    text.includes('\u90e8\u5206\u8bcd\u672a\u8bc6\u522b') ||
+    text.includes('\u672a\u8bc6\u522b\u5230') ||
+    text.includes('\u8bcd\u5178\u91cc\u6ca1\u6709\u627e\u5230') ||
+    (text.includes('\u68c0\u67e5') && text.includes('\u4e13\u6709\u540d\u8bcd'))
   );
 }
 
@@ -443,25 +474,19 @@ function filterDictionaryWarningsWhenSuggestionWorks(warnings, suggestion) {
     return warningList;
   }
 
-  // 机器翻译已经给出有效中文参考时，隐藏”词典未收录/未识别”类提醒
+  // 鏈哄櫒缈昏瘧宸茬粡缁欏嚭鏈夋晥涓枃鍙傝€冩椂锛岄殣钘忊€濊瘝鍏告湭鏀跺綍/鏈瘑鍒€濈被鎻愰啋
   return warningList.filter((item) => !isDictionaryUnrecognizedWarning(item));
 }
 
-var MAX_ENGLISH_CHARS = 500;  // > 500 字符 = 过长 (error, 阻止保存)
 
-// 检查文本中是否包含中文汉字（CJK 表意文字，不含全角标点）
-function hasChineseChar(text) {
-  return /[一-鿿㐀-䶿豈-﫿]/.test(String(text || ''));
-}
-
-// 拼写提示变换：有 correction → hint 文案；无 correction → 隐藏
-var SPELL_WITH_CORRECTION_RE = /^拼写疑似有误：(.+?)。你是不是想写\s*”(.+?)”/;
-var SPELL_NO_CORRECTION_RE = /^拼写疑似有误：/;
+// 鎷煎啓鎻愮ず鍙樻崲锛氭湁 correction 鈫?hint 鏂囨锛涙棤 correction 鈫?闅愯棌
+var SPELL_WITH_CORRECTION_RE = /^\u62fc\u5199\u7591\u4f3c\u6709\u8bef\uff1a(.+?)\u3002\u4f60\u662f\u4e0d\u662f\u60f3\u5199\s*["\u201c](.+?)["\u201d]/;
+var SPELL_NO_CORRECTION_RE = /^\u62fc\u5199\u7591\u4f3c\u6709\u8bef\uff1a/;
 
 function transformSpellingWarning(w) {
   var m = SPELL_WITH_CORRECTION_RE.exec(w);
   if (m) {
-    return { text: '也可能是：' + m[2] + '。确认原词没问题的话，可以继续保存', isHint: true };
+    return { text: '\u4e5f\u53ef\u80fd\u662f\uff1a' + m[2] + '\u3002\u786e\u8ba4\u539f\u8bcd\u6ca1\u95ee\u9898\u7684\u8bdd\uff0c\u53ef\u4ee5\u7ee7\u7eed\u4fdd\u5b58', isHint: true };
   }
   if (SPELL_NO_CORRECTION_RE.test(w)) {
     return null;
@@ -575,40 +600,9 @@ function getLocalValidationResult(text, category) {
   const warnings = [];
   const info = [];
 
-  // 规则 1：空内容
   if (!normalizedText) {
     errors.push('英文内容为空');
     return { normalizedText, errors, warnings, info, words: [] };
-  }
-
-  // 规则 7：超过 500 字符
-  if (normalizedText.length > MAX_ENGLISH_CHARS) {
-    errors.push('内容较长，建议拆分后再保存');
-    return { normalizedText, errors, warnings, info, words: [] };
-  }
-
-  // 规则 2：包含中文汉字 → error（中文解释请写到"我的理解/补充备注/场景"字段）
-  if (hasChineseChar(normalizedText)) {
-    errors.push('英文内容请只填写英文');
-    return { normalizedText, errors, warnings, info, words: [] };
-  }
-
-  // 规则 3：完全无英文（纯数字 / 纯符号）
-  if (!hasLatinLetter(normalizedText)) {
-    errors.push('请输入英文内容');
-    return { normalizedText, errors, warnings, info, words: [] };
-  }
-
-  const words = getNormalizedWordList(normalizedText);
-
-  // 规则 5：类别=单词但多个词
-  if (category === '单词' && words.length !== 1) {
-    errors.push('单词类别请只填一个词');
-  }
-
-  // 规则 6：类别=短语但只有一个词
-  if (category === '短语' && words.length < 2) {
-    errors.push('短语类别至少需要两个词');
   }
 
   return {
@@ -616,7 +610,7 @@ function getLocalValidationResult(text, category) {
     errors,
     warnings,
     info,
-    words
+    words: getNormalizedWordList(normalizedText)
   };
 }
 
@@ -633,7 +627,20 @@ Page({
     categoryOptions: CARD_CATEGORIES,
     categoryIndex: 0,
     inheritedContextText: '',
-    defaultUnderstandingPlaceholder: '写下你自己的理解、翻译或拆解，不求标准，但要对自己有帮助',
+    defaultUnderstandingPlaceholder: '写下自己的理解、翻译或拆解，方便以后复习',
+    validationStatus: 'idle',
+    validationIssues: [],
+    validationVisibleIssues: [],
+    validationHiddenCount: 0,
+    validationInputKey: '',
+    validationNormalizedText: '',
+    validationFormatMessage: '',
+    validationUnavailableMessage: '',
+    validationCanSave: null,
+    validationCanAnalyze: null,
+    validationCanPronounce: null,
+    englishInputFocus: false,
+    aiServiceMessage: '',
     englishValidationMessage: '',
     englishValidationType: 'hint',
     isValidatingEnglish: false,
@@ -649,14 +656,10 @@ Page({
     showNotesField: false,
     form: createEmptyForm(),
 
-    validationResult: null,      // 最近一次校验结果
-    understandingSuggestion: '', // 最近一次参考理解
-    understandingVisible: false, // 是否显示参考理解
-    validateLoading: false,
+    validationResult: null,      // 鏈€杩戜竴娆℃牎楠岀粨鏋?    understandingSuggestion: '', // 鏈€杩戜竴娆″弬鑰冪悊瑙?    understandingVisible: false, // 鏄惁鏄剧ず鍙傝€冪悊瑙?    validateLoading: false,
     suggestLoading: false,
 
-    latestEnglishForSuggest: '', // 防止旧请求回写
-    hasUserChangedCategory: false,
+    latestEnglishForSuggest: '', // 闃叉鏃ц姹傚洖鍐?    hasUserChangedCategory: false,
     isLeavingPage: false,
     isSaving: false,
     recentSources: [],
@@ -672,6 +675,8 @@ Page({
     aiRelatedDisplay: '',
     aiAnalysisSource: '',
     aiAnalysisModel: '',
+    aiAnalysisCategory: '',
+    aiParagraphAnalysis: '',
     notesExamplePlaying: false,
     notesExampleLoading: false,
     notesExampleAvailable: false,
@@ -718,7 +723,8 @@ Page({
       validation: {
         errors: Array.isArray(backendResp.errors) ? backendResp.errors : [],
         warnings: Array.isArray(backendResp.warnings) ? backendResp.warnings : [],
-        normalizedText: backendResp.normalizedText || text
+        normalizedText: backendResp.normalizedText || text,
+        evidence: Array.isArray(backendResp.evidence) ? backendResp.evidence : []
       },
       understanding: {
         candidate: backendResp.translation || backendResp.understanding || '',
@@ -742,14 +748,18 @@ Page({
       usageScenario: normalizePlainText(backendResp.usageScenario || ''),
       dialogue: normalizeDialogue(backendResp.dialogue),
       analysisSource: analysisSource,
-      analysisModel: analysisModel
+      analysisModel: analysisModel,
+      analysisCategory: normalizePlainText(backendResp.category || ''),
+      paragraphAnalysis: backendResp.category === 'paragraph'
+        ? normalizePlainText(backendResp.understanding || '')
+        : ''
     };
   },
 
   async callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh = false, idempotencyKey = '') {
     // Let errors propagate so the caller can tell a busy backend (503) or a
     // network outage (statusCode 0) apart from a real AI failure, instead of
-    // collapsing every failure into a generic "网络暂时不稳".
+    // collapsing every failure into a generic "缃戠粶鏆傛椂涓嶇ǔ".
     const backendResp = await analyzeEnglishDirect(text, category, forceRefresh, idempotencyKey);
     return this.mapBackendAnalyzeResult(backendResp, text, category, cacheKey);
   },
@@ -826,6 +836,8 @@ Page({
       aiRelatedDisplay: '',
       aiAnalysisSource: '',
       aiAnalysisModel: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
       notesExampleAvailable: Boolean(extractEnglishExampleFromNotes(notes)),
       referenceApplied: false
     };
@@ -1145,7 +1157,7 @@ Page({
       return {
         ok: false,
         validation: {
-          errors: ['英文内容为空'],
+          errors: ['鑻辨枃鍐呭涓虹┖'],
           warnings: []
         },
         understanding: {
@@ -1266,7 +1278,7 @@ Page({
         return streamOutcome.result;
       }
       streamErrorStatus = streamOutcome.errorStatus || 0;
-      // Stream failed → fall through to the existing direct chain once
+      // Stream failed 鈫?fall through to the existing direct chain once
       // (never retries the stream again, so at most one extra fallback request).
       console.log('[add] stream backend unavailable, falling back to direct');
       logAiStreamDiagnostic('direct_fallback', {
@@ -1299,7 +1311,7 @@ Page({
 
     // Unified failure handling: keep the user's input and don't fake an AI
     // result, but tell the caller WHY it failed so the UI can show an accurate
-    // message (busy vs network vs AI) instead of a blanket "网络暂时不稳".
+    // message (busy vs network vs AI) instead of a blanket "缃戠粶鏆傛椂涓嶇ǔ".
     return this._buildAnalysisUnavailableResult(cacheKey, streamErrorStatus, directErrorStatus);
   },
 
@@ -1354,7 +1366,7 @@ Page({
       .filter(Boolean)
       .join('|');
   
-    return `${category || '单词'}::${text}::${words}`;
+    return `${category || CARD_CATEGORIES[0]}::${text}::${words}`;
   },
 
   getAnalyzeCache() {
@@ -1446,7 +1458,7 @@ Page({
   
       wx.setStorageSync(ANALYZE_CACHE_STORAGE_KEY, cache);
     } catch (error) {
-      console.warn('写入分析缓存失败', error);
+      console.warn('鍐欏叆鍒嗘瀽缂撳瓨澶辫触', error);
     }
   },
 
@@ -1467,6 +1479,19 @@ Page({
       cardId: '',
       categoryIndex: 0,
       inheritedContextText: '',
+      validationStatus: 'idle',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationInputKey: '',
+      validationNormalizedText: '',
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      validationCanSave: null,
+      validationCanAnalyze: null,
+      validationCanPronounce: null,
+      englishInputFocus: false,
+      aiServiceMessage: '',
       englishValidationMessage: '',
       englishValidationType: 'hint',
       isValidatingEnglish: false,
@@ -1518,7 +1543,7 @@ Page({
       return {};
     }
 
-    const category = card.category || '单词';
+    const category = CARD_CATEGORIES.includes(card.category) ? card.category : CARD_CATEGORIES[0];
     const examScene = card.examScene || DEFAULT_EXAM_SCENE;
     const examModule = card.examModule || DEFAULT_EXAM_MODULE;
     const notes = card.notes || '';
@@ -1561,6 +1586,10 @@ Page({
     this.pageOptions = options || {};
     this.suggestionCache = Object.create(null);
     this.englishValidationTimer = null;
+    this.validationGeneration = 0;
+    this._validationPromise = null;
+    this._validationPresentationTimer = null;
+    this._validationFormatTimer = null;
     this.suggestionTimer = null;
     this.postRenderTimer = null;
     this.delayedLoadCardTimer = null;
@@ -1628,7 +1657,7 @@ Page({
         : '';
       const category = initialData.form && initialData.form.category
         ? initialData.form.category
-        : '单词';
+        : CARD_CATEGORIES[0];
 
       console.log('[edit-pronunciation] onLoad setData callback', {
         isEdit: isEdit,
@@ -1646,14 +1675,17 @@ Page({
           console.log('[edit-pronunciation] onLoad: synced editPronunciationText from form', { editPronunciationText: englishText });
         }
 
-        // 不再自动调用 AI 分析：等用户点击「AI 分析」按钮。编辑模式下保留原有发音初始化。
-
+        // 涓嶅啀鑷姩璋冪敤 AI 鍒嗘瀽锛氱瓑鐢ㄦ埛鐐瑰嚮銆孉I 鍒嗘瀽銆嶆寜閽€傜紪杈戞ā寮忎笅淇濈暀鍘熸湁鍙戦煶鍒濆鍖栥€?
         // Edit mode: load phonetics for the initial English text
         if (isEdit && englishText && !initialData.isReadonlyDetailMode) {
           console.log('[edit-pronunciation] calling _loadEditPhonetic from onLoad, text:', englishText);
           this._loadEditPhonetic(englishText);
         } else if (isEdit && !englishText && !initialData.isReadonlyDetailMode) {
           console.log('[edit-pronunciation] onLoad: englishText empty, deferring to loadCard');
+        }
+
+        if (englishText && !initialData.isReadonlyDetailMode) {
+          this.scheduleEnglishValidation();
         }
     });
   },
@@ -1677,6 +1709,17 @@ Page({
     if (this.englishValidationTimer) {
       clearTimeout(this.englishValidationTimer);
       this.englishValidationTimer = null;
+    }
+
+    this.validationGeneration = (this.validationGeneration || 0) + 1;
+    this._validationPromise = null;
+    if (this._validationPresentationTimer) {
+      clearTimeout(this._validationPresentationTimer);
+      this._validationPresentationTimer = null;
+    }
+    if (this._validationFormatTimer) {
+      clearTimeout(this._validationFormatTimer);
+      this._validationFormatTimer = null;
     }
 
     if (this.suggestionTimer) {
@@ -1736,6 +1779,252 @@ Page({
     });
   },
 
+  _clearValidationPresentationTimers() {
+    if (this._validationPresentationTimer) {
+      clearTimeout(this._validationPresentationTimer);
+      this._validationPresentationTimer = null;
+    }
+    if (this._validationFormatTimer) {
+      clearTimeout(this._validationFormatTimer);
+      this._validationFormatTimer = null;
+    }
+  },
+
+  clearEnglishValidationForEdit() {
+    if (this.englishValidationTimer) {
+      clearTimeout(this.englishValidationTimer);
+      this.englishValidationTimer = null;
+    }
+    this.validationGeneration = (this.validationGeneration || 0) + 1;
+    this._validationPromise = null;
+    this._clearValidationPresentationTimers();
+    this.setData({
+      validationStatus: 'idle',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationInputKey: '',
+      validationNormalizedText: '',
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      validationCanSave: null,
+      validationCanAnalyze: null,
+      validationCanPronounce: null,
+      englishValidationMessage: '',
+      englishValidationType: 'hint'
+    });
+  },
+
+  scheduleEnglishValidation(delayMs = ENGLISH_VALIDATION_DELAY_MS) {
+    if (this.data.isReadonlyDetailMode || this.data.isLeavingPage) return;
+    if (this.englishValidationTimer) clearTimeout(this.englishValidationTimer);
+    const self = this;
+    this.englishValidationTimer = setTimeout(function () {
+      self.englishValidationTimer = null;
+      self.ensureEnglishValidation({ force: true, trigger: 'debounce' });
+    }, Math.max(0, Number(delayMs) || 0));
+  },
+
+  _focusEnglishValidationError() {
+    this.scrollToEnglishSection();
+    this.setData({ englishInputFocus: false }, () => {
+      this.setData({ englishInputFocus: true });
+      setTimeout(() => this.setData({ englishInputFocus: false }), 300);
+    });
+  },
+
+  _applyValidationResponse(response, rawText, category, requestGeneration) {
+    if (requestGeneration !== this.validationGeneration || this.data.isLeavingPage) return null;
+    if (makeValidationKey(this.data.form.englishText, this.data.form.category) !== makeValidationKey(rawText, category)) {
+      return null;
+    }
+
+    const view = buildValidationView(response);
+    const normalizedText = String(view.normalizedText || '');
+    const textChangedByNormalization = normalizedText !== String(rawText || '');
+    const nextText = textChangedByNormalization ? normalizedText : String(rawText || '');
+    const patch = {
+      validationStatus: view.status,
+      validationIssues: view.issues,
+      validationVisibleIssues: view.visibleIssues,
+      validationHiddenCount: view.hiddenCount,
+      validationInputKey: makeValidationKey(nextText, category),
+      validationNormalizedText: nextText,
+      validationUnavailableMessage: '',
+      validationCanSave: view.capabilities.canSave,
+      validationCanAnalyze: view.capabilities.canAnalyze,
+      validationCanPronounce: view.capabilities.canPronounce,
+      validationFormatMessage: textChangedByNormalization ? '已自动整理格式' : '',
+      englishValidationMessage: '',
+      englishValidationType: 'hint',
+      isValidatingEnglish: false
+    };
+
+    if (textChangedByNormalization) {
+      patch['form.englishText'] = nextText;
+      if (this.data.isEdit) patch.editPronunciationText = nextText;
+    }
+
+    this._clearValidationPresentationTimers();
+    this.setData(patch);
+
+    if (textChangedByNormalization) {
+      const currentKey = patch.validationInputKey;
+      this._validationFormatTimer = setTimeout(() => {
+        this._validationFormatTimer = null;
+        if (this.data.validationInputKey === currentKey) {
+          this.setData({ validationFormatMessage: '' });
+        }
+      }, FORMAT_HINT_VISIBLE_MS);
+    }
+
+    if (view.status === 'warning' && !view.persistent) {
+      const currentKey = patch.validationInputKey;
+      this._validationPresentationTimer = setTimeout(() => {
+        this._validationPresentationTimer = null;
+        if (this.data.validationInputKey === currentKey && this.data.validationStatus === 'warning') {
+          this.setData({ validationVisibleIssues: [], validationHiddenCount: 0 });
+        }
+      }, LIGHT_VALIDATION_VISIBLE_MS);
+    }
+
+    return view;
+  },
+
+  async ensureEnglishValidation({ force = false, trigger = 'action' } = {}) {
+    if (this.data.isReadonlyDetailMode) {
+      return { status: 'pass', normalizedText: String(this.data.form.englishText || '') };
+    }
+
+    if (this.englishValidationTimer) {
+      clearTimeout(this.englishValidationTimer);
+      this.englishValidationTimer = null;
+    }
+
+    const rawText = String(this.data.form.englishText || '');
+    const category = this.data.form.category || CARD_CATEGORIES[0];
+    const key = makeValidationKey(rawText, category);
+    const reusable = !force ? this.getReusableEnglishValidation() : null;
+    if (reusable) return reusable;
+
+    if (this._validationPromise && this._validationPromise.key === key) {
+      return this._validationPromise.promise;
+    }
+
+    const requestGeneration = (this.validationGeneration || 0) + 1;
+    this.validationGeneration = requestGeneration;
+    this._clearValidationPresentationTimers();
+    this.setData({
+      validationStatus: 'checking',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      isValidatingEnglish: true
+    });
+
+    const promise = validateEnglish(rawText, category)
+      .then((response) => this._applyValidationResponse(response, rawText, category, requestGeneration))
+      .catch((error) => {
+        if (requestGeneration !== this.validationGeneration || this.data.isLeavingPage) return null;
+        if (makeValidationKey(this.data.form.englishText, this.data.form.category) !== key) return null;
+        console.warn('[english-validation] preflight unavailable', error);
+        this.setData({
+          validationStatus: 'unavailable',
+          validationIssues: [],
+          validationVisibleIssues: [],
+          validationHiddenCount: 0,
+          validationInputKey: key,
+          validationNormalizedText: rawText,
+          validationUnavailableMessage: trigger === 'debounce'
+            ? '暂时无法检查，你仍可以继续'
+            : '暂时无法预先检查，你仍可以继续',
+          validationCanSave: null,
+          validationCanAnalyze: null,
+          validationCanPronounce: null,
+          isValidatingEnglish: false
+        });
+        return { status: 'unavailable', normalizedText: rawText, issues: [] };
+      });
+
+    this._validationPromise = { key, promise };
+    try {
+      return await promise;
+    } finally {
+      if (this._validationPromise && this._validationPromise.promise === promise) {
+        this._validationPromise = null;
+      }
+    }
+  },
+
+  getReusableEnglishValidation() {
+    const key = makeValidationKey(this.data.form.englishText, this.data.form.category);
+    if (
+      this.data.validationInputKey !== key ||
+      !['pass', 'warning', 'invalid'].includes(this.data.validationStatus)
+    ) {
+      return null;
+    }
+    return {
+      status: this.data.validationStatus,
+      normalizedText: this.data.validationNormalizedText,
+      issues: this.data.validationIssues,
+      canSave: this.data.validationCanSave,
+      canAnalyze: this.data.validationCanAnalyze,
+      canPronounce: this.data.validationCanPronounce
+    };
+  },
+
+  applyCardValidationError(error) {
+    const response = validationResponseFromCardError(error);
+    if (!response) return false;
+    const rawText = String(this.data.form.englishText || '');
+    const category = this.data.form.category || CARD_CATEGORIES[0];
+    const requestGeneration = (this.validationGeneration || 0) + 1;
+    this.validationGeneration = requestGeneration;
+    this._applyValidationResponse(response, rawText, category, requestGeneration);
+    this._focusEnglishValidationError();
+    return true;
+  },
+
+  onValidationActionTap(event) {
+    const actionType = String(event.currentTarget.dataset.action || '');
+    const category = String(event.currentTarget.dataset.category || '');
+    if (actionType !== 'switch_category' || !CARD_CATEGORIES.includes(category)) return;
+    this.invalidatePendingAnalysis();
+    this.abortActiveAnalysis();
+    this.clearEnglishValidationForEdit();
+    this.setData({
+      categoryIndex: CARD_CATEGORIES.indexOf(category),
+      'form.category': category,
+      hasUserChangedCategory: true,
+      suggestionText: '',
+      suggestionSourceText: '',
+      showSuggestion: false,
+      understandingSuggestion: '',
+      understandingVisible: false,
+      validationResult: null,
+      aiExampleSentence: '',
+      aiExampleTranslation: '',
+      aiSynonymsDisplay: '',
+      aiSimilarPhrasesDisplay: '',
+      aiExpressionTypeLabel: '',
+      aiAlternativeMeanings: [],
+      aiUsageScenario: '',
+      aiDialogueEnglish: [],
+      aiDialogueChinese: [],
+      aiRelatedDisplay: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
+      notesExampleAvailable: false,
+      referenceApplied: false,
+      aiServiceMessage: '',
+      isAnalyzing: false,
+      translating: false
+    }, () => this.scheduleEnglishValidation(0));
+  },
+
   invalidatePendingAnalysis() {
     this.analysisGeneration = (this.analysisGeneration || 0) + 1;
   },
@@ -1761,7 +2050,7 @@ Page({
       try {
         holder.task.abort();
       } catch (_) {
-        // Ignore abort errors — the request is already settling via its fail callback.
+        // Ignore abort errors 鈥?the request is already settling via its fail callback.
       }
     }
   },
@@ -1776,6 +2065,9 @@ Page({
       clearTimeout(this.suggestionTimer);
       this.suggestionTimer = null;
     }
+    this.validationGeneration = (this.validationGeneration || 0) + 1;
+    this._validationPromise = null;
+    this._clearValidationPresentationTimers();
   },
 
   async setDefaultForm() {
@@ -1815,6 +2107,8 @@ Page({
       aiDialogueEnglish: [],
       aiDialogueChinese: [],
       aiRelatedDisplay: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
       notesExampleAvailable: false,
       referenceApplied: false
     });
@@ -1835,7 +2129,16 @@ Page({
   
     this.setData({
       isLeavingPage: true,
-  
+      validationStatus: 'idle',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationInputKey: '',
+      validationNormalizedText: '',
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      englishInputFocus: false,
+      aiServiceMessage: '',
       englishValidationMessage: '',
       englishValidationType: 'hint',
       isValidatingEnglish: false,
@@ -1861,6 +2164,8 @@ Page({
       aiDialogueEnglish: [],
       aiDialogueChinese: [],
       aiRelatedDisplay: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
       notesExampleAvailable: false,
       referenceApplied: false
     });
@@ -1875,7 +2180,7 @@ Page({
     onlineValidationUnavailable = false,
     unavailableMessage = ''
   } = {}) {
-    // 只有前端本地 error 才真正阻止保存，显示红色
+    // 鍙湁鍓嶇鏈湴 error 鎵嶇湡姝ｉ樆姝繚瀛橈紝鏄剧ず绾㈣壊
     if (localErrors.length > 0) {
       return {
         displayMessage: localErrors[0],
@@ -1883,8 +2188,7 @@ Page({
       }
     }
 
-    // 后端 error 不展示（异步分析结果，不阻止保存，不透传原文）
-
+    // 鍚庣 error 涓嶅睍绀猴紙寮傛鍒嗘瀽缁撴灉锛屼笉闃绘淇濆瓨锛屼笉閫忎紶鍘熸枃锛?
     if (cloudWarnings.length > 0) {
       return {
         displayMessage: cloudWarnings[0],
@@ -1892,7 +2196,7 @@ Page({
       }
     }
 
-    // 拼写 hint（有 correction 时），以 hint 样式展示
+    // 鎷煎啓 hint锛堟湁 correction 鏃讹級锛屼互 hint 鏍峰紡灞曠ず
     if (spellHints.length > 0) {
       return {
         displayMessage: spellHints[0],
@@ -1909,20 +2213,20 @@ Page({
 
     if (onlineValidationUnavailable) {
       return {
-        displayMessage: unavailableMessage || '网络或分析服务暂时不可用',
+        displayMessage: unavailableMessage || '缃戠粶鎴栧垎鏋愭湇鍔℃殏鏃朵笉鍙敤',
         displayMessageType: 'hint'
       }
     }
 
     return {
-      displayMessage: '检查通过',
-      displayMessageType: 'success'
+      displayMessage: '',
+      displayMessageType: 'hint'
     }
   },
 
   _classifyUnavailableMessage(analyzeResult) {
     // Map an analysis failure to an accurate, non-technical message instead of
-    // a blanket "网络暂时不稳":
+    // a blanket "缃戠粶鏆傛椂涓嶇ǔ":
     //   aborted           -> cancelled by a newer input, not an error
     //   failureKind=busy  -> backend reachable but the single AI slot was busy
     //   failureKind=ai    -> backend reachable but the AI service failed
@@ -1932,19 +2236,19 @@ Page({
       return '';
     }
     if (analyzeResult.failureKind === 'busy') {
-      return '分析服务暂时繁忙，请稍后重试';
+      return 'AI 分析暂时繁忙，请稍后重试';
     }
     if (analyzeResult.failureKind === 'ai') {
       return 'AI 分析暂时不可用，请稍后重试';
     }
     if (analyzeResult.failureKind === 'network') {
-      return '网络或分析服务暂时不可用';
+      return '网络连接失败，暂时无法使用 AI 分析';
     }
     const errors = analyzeResult.validation && analyzeResult.validation.errors;
     if (Array.isArray(errors) && errors.length > 0) {
       return errors[0];
     }
-    return '网络或分析服务暂时不可用';
+    return 'AI 分析暂时不可用，请稍后重试';
   },
 
   async analyzeEnglishInput(text, category, {
@@ -1960,7 +2264,7 @@ Page({
     if (!normalizedText) {
       return {
         normalizedText: '',
-        localErrors: ['英文内容为空'],
+        localErrors: ['鑻辨枃鍐呭涓虹┖'],
         localWarnings: [],
         localInfo: [],
         cloudErrors: [],
@@ -1970,7 +2274,7 @@ Page({
         shouldShowSuggestion: false,
         canSave: false,
         onlineValidationUnavailable: false,
-        displayMessage: '英文内容为空',
+        displayMessage: '鑻辨枃鍐呭涓虹┖',
         displayMessageType: 'error'
       }
     }
@@ -2000,6 +2304,10 @@ Page({
     let aiRelatedDisplay = ''
     let aiAnalysisSource = ''
     let aiAnalysisModel = ''
+    let aiAnalysisCategory = ''
+    let aiParagraphAnalysis = ''
+    let backendLevel = ''
+    let failureKind = ''
 
     if ((needCloudValidation || needSuggestion) && localErrors.length === 0) {
       const analyzeResult = await this.callAnalyzeEnglish(normalizedText, category, {
@@ -2011,6 +2319,8 @@ Page({
 
       const validation = analyzeResult.validation || {}
       const understanding = analyzeResult.understanding || {}
+      backendLevel = normalizePlainText((analyzeResult.backend && analyzeResult.backend.level) || '')
+      failureKind = normalizePlainText(analyzeResult.failureKind || '')
       backendNormalizedText = normalizeEnglishText(
         analyzeResult.normalizedText ||
         validation.normalizedText ||
@@ -2020,14 +2330,14 @@ Page({
 
       cloudErrors = Array.isArray(validation.errors) ? validation.errors : []
 
-      // 分离拼写 hint（有 correction）和普通 warning
+      // 鍒嗙鎷煎啓 hint锛堟湁 correction锛夊拰鏅€?warning
       var rawBackendWarnings = Array.isArray(validation.warnings) ? validation.warnings : []
       var filteredBackendWarnings = []
       rawBackendWarnings.forEach(function(w) {
         var transformed = transformSpellingWarning(w)
-        if (!transformed) return  // 无 correction 的拼写提示：隐藏
+        if (!transformed) return  // 鏃?correction 鐨勬嫾鍐欐彁绀猴細闅愯棌
         if (transformed.isHint) {
-          spellHints.push(transformed.text)  // 有 correction：hint 样式
+          spellHints.push(transformed.text)  // 鏈?correction锛歨int 鏍峰紡
         } else {
           filteredBackendWarnings.push(transformed.text)
         }
@@ -2047,7 +2357,7 @@ Page({
         ''
       )
 
-      onlineValidationUnavailable = analyzeResult.ok === false
+      onlineValidationUnavailable = analyzeResult.ok === false && backendLevel !== 'error'
       unavailableMessage = this._classifyUnavailableMessage(analyzeResult)
 
       aiExampleSentence = normalizePlainText(analyzeResult.exampleSentence || '')
@@ -2063,14 +2373,29 @@ Page({
       aiRelatedDisplay = buildRelatedDisplay(analyzeResult.synonyms, analyzeResult.similarPhrases)
       aiAnalysisSource = normalizePlainText(analyzeResult.analysisSource || '')
       aiAnalysisModel = normalizePlainText(analyzeResult.analysisModel || '')
+      aiAnalysisCategory = normalizePlainText(
+        analyzeResult.analysisCategory || (analyzeResult.backend && analyzeResult.backend.category) || ''
+      )
+      aiParagraphAnalysis = normalizePlainText(analyzeResult.paragraphAnalysis || '')
+
+      if (aiAnalysisCategory === 'paragraph') {
+        aiExampleSentence = ''
+        aiExampleTranslation = ''
+        aiSynonymsDisplay = ''
+        aiSimilarPhrasesDisplay = ''
+        aiExpressionTypeLabel = ''
+        aiAlternativeMeanings = []
+        aiUsageScenario = ''
+        aiDialogueEnglish = []
+        aiDialogueChinese = []
+        aiRelatedDisplay = ''
+      }
     }
 
     const hasDictionaryWarning = cloudWarnings.some((item) => {
       return isDictionaryUnrecognizedWarning(item)
     })
 
-    // 单词模式下：如果在线词典都没收录，不要再展示机器翻译建议。
-    // 机器翻译不是词典，不能用“翻译成功”证明这个单词有效。
     const shouldSkipMachineSuggestionForUnknownSingleWord =
       category === '单词' && hasDictionaryWarning
 
@@ -2083,17 +2408,12 @@ Page({
       suggestion = ''
     }
 
-    // 单词：词典未收录时，不用机器翻译来”证明”它有效。
-    // 句子：允许生成机器翻译参考，但保留”部分词未识别”的 warning，提醒用户自行判断。
-    // 短语：可以继续弱化词典未识别提醒，避免小短语频繁打扰。
-    if (suggestion && category === '短语') {
+    if (suggestion && category === '单词') {
       cloudWarnings = filterDictionaryWarningsWhenSuggestionWorks(cloudWarnings, suggestion)
     }
 
     const shouldShowSuggestion = !shouldBlockSuggestion && !!suggestion
-    // 只有前端本地 error 才真正阻止保存
     const canSave = localErrors.length === 0
-
     const displayState = this.buildDisplayState({
       localErrors,
       cloudErrors,
@@ -2129,6 +2449,10 @@ Page({
       aiRelatedDisplay,
       aiAnalysisSource,
       aiAnalysisModel,
+      aiAnalysisCategory,
+      aiParagraphAnalysis,
+      backendLevel,
+      failureKind,
       displayMessage: displayState.displayMessage,
       displayMessageType: displayState.displayMessageType
     }
@@ -2169,6 +2493,20 @@ Page({
 
     this._discardStreamPreview()
 
+    if (analysis.backendLevel === 'error') {
+      const validationGeneration = (this.validationGeneration || 0) + 1;
+      this.validationGeneration = validationGeneration;
+      this._applyValidationResponse({
+        level: 'error',
+        category: analysis.aiAnalysisCategory || 'unknown',
+        normalizedText: analysis.backendNormalizedText || normalizedText,
+        warnings: [],
+        errors: analysis.cloudErrors || [],
+        evidence: []
+      }, currentRaw, this.data.form.category || CARD_CATEGORIES[0], validationGeneration);
+      this._focusEnglishValidationError();
+    }
+
     var nextData = {
       validationResult: {
         localErrors: analysis.localErrors,
@@ -2179,8 +2517,6 @@ Page({
         cloudInfo: analysis.cloudInfo,
         canSave: analysis.canSave
       },
-      englishValidationMessage: analysis.displayMessage,
-      englishValidationType: analysis.displayMessageType,
       suggestionText: analysis.shouldShowSuggestion ? analysis.suggestion : '',
       suggestionSourceText: normalizedText,
       showSuggestion: analysis.shouldShowSuggestion,
@@ -2198,12 +2534,21 @@ Page({
       aiRelatedDisplay: analysis.aiRelatedDisplay || '',
       aiAnalysisSource: analysis.aiAnalysisSource || '',
       aiAnalysisModel: analysis.aiAnalysisModel || '',
+      aiAnalysisCategory: analysis.aiAnalysisCategory || '',
+      aiParagraphAnalysis: analysis.aiParagraphAnalysis || '',
+      aiServiceMessage: analysis.onlineValidationUnavailable
+        ? this._classifyUnavailableMessage({
+          ok: false,
+          failureKind: analysis.failureKind,
+          validation: { errors: analysis.cloudErrors || [] }
+        })
+        : '',
       notesExampleAvailable: this.computeNotesExampleAvailable(
         analysis.aiExampleSentence || '',
         this.data.form.notes
       ),
       referenceApplied: this.computeReferenceApplied(
-        analysis.shouldShowSuggestion ? analysis.suggestion : '',
+        analysis.aiParagraphAnalysis || (analysis.shouldShowSuggestion ? analysis.suggestion : ''),
         analysis.aiExampleSentence || '',
         analysis.aiExampleTranslation || ''
       ),
@@ -2244,31 +2589,35 @@ Page({
       return;
     }
 
-    const englishText = normalizeEnglishText(this.data.form.englishText || '');
-    const category = this.data.form.category || '单词';
+    this.setData({ aiServiceMessage: '' });
+    const continueWithValidation = (validation) => {
+      if (!validation) return;
+      if (validation.status === 'invalid') {
+        this._focusEnglishValidationError();
+        return;
+      }
+      if (validation.canAnalyze === false) {
+        wx.showToast({ title: '请先修改英文内容再使用 AI', icon: 'none' });
+        return;
+      }
+      const englishText = String(validation.normalizedText || this.data.form.englishText || '');
+      const category = this.data.form.category || CARD_CATEGORIES[0];
+      this.runInputAnalysis(englishText, category);
+    };
 
-    if (!englishText) {
-      this.setData({
-        englishValidationMessage: '英文内容为空',
-        englishValidationType: 'error'
-      });
+    const reusable = this.getReusableEnglishValidation();
+    if (reusable) {
+      continueWithValidation(reusable);
       return;
     }
-
-    const localResult = getLocalValidationResult(englishText, category);
-    if (localResult.errors.length > 0) {
-      this.setData({
-        englishValidationMessage: localResult.errors[0],
-        englishValidationType: 'error'
-      });
-      return;
-    }
-
-    this.runInputAnalysis(englishText, category);
+    if (this._pendingAiValidationAction) return;
+    this._pendingAiValidationAction = true;
+    this.ensureEnglishValidation({ force: false, trigger: 'ai' })
+      .then(continueWithValidation)
+      .finally(() => { this._pendingAiValidationAction = false; });
   },
 
   onCancelAnalyzeTap() {
-    // 用户主动取消：作废当前 generation 和所有临时/旧结果，回到干净的 idle 状态。
     const holder = this._activeStreamTask;
     logAiStreamDiagnostic('stream_cancel', {
       generationId: holder && holder.generationId
@@ -2295,7 +2644,7 @@ Page({
     // A blur (or save) for the exact same text+category that is already
     // streaming must not abort the in-flight request and re-run it. Doing so
     // aborts a healthy request, reuses the already-aborted promise via the
-    // in-flight dedup, and surfaces a false "网络暂时不稳" without ever firing
+    // in-flight dedup, and surfaces a false "缃戠粶鏆傛椂涓嶇ǔ" without ever firing
     // a new request. Let the in-flight analysis finish and apply itself.
     if (
       this._activeStreamTask &&
@@ -2402,13 +2751,19 @@ Page({
   },
 
   async regenerateAnalysis() {
-    // 重新生成：跳过前端 + 后端缓存，强制重新调用 AI，保留英文输入并显示加载中。
     if (this.data.isRegenerating || this.data.translating) {
       return;
     }
 
-    const englishText = normalizeEnglishText(this.data.form.englishText || '');
-    const category = this.data.form.category || '单词';
+    const validation = this.getReusableEnglishValidation() ||
+      await this.ensureEnglishValidation({ force: false, trigger: 'ai' });
+    if (!validation || validation.status === 'invalid' || validation.canAnalyze === false) {
+      if (validation && validation.status === 'invalid') this._focusEnglishValidationError();
+      return;
+    }
+
+    const englishText = String(validation.normalizedText || this.data.form.englishText || '');
+    const category = this.data.form.category || CARD_CATEGORIES[0];
 
     if (!englishText) {
       return;
@@ -2417,7 +2772,6 @@ Page({
     this.abortActiveAnalysis();
     const requestGeneration = (this.analysisGeneration || 0) + 1;
     this.analysisGeneration = requestGeneration;
-    // 重新分析属于新的用户操作：生成全新的 Idempotency-Key，允许真正重新生成。
     const idempotencyKey = this._createIdempotencyKey();
     logAiStreamDiagnostic('generation_start', {
       generationId: requestGeneration,
@@ -2490,7 +2844,7 @@ Page({
     if (!card) {
       if (!silent) {
         wx.showToast({
-          title: '未找到卡片',
+          title: '卡片不存在',
           icon: 'none'
         });
 
@@ -2518,7 +2872,7 @@ Page({
     });
 
     const englishText = nextData.form.englishText || '';
-    const category = nextData.form.category || '单词';
+    const category = nextData.form.category || CARD_CATEGORIES[0];
 
     console.log('[edit-pronunciation] loadCard completed', {
       cardId: cardId,
@@ -2536,13 +2890,14 @@ Page({
       this.setData({ editPronunciationText: englishText });
       console.log('[edit-pronunciation] loadCard: synced editPronunciationText from form', { editPronunciationText: englishText });
 
-      // 不再自动调用 AI 分析：等用户点击「AI 分析」按钮。
-
+      // 涓嶅啀鑷姩璋冪敤 AI 鍒嗘瀽锛氱瓑鐢ㄦ埛鐐瑰嚮銆孉I 鍒嗘瀽銆嶆寜閽€?
       // Initialize pronunciation: ensure editPronunciationText is set and load phonetics
       if (!this.data.isReadonlyDetailMode) {
         console.log('[edit-pronunciation] loadCard calling _loadEditPhonetic, text:', englishText);
         this._loadEditPhonetic(englishText);
       }
+      this.clearEnglishValidationForEdit();
+      this.scheduleEnglishValidation();
     } else {
       console.log('[edit-pronunciation] loadCard: englishText empty, skipping pronunciation init');
     }
@@ -2573,12 +2928,8 @@ Page({
     const categoryIndex = Number(event.detail.value) || 0;
     const category = CARD_CATEGORIES[categoryIndex] || CARD_CATEGORIES[0];
     this.invalidatePendingAnalysis();
-    // 类别变化：取消在途分析，不自动重新分析，等用户再次点击「AI 分析」。
     this.abortActiveAnalysis();
-
-    const englishText = normalizeEnglishText(this.data.form.englishText || '');
-    const localResult = englishText ? getLocalValidationResult(englishText, category) : null;
-    const hasLocalError = !!localResult && localResult.errors.length > 0;
+    this.clearEnglishValidationForEdit();
 
     this.setData({
       categoryIndex,
@@ -2600,14 +2951,17 @@ Page({
       aiDialogueEnglish: [],
       aiDialogueChinese: [],
       aiRelatedDisplay: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
       notesExampleAvailable: false,
       referenceApplied: false,
-      englishValidationMessage: hasLocalError ? localResult.errors[0] : '输入有效，可点击「AI 分析」',
-      englishValidationType: hasLocalError ? 'error' : 'hint',
+      aiServiceMessage: '',
+      englishValidationMessage: '',
+      englishValidationType: 'hint',
       isValidatingEnglish: false,
       isAnalyzing: false,
       translating: false
-    });
+    }, () => this.scheduleEnglishValidation());
   },
 
 
@@ -2617,31 +2971,18 @@ Page({
     const normalizedNextText = normalizeEnglishText(nextValue);
     const previousText = normalizeEnglishText(this.data.form.englishText);
 
+    this.clearEnglishValidationForEdit();
+
     const nextData = {
-      'form.englishText': nextValue
+      'form.englishText': nextValue,
+      aiServiceMessage: ''
     };
 
     if (normalizedNextText !== previousText) {
       this.invalidatePendingAnalysis();
-      // 用户修改已提交分析的英文内容：取消旧分析，不自动分析新内容，等用户再次点击「AI 分析」。
       this.abortActiveAnalysis();
       nextData.isAnalyzing = false;
       nextData.translating = false;
-    }
-
-    // 新增卡片时，英文内容每次变化都按内容自动识别类别，不被 hasUserChangedCategory 阻止
-    let categoryForAnalysis = this.data.form.category;
-    const autoCategory = this.getAutoCategoryForEnglishText(normalizedNextText);
-    const shouldAutoUpdateCategory = (
-      !this.data.isEdit &&
-      autoCategory &&
-      autoCategory !== this.data.form.category
-    );
-
-    if (shouldAutoUpdateCategory) {
-      categoryForAnalysis = autoCategory;
-      nextData.categoryIndex = Math.max(CARD_CATEGORIES.indexOf(autoCategory), 0);
-      nextData['form.category'] = autoCategory;
     }
 
     if (normalizedNextText !== this.data.suggestionSourceText) {
@@ -2659,54 +3000,19 @@ Page({
       nextData.aiDialogueEnglish = [];
       nextData.aiDialogueChinese = [];
       nextData.aiRelatedDisplay = '';
+      nextData.aiAnalysisCategory = '';
+      nextData.aiParagraphAnalysis = '';
       nextData.referenceApplied = false;
       nextData.translating = false;
     }
 
-    this.setData(nextData);
+    this.setData(nextData, () => this.scheduleEnglishValidation());
 
     // Edit mode: schedule phonetic lookup on text change
     if (this.data.isEdit) {
       this._scheduleEditPhonetic(normalizedNextText);
     }
 
-    if (!normalizedNextText) {
-      if (this.englishValidationTimer) {
-        clearTimeout(this.englishValidationTimer);
-        this.englishValidationTimer = null;
-      }
-
-      if (this.suggestionTimer) {
-        clearTimeout(this.suggestionTimer);
-        this.suggestionTimer = null;
-      }
-
-      this.clearSuggestion();
-      this.setData({
-        isAnalyzing: false,
-        englishValidationMessage: '英文内容为空',
-        englishValidationType: 'error',
-        isValidatingEnglish: false
-      });
-      return;
-    }
-
-    // 输入过程中只做轻量本地检查（空内容 / 无英文字符 / 长度限制等），不调用 Qwen；
-    // 用户点击「AI 分析」才启动后端正式分析。
-    const localResult = getLocalValidationResult(normalizedNextText, categoryForAnalysis);
-    if (localResult.errors.length > 0) {
-      this.setData({
-        englishValidationMessage: localResult.errors[0],
-        englishValidationType: 'error',
-        isValidatingEnglish: false
-      });
-    } else {
-      this.setData({
-        englishValidationMessage: '输入有效，可点击「AI 分析」',
-        englishValidationType: 'hint',
-        isValidatingEnglish: false
-      });
-    }
   },
 
   onEnglishBlur(event) {
@@ -2721,32 +3027,7 @@ Page({
       this.suggestionTimer = null;
     }
 
-    const rawText = event.detail.value;
-    const normalizedText = normalizeEnglishText(rawText);
-
-    if (rawText !== normalizedText) {
-      this.setData({ 'form.englishText': normalizedText });
-    }
-
-    // 失焦也不再自动调用 AI：只保留轻量本地检查状态，分析由「AI 分析」按钮触发。
-    if (!normalizedText) {
-      this.setData({
-        isAnalyzing: false,
-        englishValidationMessage: '英文内容为空',
-        englishValidationType: 'error',
-        isValidatingEnglish: false
-      });
-      return;
-    }
-
-    const localResult = getLocalValidationResult(normalizedText, this.data.form.category);
-    if (localResult.errors.length > 0) {
-      this.setData({
-        englishValidationMessage: localResult.errors[0],
-        englishValidationType: 'error',
-        isValidatingEnglish: false
-      });
-    }
+    this.ensureEnglishValidation({ force: false, trigger: 'blur' });
   },
 
   onUnderstandingInput(event) {
@@ -2901,7 +3182,7 @@ Page({
     }, 400);
   },
 
-  onEditPronunciationTap() {
+  async onEditPronunciationTap() {
     var text = this._getCurrentEditEnglish();
     var cardId = this.data.cardId || (this.data.form && this.data.form.cardId) || '';
     var voice = this.data.editPronunciationVoice || DEFAULT_VOICE;
@@ -2925,10 +3206,27 @@ Page({
       console.log('[edit-pronunciation] tap blocked: text is empty');
       return;
     }
+    if (text.length > 300) {
+      wx.showToast({ title: '内容较长，暂不支持整段发音', icon: 'none' });
+      return;
+    }
+
+    const validation = await this.ensureEnglishValidation({ force: false, trigger: 'tts' });
+    if (!validation) return;
+    if (validation.status === 'invalid') {
+      this._focusEnglishValidationError();
+      wx.showToast({ title: '请先修改英文内容', icon: 'none' });
+      return;
+    }
+    if (validation.canPronounce === false) {
+      wx.showToast({ title: '请先修改英文内容再发音', icon: 'none' });
+      return;
+    }
+    text = String(validation.normalizedText || this._getCurrentEditEnglish());
 
     console.log('[edit-pronunciation] proceeding to play', { text: text, voice: voice });
 
-    // ---- loading safety timeout: prevent permanent "加载中" ----
+    // ---- loading safety timeout: prevent permanent "鍔犺浇涓? ----
     var self = this;
     if (this._editPronunciationSafetyTimer) {
       clearTimeout(this._editPronunciationSafetyTimer);
@@ -2954,7 +3252,11 @@ Page({
         this._editAudioContext = wx.createInnerAudioContext();
         this._editAudioContext.obeyMuteSwitch = false;
 
+        this._editAudioContext.onCanplay(function () {
+          logTtsDiagnostic('edit_audio_on_canplay', audioState(self._editAudioContext));
+        });
         this._editAudioContext.onPlay(function () {
+          logTtsDiagnostic('edit_audio_on_play', audioState(self._editAudioContext));
           console.log('[edit-pronunciation] audio onPlay fired');
           if (self._editPronunciationSafetyTimer) {
             clearTimeout(self._editPronunciationSafetyTimer);
@@ -2963,6 +3265,7 @@ Page({
           self.setData({ editPronunciationLoading: false, editPronunciationPlaying: true });
         });
         this._editAudioContext.onEnded(function () {
+          logTtsDiagnostic('edit_audio_on_ended', audioState(self._editAudioContext));
           console.log('[edit-pronunciation] audio onEnded fired');
           if (self._editPronunciationSafetyTimer) {
             clearTimeout(self._editPronunciationSafetyTimer);
@@ -2978,14 +3281,22 @@ Page({
           }
           self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
         });
+        this._editAudioContext.onWaiting(function () {
+          logTtsDiagnostic('edit_audio_on_waiting', audioState(self._editAudioContext));
+        });
         this._editAudioContext.onError(function (err) {
+          logTtsDiagnostic('edit_audio_on_error', {
+            ...audioState(self._editAudioContext),
+            errCode: err && err.errCode ? err.errCode : '',
+            errMsg: String(err && err.errMsg || err || 'unknown')
+          });
           console.log('[edit-pronunciation] audio onError fired', String(err && err.errMsg || err || 'unknown'));
           if (self._editPronunciationSafetyTimer) {
             clearTimeout(self._editPronunciationSafetyTimer);
             self._editPronunciationSafetyTimer = null;
           }
           self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-          wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+          wx.showToast({ title: '发音暂时不可用', icon: 'none' });
         });
       }
 
@@ -2997,9 +3308,19 @@ Page({
       }
 
       this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
+      logTtsDiagnostic('edit_button_clicked', {
+        voice: voice,
+        hasText: Boolean(text)
+      });
       downloadPronunciationAudio(text, voice)
         .then(function (tempFilePath) {
+          logTtsDiagnostic('edit_audio_src_set', {
+            tempFilePath: tempFilePath,
+            src: tempFilePath,
+            requestId: getLastTtsRequestId()
+          });
           audioContext.src = tempFilePath;
+          logTtsDiagnostic('edit_audio_play_called', audioState(audioContext));
           audioContext.play();
         })
         .catch(function (err) {
@@ -3009,7 +3330,7 @@ Page({
             self._editPronunciationSafetyTimer = null;
           }
           self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-          wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+          wx.showToast({ title: '发音暂时不可用', icon: 'none' });
         });
     } catch (err) {
       console.log('[edit-pronunciation] exception during playback setup', String(err && err.message || err));
@@ -3018,8 +3339,123 @@ Page({
         this._editPronunciationSafetyTimer = null;
       }
       this.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-      wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+      wx.showToast({ title: '发音暂时不可用', icon: 'none' });
     }
+  },
+
+  onEditPronunciationLongPress() {
+    const self = this;
+    try {
+      if (!this._editAudioContext) {
+        this._editAudioContext = wx.createInnerAudioContext();
+        this._editAudioContext.obeyMuteSwitch = false;
+        this._editAudioContext.onCanplay(function () {
+          logTtsDiagnostic('edit_audio_on_canplay', audioState(self._editAudioContext));
+        });
+        this._editAudioContext.onPlay(function () {
+          logTtsDiagnostic('edit_audio_on_play', audioState(self._editAudioContext));
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: true });
+        });
+        this._editAudioContext.onWaiting(function () {
+          logTtsDiagnostic('edit_audio_on_waiting', audioState(self._editAudioContext));
+        });
+        this._editAudioContext.onEnded(function () {
+          logTtsDiagnostic('edit_audio_on_ended', audioState(self._editAudioContext));
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+        this._editAudioContext.onStop(function () {
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+        this._editAudioContext.onError(function (err) {
+          logTtsDiagnostic('edit_audio_on_error', {
+            ...audioState(self._editAudioContext),
+            errCode: err && err.errCode ? err.errCode : '',
+            errMsg: String(err && err.errMsg || err || 'unknown')
+          });
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+      }
+
+      const audioContext = this._editAudioContext;
+      try { audioContext.stop(); } catch (_) {}
+      audioContext.volume = 1;
+      this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
+      logTtsDiagnostic('test_mp3_button_clicked', {
+        requestId: getLastTtsRequestId(),
+        applyInnerAudioOption: false
+      });
+      downloadDiagnosticTestAudio()
+        .then(function (tempFilePath) {
+          audioContext.src = tempFilePath;
+          logTtsDiagnostic('test_mp3_audio_src_set', audioState(audioContext));
+          logTtsDiagnostic('test_mp3_audio_play_called', audioState(audioContext));
+          audioContext.play();
+        })
+        .catch(function (err) {
+          logTtsDiagnostic('test_mp3_audio_download_failed', {
+            requestId: getLastTtsRequestId(),
+            errMsg: String(err && err.errMsg || err || 'unknown')
+          });
+          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+        });
+    } catch (err) {
+      logTtsDiagnostic('test_mp3_audio_exception', {
+        requestId: getLastTtsRequestId(),
+        errMsg: String(err && err.message || err || 'unknown')
+      });
+      this.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+    }
+    setTimeout(() => {
+      if (typeof wx.setInnerAudioOption === 'function') {
+        wx.setInnerAudioOption({
+          obeyMuteSwitch: false,
+          speakerOn: true,
+          mixWithOther: true,
+          success(res) {
+            logTtsDiagnostic('set_inner_audio_option_success', {
+              requestId: getLastTtsRequestId(),
+              errMsg: String(res && res.errMsg || '')
+            });
+          },
+          fail(err) {
+            logTtsDiagnostic('set_inner_audio_option_fail', {
+              requestId: getLastTtsRequestId(),
+              errMsg: String(err && err.errMsg || err || 'unknown')
+            });
+          }
+        });
+      }
+      this.onEditPronunciationLongPressWithoutOptionReplay();
+    }, 2000);
+  },
+
+  onEditPronunciationLongPressWithoutOptionReplay() {
+    const self = this;
+    const audioContext = this._editAudioContext;
+    if (!audioContext) {
+      return;
+    }
+    try { audioContext.stop(); } catch (_) {}
+    audioContext.volume = 1;
+    this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
+    logTtsDiagnostic('test_mp3_button_clicked', {
+      requestId: getLastTtsRequestId(),
+      applyInnerAudioOption: true
+    });
+    downloadDiagnosticTestAudio()
+      .then(function (tempFilePath) {
+        audioContext.src = tempFilePath;
+        logTtsDiagnostic('test_mp3_audio_src_set', audioState(audioContext));
+        logTtsDiagnostic('test_mp3_audio_play_called', audioState(audioContext));
+        audioContext.play();
+      })
+      .catch(function (err) {
+        logTtsDiagnostic('test_mp3_audio_download_failed', {
+          requestId: getLastTtsRequestId(),
+          errMsg: String(err && err.errMsg || err || 'unknown')
+        });
+        self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
+      });
   },
 
   onEditVoiceSwitchMale() {
@@ -3094,7 +3530,9 @@ Page({
     if (this.data.isReadonlyDetailMode) return;
     if (this.data.translating) return;
 
-    const understanding = normalizeEnglishText(this.data.understandingSuggestion || this.data.suggestionText);
+    const understanding = normalizeEnglishText(
+      this.data.aiParagraphAnalysis || this.data.understandingSuggestion || this.data.suggestionText
+    );
     const exampleSentence = normalizePlainText(this.data.aiExampleSentence);
     const exampleTranslation = normalizePlainText(this.data.aiExampleTranslation);
 
@@ -3153,31 +3591,53 @@ Page({
   onNotesExamplePronunciationTap() {
     const exampleSentence = this.getExampleSentenceForPronunciation();
     if (!exampleSentence) {
-      wx.showToast({ title: '暂无英文例句可发音', icon: 'none' });
+      wx.showToast({ title: '暂无可播放的例句', icon: 'none' });
       return;
     }
 
     const voice = this.data.editPronunciationVoice || getStoredVoice() || DEFAULT_VOICE;
     const self = this;
     const downloadPronunciationAudio = require('../../utils/apiClient').downloadPronunciationAudio;
+    const logTtsDiagnostic = require('../../utils/apiClient').logTtsDiagnostic;
 
-    // Reuse the same download → local temp file → InnerAudioContext pattern as the
+    // Reuse the same download 鈫?local temp file 鈫?InnerAudioContext pattern as the
     // word pronunciation (onEditPronunciationTap). No second TTS, no direct URL playback.
     if (!this._notesExampleAudioContext) {
       this._notesExampleAudioContext = wx.createInnerAudioContext();
       this._notesExampleAudioContext.obeyMuteSwitch = false;
+      this._notesExampleAudioContext.onCanplay(function () {
+        logTtsDiagnostic('notes_example_audio_on_canplay', {
+          src: String(self._notesExampleAudioContext && self._notesExampleAudioContext.src || '')
+        });
+      });
       this._notesExampleAudioContext.onPlay(function () {
+        logTtsDiagnostic('notes_example_audio_on_play', {
+          src: String(self._notesExampleAudioContext && self._notesExampleAudioContext.src || '')
+        });
         self.setData({ notesExampleLoading: false, notesExamplePlaying: true });
       });
+      this._notesExampleAudioContext.onWaiting(function () {
+        logTtsDiagnostic('notes_example_audio_on_waiting', {
+          src: String(self._notesExampleAudioContext && self._notesExampleAudioContext.src || '')
+        });
+      });
       this._notesExampleAudioContext.onEnded(function () {
+        logTtsDiagnostic('notes_example_audio_on_ended', {
+          src: String(self._notesExampleAudioContext && self._notesExampleAudioContext.src || '')
+        });
         self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
       });
       this._notesExampleAudioContext.onStop(function () {
         self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
       });
-      this._notesExampleAudioContext.onError(function () {
+      this._notesExampleAudioContext.onError(function (err) {
+        logTtsDiagnostic('notes_example_audio_on_error', {
+          src: String(self._notesExampleAudioContext && self._notesExampleAudioContext.src || ''),
+          errCode: err && err.errCode ? err.errCode : '',
+          errMsg: String(err && err.errMsg || err || 'unknown')
+        });
         self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
-        wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+        wx.showToast({ title: '发音暂时不可用', icon: 'none' });
       });
     }
 
@@ -3187,14 +3647,25 @@ Page({
     }
 
     this.setData({ notesExampleLoading: true, notesExamplePlaying: false });
+    logTtsDiagnostic('notes_example_button_clicked', {
+      voice: voice,
+      hasText: Boolean(exampleSentence)
+    });
     downloadPronunciationAudio(exampleSentence, voice)
       .then(function (tempFilePath) {
+        logTtsDiagnostic('notes_example_audio_src_set', {
+          tempFilePath: tempFilePath,
+          src: tempFilePath
+        });
         audioContext.src = tempFilePath;
+        logTtsDiagnostic('notes_example_audio_play_called', {
+          src: String(audioContext.src || '')
+        });
         audioContext.play();
       })
       .catch(function () {
         self.setData({ notesExampleLoading: false, notesExamplePlaying: false });
-        wx.showToast({ title: '本地发音暂不可用', icon: 'none' });
+        wx.showToast({ title: '发音暂时不可用', icon: 'none' });
       });
   },
 
@@ -3232,6 +3703,16 @@ Page({
       categoryIndex: Math.max(CARD_CATEGORIES.indexOf(nextForm.category), 0),
       inheritedContextText: '',
       hasUserChangedCategory: false,
+      validationStatus: 'idle',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationInputKey: '',
+      validationNormalizedText: '',
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      englishInputFocus: false,
+      aiServiceMessage: '',
       englishValidationMessage: '',
       englishValidationType: 'hint',
       isValidatingEnglish: false,
@@ -3258,6 +3739,8 @@ Page({
       aiDialogueEnglish: [],
       aiDialogueChinese: [],
       aiRelatedDisplay: '',
+      aiAnalysisCategory: '',
+      aiParagraphAnalysis: '',
       notesExampleAvailable: false,
       referenceApplied: false,
       isLeavingPage: false,
@@ -3287,6 +3770,9 @@ Page({
       saveLastEncounterContext(nextForm.whereEncountered);
       pendingSync = savedCard && savedCard.backend_sync_status === 'pending';
     } catch (error) {
+      if (validationResponseFromCardError(error)) {
+        throw error;
+      }
       wx.showToast({
         title: isEdit ? '更新失败' : '保存失败',
         icon: 'none'
@@ -3349,25 +3835,24 @@ Page({
     this.setData({
       isSaving: true,
       validateLoading: true,
-      isValidatingEnglish: true,
-      englishValidationMessage: '正在检查英文内容...',
-      englishValidationType: 'hint'
+      aiServiceMessage: ''
     });
 
     try {
-      // 1. 表单校验
-      const localResult = getLocalValidationResult(form.englishText, form.category);
-
-      if (localResult.errors.length > 0) {
-        this.setData({
-          englishValidationMessage: localResult.errors[0],
-          englishValidationType: 'error'
-        });
-        this.scrollToEnglishSection();
+      const validation = await this.ensureEnglishValidation({ force: false, trigger: 'save' });
+      if (!validation) return;
+      if (validation.status === 'invalid') {
+        this._focusEnglishValidationError();
         return;
       }
+      if (validation.canSave === false) {
+        this._focusEnglishValidationError();
+        return;
+      }
+      const normalizedForSave = String(
+        validation.normalizedText || normalizeEnglishText(form.englishText)
+      );
 
-      // 2. 检查编辑模式是否复用已有分析结果
       let currentCard = null;
 
       if (isEdit && cardId) {
@@ -3379,7 +3864,7 @@ Page({
       }
 
       const nextAnalyzeCacheKey = this.makeAnalyzeCacheKey(
-        localResult.normalizedText,
+        normalizedForSave,
         form.category
       );
 
@@ -3392,20 +3877,19 @@ Page({
       const isSameAnalyzedContent = (
         currentCard &&
         currentCard.analysisStatus === 'done' &&
-        currentText === localResult.normalizedText &&
+        currentText === normalizedForSave &&
         currentCategory === form.category &&
         currentAnalyzeCacheKey === nextAnalyzeCacheKey
       );
 
-      // 3. 组装 nextForm（不含 await analyzeEnglish）
       let nextForm;
       let shouldBackgroundAnalyze = false;
 
       if (isSameAnalyzedContent) {
-        // 编辑模式且内容未变：保留原 analysisStatus 和原分析结果，不触发后台分析
+        // 缂栬緫妯″紡涓斿唴瀹规湭鍙橈細淇濈暀鍘?analysisStatus 鍜屽師鍒嗘瀽缁撴灉锛屼笉瑙﹀彂鍚庡彴鍒嗘瀽
         nextForm = {
           ...form,
-          englishText: localResult.normalizedText,
+          englishText: normalizedForSave,
           analysisStatus: currentCard.analysisStatus,
           analysisWarnings: currentCard.analysisWarnings || [],
           analysisErrors: currentCard.analysisErrors || [],
@@ -3415,11 +3899,11 @@ Page({
           analyzedAt: currentCard.analyzedAt || ''
         };
       } else {
-        // 新增卡片或内容变化：analysisStatus = pending，保存后触发后台分析
+        // 新增卡片或内容变化：只有允许分析时才进入 pending，否则直接收口为 failed。
         nextForm = {
           ...form,
-          englishText: localResult.normalizedText,
-          analysisStatus: 'pending',
+          englishText: normalizedForSave,
+          analysisStatus: validation.canAnalyze === false ? 'failed' : 'pending',
           analysisWarnings: [],
           analysisErrors: [],
           analysisSource: '',
@@ -3427,15 +3911,14 @@ Page({
           analyzeCacheKey: nextAnalyzeCacheKey,
           analyzedAt: ''
         };
-        shouldBackgroundAnalyze = true;
+        shouldBackgroundAnalyze = validation.canAnalyze !== false;
       }
 
-      // 4. 先保存卡片（不再 await analyzeEnglish）
       const savedCard = await this.saveCard(nextForm, saveMode);
 
-      // 5. 保存成功后 fire-and-forget 触发后台分析
+      // 5. 淇濆瓨鎴愬姛鍚?fire-and-forget 瑙﹀彂鍚庡彴鍒嗘瀽
       if (shouldBackgroundAnalyze && savedCard && savedCard.id) {
-        const analysisTextSnapshot = localResult.normalizedText;
+        const analysisTextSnapshot = normalizedForSave;
         const analysisCategory = form.category;
 
         this.runBackgroundEnglishCheck(
@@ -3448,6 +3931,9 @@ Page({
       }
     } catch (error) {
       console.error('submitCard failed:', error);
+      if (this.applyCardValidationError(error)) {
+        return;
+      }
       wx.showToast({
         title: '保存失败，请重试',
         icon: 'none'
@@ -3468,7 +3954,7 @@ Page({
     }
 
     const sourceText = normalizeEnglishText(analysisTextSnapshot);
-    const sourceCategory = analysisCategory || '单词';
+    const sourceCategory = analysisCategory || CARD_CATEGORIES[0];
 
     if (!sourceText) {
       return;
@@ -3480,7 +3966,7 @@ Page({
     try {
       const result = await safeAnalyze(sourceText, sourceCategory);
 
-      // 读取最新卡片 — snapshot guard + 合并基底
+      // 璇诲彇鏈€鏂板崱鐗?鈥?snapshot guard + 鍚堝苟鍩哄簳
       const latestCard = await getCardById(cardId);
       if (!latestCard) {
         console.warn('[add-save] background analyze skipped: card not found', cardId);
@@ -3489,7 +3975,6 @@ Page({
 
       const latestText = normalizeEnglishText(latestCard.englishText);
 
-      // snapshot guard：用户已改英文内容，丢弃本次旧分析结果
       if (latestText !== sourceText) {
         console.warn('[add-save] analysis discarded due to content change', cardId);
         return;
@@ -3531,7 +4016,6 @@ Page({
         };
       }
 
-      // 只 PATCH 分析字段到后端
       const analysisBackendPatch = {
         analysis_status: analysisLocalPatch.analysisStatus,
         analysis_level: getBackendAnalysisLevel(analysisLocalPatch),
@@ -3544,7 +4028,7 @@ Page({
         console.warn('[add-save] backend analysis patch failed', backendPatchError);
       }
 
-      // 通过 updateCard 同步本地 cardsCache
+      // 閫氳繃 updateCard 鍚屾鏈湴 cardsCache
       const mergedForm = { ...latestCard, ...analysisLocalPatch };
       await updateCard(cardId, mergedForm);
     } catch (error) {

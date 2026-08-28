@@ -179,6 +179,16 @@ Page({
     this.pronunciationController.play(text);
   },
 
+  onPronunciationLongPress() {
+    if (!this.pronunciationController) return;
+    this.pronunciationController.playDiagnosticTestAudio(false);
+    setTimeout(() => {
+      if (this.pronunciationController) {
+        this.pronunciationController.playDiagnosticTestAudio(true);
+      }
+    }, 2000);
+  },
+
   onVoiceSwitchMale() {
     if (!this.pronunciationController) return;
     this.pronunciationController.setVoice('male');

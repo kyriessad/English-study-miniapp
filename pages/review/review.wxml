@@ -1,73 +1,53 @@
 <view class="page {{(!currentCard && !allDone) || pageState === 'completed' ? 'page-empty' : ''}}">
   <view class="header">
     <view class="title">
-      <block wx:if="{{allDone || pageState === 'completed'}}">这轮看完了</block>
-      <block wx:else>查看卡片</block>
+      <block wx:if="{{allDone || pageState === 'completed'}}">本轮完成</block>
+      <block wx:else>四选一复习</block>
     </view>
-    <view wx:if="{{!allDone && pageState !== 'completed' && currentCard}}" class="subtitle">先想一想，再看理解。</view>
+    <view wx:if="{{!allDone && pageState !== 'completed' && currentCard}}" class="subtitle">看英文，选择你的中文理解。</view>
   </view>
 
-  <!-- ===== Progress Bar ===== -->
-  <view wx:if="{{currentCard && !allDone && totalCount > 0}}" class="review-progress-section">
-    <view class="review-progress-text">第 {{displayCurrentNo}} / {{displayTotal}} 张</view>
+  <view wx:if="{{currentCard && !allDone && displayTotal > 0}}" class="review-progress-section">
+    <view class="review-progress-text">第 {{displayCurrentNo}} / {{displayTotal}} 题</view>
     <view class="review-progress-bar">
-      <view class="review-progress-fill" style="width: {{totalCount > 0 ? finishedCount / totalCount * 100 : 0}}%;"></view>
+      <view class="review-progress-fill" style="width: {{displayTotal > 0 ? progress.reviewed / displayTotal * 100 : 0}}%;"></view>
     </view>
   </view>
 
-  <!-- ===== LOADING ===== -->
-  <view wx:if="{{pageState === 'loading' || isLoading}}" class="empty-state">
-    正在加载复习内容...
-  </view>
+  <view wx:if="{{pageState === 'loading'}}" class="empty-state">正在加载复习题...</view>
 
-  <!-- ===== ERROR ===== -->
   <view wx:elif="{{pageState === 'error' || reviewError}}" class="done-panel">
-    <view class="done-title done-title--plain review-error-title">卡片加载失败</view>
+    <view class="done-title done-title--plain review-error-title">加载失败</view>
     <view class="done-text">{{reviewError}}</view>
     <view class="done-actions">
-      <button class="done-action-btn done-primary-btn" bindtap="retryLoadReview">
-        重新加载
-      </button>
+      <button class="done-action-btn done-primary-btn" bindtap="retryLoadReview">重新加载</button>
     </view>
   </view>
 
-  <!-- ===== NO CARDS ===== -->
-  <view wx:elif="{{!allDone && !currentCard && !isLoading}}" class="empty-state">
-    <view class="empty-title">现在没有可查看的卡片。</view>
-    <view class="empty-subtitle">可以先添加几张，或者过几天再来看看。</view>
+  <view wx:elif="{{!allDone && !currentCard}}" class="empty-state">
+    <view class="empty-title">现在没有可复习的卡片</view>
+    <view class="empty-subtitle">需要英文不超过 80 个字符，并且已填写“我的理解”。</view>
     <view class="empty-actions">
       <button class="empty-primary-btn" bindtap="goToAddPage">添加卡片</button>
     </view>
   </view>
 
-  <!-- ===== ACTIVE CARD (normal + offline_playing + submitting) ===== -->
   <block wx:elif="{{currentCard && !allDone}}">
-    <view class="task-card {{answerVisible ? 'task-card-open' : 'task-card-closed'}}">
+    <view class="task-card task-card-open">
       <view class="task-meta-row">
-        <view class="task-category">
-          {{currentCard.category || '单词'}}
-        </view>
-        <view wx:if="{{currentCard.is_repeat}}" class="task-repeat-hint">再看一次</view>
+        <view class="task-category">{{currentCard.category}}</view>
+        <view wx:if="{{currentCard.isRepeat}}" class="task-repeat-hint">再来一次</view>
       </view>
 
-      <view wx:if="{{currentCard.whereEncountered && !answerVisible}}" class="task-front-source">
+      <view wx:if="{{currentCard.whereEncountered}}" class="task-front-source">
         场景：{{currentCard.whereEncountered}}
       </view>
 
       <view class="task-main {{currentCard.category === '句子' ? 'task-main-sentence' : ''}}">
-        <scroll-view
-          wx:if="{{currentCard.category === '句子'}}"
-          scroll-y
-          class="task-english-scroll"
-        >
-          <view class="task-english task-english-sentence">
-            {{currentCard.englishText}}
-          </view>
+        <scroll-view wx:if="{{currentCard.category === '句子'}}" scroll-y class="task-english-scroll">
+          <view class="task-english task-english-sentence">{{currentCard.englishText}}</view>
         </scroll-view>
-
-        <view wx:else class="task-english">
-          {{currentCard.englishText}}
-        </view>
+        <view wx:else class="task-english">{{currentCard.englishText}}</view>
       </view>
 
       <view class="task-lexical-row">
@@ -78,132 +58,53 @@
         </view>
         <view class="task-voice-row">
           <view class="task-voice-toggle">
-            <text
-              class="task-voice-option {{pronunciationVoice === 'male' ? 'task-voice-active' : ''}}"
-              bindtap="onVoiceSwitchMale"
-            >男声</text>
+            <text class="task-voice-option {{pronunciationVoice === 'male' ? 'task-voice-active' : ''}}" bindtap="onVoiceSwitchMale">男声</text>
             <text class="task-voice-sep">|</text>
-            <text
-              class="task-voice-option {{pronunciationVoice === 'female' ? 'task-voice-active' : ''}}"
-              bindtap="onVoiceSwitchFemale"
-            >女声</text>
+            <text class="task-voice-option {{pronunciationVoice === 'female' ? 'task-voice-active' : ''}}" bindtap="onVoiceSwitchFemale">女声</text>
           </view>
           <button
             class="task-pronunciation-btn {{pronunciationPlaying ? 'task-pronunciation-btn-active' : ''}}"
             disabled="{{pronunciationLoading || !pronunciationAvailable}}"
             bindtap="onPronunciationTap"
+            bindlongpress="onPronunciationLongPress"
           >
             {{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}
           </button>
         </view>
       </view>
-
-      <view class="task-answer-slot">
-        <block wx:if="{{answerVisible}}">
-          <view class="task-answer-scroll">
-            <view class="task-answer-panel">
-              <view class="task-answer-top">
-                <view class="task-answer-title">我的理解</view>
-
-                <text
-                  wx:if="{{currentCard.myUnderstanding}}"
-                  class="review-edit-btn"
-                  bindtap="editCurrentCard"
-                >
-                  ✓ 编辑
-                </text>
-              </view>
-
-              <view
-                wx:if="{{currentCard.myUnderstanding}}"
-                class="task-answer"
-              >
-                {{currentCard.myUnderstanding}}
-              </view>
-
-              <view wx:else class="task-answer-placeholder" bindtap="editCurrentCard">
-                还没有写下你的理解，可以现在补充
-              </view>
-
-              <view wx:if="{{currentCard.notes}}" class="task-notes">
-                <view class="task-notes-divider"></view>
-                <view class="task-label">补充备注</view>
-                <view class="task-notes-text">
-                  {{currentCard.notes}}
-                </view>
-              </view>
-
-              <view wx:if="{{currentCard.whereEncountered}}" class="task-source">
-                <view class="task-notes-divider"></view>
-                <text class="task-source-text">场景：{{currentCard.whereEncountered}}</text>
-              </view>
-            </view>
-          </view>
-        </block>
-      </view>
     </view>
 
-    <view class="task-actions answer-toggle-actions">
+    <view class="mcq-options">
       <button
-        wx:if="{{!answerVisible}}"
-        class="action-btn reveal-btn"
-        bindtap="revealAnswer"
+        wx:for="{{currentCard.options}}"
+        wx:key="optionId"
+        class="mcq-option {{selectedOptionId === item.optionId ? 'mcq-option-selected' : ''}}"
+        bindtap="onOptionTap"
+        data-option-id="{{item.optionId}}"
+        disabled="{{submittingFeedback}}"
       >
-        查看理解
-      </button>
-
-      <view
-        wx:else
-        class="review-collapse-text"
-        bindtap="hideAnswer"
-      >
-        ︿ 收起理解
-      </view>
-    </view>
-
-    <view wx:if="{{answerVisible}}" class="feedback-title">这次回忆得怎么样？</view>
-
-    <view wx:if="{{answerVisible}}" class="task-actions feedback-actions">
-      <button class="action-btn action-again" bindtap="submitReview" data-result="forgot" disabled="{{submittingFeedback}}">
-        <text class="action-icon">×</text>
-        <text>没想起</text>
-      </button>
-
-      <button class="action-btn action-hard" bindtap="submitReview" data-result="shaky" disabled="{{submittingFeedback}}">
-        <text class="action-icon">?</text>
-        <text>有点模糊</text>
-      </button>
-
-      <button class="action-btn action-good" bindtap="submitReview" data-result="got_it" disabled="{{submittingFeedback}}">
-        <text class="action-icon">✓</text>
-        <text>记得</text>
-      </button>
-
-      <button class="action-btn action-easy" bindtap="submitReview" data-result="fluent" disabled="{{submittingFeedback}}">
-        <text class="action-icon">★</text>
-        <text>很熟</text>
+        <view class="mcq-option-text">{{item.displayText}}</view>
+        <view
+          wx:if="{{item.isLong}}"
+          class="mcq-option-expand"
+          catchtap="toggleOptionExpand"
+          data-option-id="{{item.optionId}}"
+        >
+          {{item.expanded ? '收起' : '展开'}}
+        </view>
       </button>
     </view>
 
+    <view class="review-footer-actions">
+      <button class="review-edit-pill" bindtap="editCurrentCard">编辑卡片</button>
+    </view>
   </block>
 
-  <!-- ===== COMPLETED ===== -->
   <view wx:elif="{{allDone || pageState === 'completed'}}" class="done-panel">
-    <view class="done-title done-title--plain">这轮看完了</view>
-    <view class="done-text">今天看过的卡片都在这里。</view>
+    <view class="done-title done-title--plain">本轮完成</view>
+    <view class="done-text">这轮题目已经答完。</view>
     <view class="done-actions">
-      <button
-        class="done-action-btn done-primary-btn"
-        bindtap="navigateToTodayReviewed"
-      >
-        查看今天看过的
-      </button>
-      <button
-        class="done-action-btn done-secondary-btn"
-        bindtap="goToHomePage"
-      >
-        返回首页
-      </button>
+      <button class="done-action-btn done-primary-btn" bindtap="goToHomePage">返回首页</button>
     </view>
   </view>
 </view>

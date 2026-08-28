@@ -1,6 +1,13 @@
 const { BACKEND_BASE_URL } = require('./localBackendConfig');
 
 let hasLoggedResolvedBackendBaseUrl = false;
+let lastTtsRequestId = '';
+
+function logTtsDiagnostic(event, details = {}) {
+  const entry = { event, ...details };
+  console.log('[TTS_DIAG]', JSON.stringify(entry));
+  reportTtsDiagnostic(entry);
+}
 
 function logAiStreamDiagnostic(event, details = {}) {
   console.log('[AI_STREAM_DIAG]', JSON.stringify({ event, ...details }));
@@ -390,7 +397,16 @@ function getTodayReview({ limit = 5, restart = false, session_type } = {}) {
 /**
  * Phase 3: submit review feedback with client_action_id for idempotency.
  */
-function submitReviewFeedback({ client_action_id, session_id, session_item_id, card_id, result }) {
+function submitReviewFeedback({
+  client_action_id,
+  session_id,
+  session_item_id,
+  card_id,
+  question_id,
+  selected_option_id,
+  response_time_ms,
+  result
+}) {
   return request({
     url: '/api/reviews/feedback',
     method: 'POST',
@@ -399,6 +415,9 @@ function submitReviewFeedback({ client_action_id, session_id, session_item_id, c
       session_id,
       session_item_id,
       card_id,
+      question_id,
+      selected_option_id,
+      response_time_ms,
       result
     }
   });
@@ -466,12 +485,125 @@ function buildPronunciationAudioUrl(text, voice) {
   return buildUrl('/api/pronunciation/audio' + buildQueryString(params));
 }
 
+function buildTtsDiagnosticTestAudioUrl() {
+  return buildUrl('/api/diagnostics/test-audio.mp3');
+}
+
+function makeTtsRequestId() {
+  return 'tts-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function getLastTtsRequestId() {
+  return lastTtsRequestId;
+}
+
+function getClientDiagnosticInfo() {
+  const client = {};
+  try {
+    if (typeof wx !== 'undefined' && typeof wx.getSystemInfoSync === 'function') {
+      const info = wx.getSystemInfoSync();
+      client.platform = info.platform || '';
+      client.system = info.system || '';
+      client.version = info.version || '';
+      client.SDKVersion = info.SDKVersion || '';
+      client.brand = info.brand || '';
+      client.model = info.model || '';
+    }
+  } catch (_) {}
+
+  try {
+    if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
+      const accountInfo = wx.getAccountInfoSync();
+      client.envVersion = accountInfo && accountInfo.miniProgram && accountInfo.miniProgram.envVersion || '';
+    }
+  } catch (_) {}
+
+  return client;
+}
+
+function reportTtsDiagnostic(entry) {
+  try {
+    if (typeof wx === 'undefined' || typeof wx.request !== 'function') {
+      return;
+    }
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      return;
+    }
+    const requestId = entry.requestId || lastTtsRequestId || '';
+    wx.request({
+      url: buildUrl('/api/diagnostics/tts-client'),
+      method: 'POST',
+      header: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId ? `${requestId}:diag` : makeTtsRequestId()
+      },
+      data: {
+        event: entry.event || '',
+        requestId,
+        timestamp: new Date().toISOString(),
+        details: entry,
+        client: getClientDiagnosticInfo()
+      },
+      timeout: 5000,
+      fail() {}
+    });
+  } catch (_) {
+    // Diagnostics must never affect playback.
+  }
+}
+
+function headerValue(headers, name) {
+  const target = String(name || '').toLowerCase();
+  const source = headers || {};
+  const keys = Object.keys(source);
+  for (let i = 0; i < keys.length; i++) {
+    if (String(keys[i]).toLowerCase() === target) {
+      return source[keys[i]];
+    }
+  }
+  return '';
+}
+
+function getTempFileSize(tempFilePath) {
+  return new Promise((resolve) => {
+    try {
+      if (!wx.getFileSystemManager) {
+        resolve(0);
+        return;
+      }
+      wx.getFileSystemManager().getFileInfo({
+        filePath: tempFilePath,
+        success(result) {
+          resolve(Number(result && result.size) || 0);
+        },
+        fail(error) {
+          logTtsDiagnostic('file_info_failed', {
+            tempFilePath,
+            errMsg: String(error && error.errMsg || error || 'unknown')
+          });
+          resolve(0);
+        }
+      });
+    } catch (error) {
+      logTtsDiagnostic('file_info_exception', {
+        tempFilePath,
+        errMsg: String(error && error.errMsg || error || 'unknown')
+      });
+      resolve(0);
+    }
+  });
+}
+
 /**
  * Download pronunciation audio as a local temp file so playback can carry the
  * Authorization header and bypass ngrok's browser interstitial. InnerAudioContext
  * cannot send headers, so it must play a downloaded local file instead of a URL.
  */
 function downloadPronunciationAudio(text, voice) {
+  const requestId = makeTtsRequestId();
+  lastTtsRequestId = requestId;
   function attemptDownload() {
     return new Promise((resolve, reject) => {
       const headers = { 'ngrok-skip-browser-warning': '1' };
@@ -479,22 +611,55 @@ function downloadPronunciationAudio(text, voice) {
       if (accessToken) {
         headers.Authorization = `Bearer ${accessToken}`;
       }
+      headers['X-Request-ID'] = requestId;
+      const url = buildPronunciationAudioUrl(text, voice);
+
+      logTtsDiagnostic('download_start', {
+        requestId,
+        url,
+        voice: voice || ''
+      });
 
       wx.downloadFile({
-        url: buildPronunciationAudioUrl(text, voice),
+        url: url,
         header: headers,
         timeout: 20000,
         success(response) {
+          const responseHeaders = response.header || response.headers || {};
+          logTtsDiagnostic('download_http_response', {
+            requestId,
+            statusCode: response.statusCode,
+            contentType: String(headerValue(responseHeaders, 'content-type') || ''),
+            contentLength: String(headerValue(responseHeaders, 'content-length') || '')
+          });
           if (response.statusCode === 200) {
-            resolve(response.tempFilePath);
+            getTempFileSize(response.tempFilePath).then((fileSize) => {
+              logTtsDiagnostic('download_success', {
+                requestId,
+                tempFilePath: response.tempFilePath,
+                fileSize
+              });
+              resolve(response.tempFilePath);
+            });
             return;
           }
+          logTtsDiagnostic('download_failure', {
+            requestId,
+            statusCode: response.statusCode,
+            errMsg: String(response.errMsg || 'non-200 response')
+          });
           reject(normalizeRequestError({
             errMsg: response.errMsg,
             statusCode: response.statusCode
           }));
         },
         fail(error) {
+          logTtsDiagnostic('download_failure', {
+            requestId,
+            statusCode: error && error.statusCode ? error.statusCode : 0,
+            errCode: error && error.errCode ? error.errCode : '',
+            errMsg: String(error && error.errMsg || error || 'unknown')
+          });
           reject(normalizeRequestError(error));
         }
       });
@@ -506,6 +671,69 @@ function downloadPronunciationAudio(text, voice) {
       return refreshBackendAuth().then(attemptDownload);
     }
     throw error;
+  });
+}
+
+function downloadDiagnosticTestAudio() {
+  const requestId = makeTtsRequestId();
+  lastTtsRequestId = requestId;
+  return new Promise((resolve, reject) => {
+    const headers = { 'ngrok-skip-browser-warning': '1' };
+    const accessToken = getAccessToken();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+    headers['X-Request-ID'] = requestId;
+    const url = buildTtsDiagnosticTestAudioUrl();
+
+    logTtsDiagnostic('test_mp3_download_start', {
+      requestId,
+      url
+    });
+
+    wx.downloadFile({
+      url,
+      header: headers,
+      timeout: 20000,
+      success(response) {
+        const responseHeaders = response.header || response.headers || {};
+        logTtsDiagnostic('test_mp3_download_http_response', {
+          requestId,
+          statusCode: response.statusCode,
+          contentType: String(headerValue(responseHeaders, 'content-type') || ''),
+          contentLength: String(headerValue(responseHeaders, 'content-length') || '')
+        });
+        if (response.statusCode === 200) {
+          getTempFileSize(response.tempFilePath).then((fileSize) => {
+            logTtsDiagnostic('test_mp3_download_success', {
+              requestId,
+              tempFilePath: response.tempFilePath,
+              fileSize
+            });
+            resolve(response.tempFilePath);
+          });
+          return;
+        }
+        logTtsDiagnostic('test_mp3_download_failure', {
+          requestId,
+          statusCode: response.statusCode,
+          errMsg: String(response.errMsg || 'non-200 response')
+        });
+        reject(normalizeRequestError({
+          errMsg: response.errMsg,
+          statusCode: response.statusCode
+        }));
+      },
+      fail(error) {
+        logTtsDiagnostic('test_mp3_download_failure', {
+          requestId,
+          statusCode: error && error.statusCode ? error.statusCode : 0,
+          errCode: error && error.errCode ? error.errCode : '',
+          errMsg: String(error && error.errMsg || error || 'unknown')
+        });
+        reject(normalizeRequestError(error));
+      }
+    });
   });
 }
 
@@ -528,6 +756,18 @@ function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyK
     data: data,
     headers: headers,
     timeout: 60000
+  });
+}
+
+function validateEnglish(text, category) {
+  return request({
+    url: '/api/validate-english',
+    method: 'POST',
+    data: {
+      text: String(text || ''),
+      cardType: category || 'auto'
+    },
+    timeout: 5000
   });
 }
 
@@ -858,8 +1098,13 @@ module.exports = {
   getTodayReview,
   getLexicalInfo,
   buildPronunciationAudioUrl,
+  buildTtsDiagnosticTestAudioUrl,
   downloadPronunciationAudio,
+  downloadDiagnosticTestAudio,
+  getLastTtsRequestId,
+  logTtsDiagnostic,
   submitReviewFeedback,
+  validateEnglish,
   analyzeEnglishDirect,
   analyzeEnglishDirectStream
 };

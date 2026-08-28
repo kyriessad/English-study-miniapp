@@ -719,11 +719,27 @@ function cardsNeedUpdate(backendCard, form, currentCard) {
 }
 
 // ===== [CURRENT] 后端同步错误格式化 =====
+function getBackendEnglishValidationDetail(error) {
+  const detail = error && error.data && error.data.detail;
+  if (!detail || typeof detail !== 'object') {
+    return null;
+  }
+  return detail.code === 'invalid_english_content' ? detail : null;
+}
+
+function isBackendEnglishValidationError(error) {
+  return Number(error && error.statusCode) === 422 && !!getBackendEnglishValidationDetail(error);
+}
+
 function formatBackendSyncErrorText(error) {
   if (!error) return 'sync_failed';
   const errMsg = trimValue(error.errMsg || error.message || '');
   if (errMsg) return errMsg.slice(0, 500);
   const statusCode = error.statusCode ? `status ${error.statusCode}: ` : '';
+  const validationDetail = getBackendEnglishValidationDetail(error);
+  if (validationDetail && validationDetail.message) {
+    return (statusCode + trimValue(validationDetail.message)).slice(0, 500);
+  }
   const detail = trimValue(
     (error.data && error.data.detail) || (error.data && error.data.message) || ''
   );
@@ -1685,6 +1701,9 @@ async function addCard(form) {
     const localCard = normalizeBackendCardToLocal(backendCard, localFallbackFields);
     return upsertCachedCard(localCard);
   } catch (backendError) {
+    if (isBackendEnglishValidationError(backendError)) {
+      throw backendError;
+    }
     const localCard = normalizeCard({
       ...localFallbackFields,
       id: createCardId(),
@@ -1756,6 +1775,9 @@ async function updateCard(cardId, form) {
       });
       return upsertCachedCard(localCard);
     } catch (backendError) {
+      if (isBackendEnglishValidationError(backendError)) {
+        throw backendError;
+      }
       // POST entirely failed — keep pending, preserve latest form
       const localCard = normalizeCard({
         ...currentCard,
@@ -1775,6 +1797,9 @@ async function updateCard(cardId, form) {
     const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
     return upsertCachedCard(localCard);
   } catch (patchError) {
+    if (isBackendEnglishValidationError(patchError)) {
+      throw patchError;
+    }
     // PATCH failed (offline) — preserve edits locally, mark pending so flush can retry
     const latestFormFields = buildCardFields(form, currentCard);
     const localCard = normalizeCard({

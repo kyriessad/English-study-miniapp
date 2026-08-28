@@ -53,6 +53,7 @@
             class="pronunciation-btn {{pronunciationPlaying ? 'pronunciation-btn-active' : ''}}"
             disabled="{{pronunciationLoading || !pronunciationAvailable}}"
             bindtap="onPronunciationTap"
+            bindlongpress="onPronunciationLongPress"
           >
             {{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}
           </button>

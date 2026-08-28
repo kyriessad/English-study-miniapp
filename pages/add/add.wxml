@@ -26,9 +26,10 @@
     <view id="english-section" class="form-item">
   <view class="label">英文内容</view>
   <textarea
-      class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+      class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}} {{validationStatus === 'invalid' ? 'textarea-english-invalid' : ''}}"
       auto-height
       disabled="{{isReadonlyDetailMode}}"
+      focus="{{englishInputFocus}}"
       placeholder="输入要记录的英文"
       value="{{form.englishText}}"
       maxlength="-1"
@@ -36,17 +37,56 @@
       bindblur="onEnglishBlur"
     ></textarea>
 
-    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && englishValidationMessage}}" class="validation-text validation-{{englishValidationType}}">
-      {{englishValidationMessage}}
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && validationStatus === 'checking'}}" class="validation-checking">
+      正在检查这段英文...
     </view>
 
-    <!-- 输入只做轻量本地检查；点击「AI 分析」才启动后端正式分析 -->
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && validationFormatMessage}}" class="validation-format-hint">
+      {{validationFormatMessage}}
+    </view>
+
+    <view
+      wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && validationVisibleIssues.length > 0}}"
+      class="validation-list validation-list-{{validationStatus}}"
+    >
+      <view
+        wx:for="{{validationVisibleIssues}}"
+        wx:key="type"
+        class="validation-issue validation-issue-{{item.severity}}"
+      >
+        <view class="validation-issue-copy">
+          <view class="validation-issue-message">{{item.message}}</view>
+          <view wx:if="{{item.detail}}" class="validation-issue-detail">{{item.detail}}</view>
+        </view>
+        <view
+          wx:if="{{item.actionType}}"
+          class="validation-action"
+          data-action="{{item.actionType}}"
+          data-category="{{item.actionCategory}}"
+          bindtap="onValidationActionTap"
+        >{{item.actionLabel}}</view>
+      </view>
+      <view wx:if="{{validationHiddenCount > 0}}" class="validation-more">
+        另有 {{validationHiddenCount}} 项可检查
+      </view>
+    </view>
+
+    <view
+      wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && validationStatus === 'unavailable' && validationUnavailableMessage}}"
+      class="validation-unavailable"
+    >{{validationUnavailableMessage}}</view>
+
+    <!-- 停止输入后只做轻量预检；AI 分析仍由用户主动触发 -->
     <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && form.englishText}}" class="ai-analyze-row">
       <view
-        class="ai-analyze-btn {{isAnalyzing ? 'ai-analyze-btn-active' : ''}}"
+        class="ai-analyze-btn {{isAnalyzing ? 'ai-analyze-btn-active' : ''}} {{validationCanAnalyze === false ? 'ai-analyze-btn-disabled' : ''}}"
         bindtap="onAnalyzeTap"
       >{{isAnalyzing ? '分析中...' : 'AI 分析'}}</view>
       <view wx:if="{{isAnalyzing}}" class="ai-analyze-cancel" bindtap="onCancelAnalyzeTap">取消分析</view>
+    </view>
+
+    <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && aiServiceMessage}}" class="ai-service-message">
+      {{aiServiceMessage}}
     </view>
 
     <!-- Edit-mode pronunciation (only for edit, not add/readonly) -->
@@ -70,8 +110,9 @@
         </view>
         <button
           class="edit-pronunciation-btn {{editPronunciationPlaying ? 'edit-pronunciation-btn-active' : ''}}"
-          disabled="{{editPronunciationLoading || !editPronunciationText}}"
+          disabled="{{editPronunciationLoading || !editPronunciationText || validationCanPronounce === false}}"
           bindtap="onEditPronunciationTap"
+          bindlongpress="onEditPronunciationLongPress"
         >
           {{editPronunciationLoading ? '加载中' : (editPronunciationPlaying ? '播放中' : '发音')}}
         </button>
@@ -80,7 +121,7 @@
 </view>
 
       <view
-        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && (translating || suggestionText || aiExampleSentence)}}"
+        wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && (translating || suggestionText || aiParagraphAnalysis || aiExampleSentence)}}"
         class="form-item reference-box {{translating ? 'reference-box-loading' : ''}}"
       >
       <view class="reference-header">
@@ -92,6 +133,19 @@
         <text class="reference-loading-text">AI 正在分析...</text>
       </view>
 
+      <block wx:if="{{aiAnalysisCategory === 'paragraph'}}">
+      <view wx:if="{{suggestionText}}" class="reference-row">
+        <view class="reference-label">翻译</view>
+        <view class="reference-value">{{suggestionText}}</view>
+      </view>
+
+      <view wx:if="{{aiParagraphAnalysis}}" class="reference-row">
+        <view class="reference-label">简化理解</view>
+        <view class="reference-value">{{aiParagraphAnalysis}}</view>
+      </view>
+      </block>
+
+      <block wx:else>
       <view wx:if="{{suggestionText}}" class="reference-row">
         <view class="reference-label-row">
           <view class="reference-label">主要含义</view>
@@ -137,6 +191,7 @@
         <view class="reference-label">近义表达</view>
         <view class="reference-value">{{aiRelatedDisplay}}</view>
       </view>
+      </block>
 
       <view wx:if="{{!translating}}" class="reference-fill-row">
         <view
@@ -258,7 +313,7 @@
 <button
   class="primary-btn submit-btn"
   type="primary"
-  disabled="{{isSaving}}"
+  disabled="{{isSaving || validationCanSave === false}}"
   bindtap="handleSubmitAndBack"
 >
   {{isSaving ? '保存中...' : '保存并返回'}}
@@ -266,7 +321,7 @@
 
 <button
   class="secondary-btn submit-btn"
-  disabled="{{isSaving}}"
+  disabled="{{isSaving || validationCanSave === false}}"
   bindtap="handleSubmitAndContinue"
 >
   {{isSaving ? '保存中...' : '保存并继续新增'}}
