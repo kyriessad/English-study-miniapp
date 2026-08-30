@@ -66,6 +66,11 @@ const BACKEND_CARD_TYPE_MAP = {
   '短语': 'phrase',
   '句子': 'sentence'
 };
+const BACKEND_CATEGORY_FORM_MAP = {
+  word: CARD_CATEGORIES[0],
+  phrase: CARD_CATEGORIES[1],
+  sentence: CARD_CATEGORIES[2]
+};
 
 const BACKEND_ANALYSIS_STATUSES = ['pending', 'done', 'failed'];
 const BACKEND_UNDERSTANDING_SOURCES = ['local', 'machine', 'ai', 'user'];
@@ -1843,12 +1848,14 @@ Page({
     const normalizedText = String(view.normalizedText || '');
     const textChangedByNormalization = normalizedText !== String(rawText || '');
     const nextText = textChangedByNormalization ? normalizedText : String(rawText || '');
+    const backendCategory = String(view.category || '').trim().toLowerCase();
+    const nextCategory = BACKEND_CATEGORY_FORM_MAP[backendCategory] || category;
     const patch = {
       validationStatus: view.status,
       validationIssues: view.issues,
       validationVisibleIssues: view.visibleIssues,
       validationHiddenCount: view.hiddenCount,
-      validationInputKey: makeValidationKey(nextText, category),
+      validationInputKey: makeValidationKey(nextText, nextCategory),
       validationNormalizedText: nextText,
       validationUnavailableMessage: '',
       validationCanSave: view.capabilities.canSave,
@@ -1863,6 +1870,11 @@ Page({
     if (textChangedByNormalization) {
       patch['form.englishText'] = nextText;
       if (this.data.isEdit) patch.editPronunciationText = nextText;
+    }
+
+    if (nextCategory !== category) {
+      patch['form.category'] = nextCategory;
+      patch.categoryIndex = Math.max(CARD_CATEGORIES.indexOf(nextCategory), 0);
     }
 
     this._clearValidationPresentationTimers();
@@ -1924,7 +1936,7 @@ Page({
       isValidatingEnglish: true
     });
 
-    const promise = validateEnglish(rawText, category)
+    const promise = validateEnglish(rawText, 'auto')
       .then((response) => this._applyValidationResponse(response, rawText, category, requestGeneration))
       .catch((error) => {
         if (requestGeneration !== this.validationGeneration || this.data.isLeavingPage) return null;
@@ -3849,9 +3861,11 @@ Page({
         this._focusEnglishValidationError();
         return;
       }
+      const currentForm = this.data.form;
       const normalizedForSave = String(
-        validation.normalizedText || normalizeEnglishText(form.englishText)
+        validation.normalizedText || normalizeEnglishText(currentForm.englishText)
       );
+      const categoryForSave = currentForm.category || CARD_CATEGORIES[0];
 
       let currentCard = null;
 
@@ -3865,7 +3879,7 @@ Page({
 
       const nextAnalyzeCacheKey = this.makeAnalyzeCacheKey(
         normalizedForSave,
-        form.category
+        categoryForSave
       );
 
       const currentText = normalizeEnglishText(currentCard && currentCard.englishText);
@@ -3878,7 +3892,7 @@ Page({
         currentCard &&
         currentCard.analysisStatus === 'done' &&
         currentText === normalizedForSave &&
-        currentCategory === form.category &&
+        currentCategory === categoryForSave &&
         currentAnalyzeCacheKey === nextAnalyzeCacheKey
       );
 
@@ -3888,7 +3902,7 @@ Page({
       if (isSameAnalyzedContent) {
         // 缂栬緫妯″紡涓斿唴瀹规湭鍙橈細淇濈暀鍘?analysisStatus 鍜屽師鍒嗘瀽缁撴灉锛屼笉瑙﹀彂鍚庡彴鍒嗘瀽
         nextForm = {
-          ...form,
+          ...currentForm,
           englishText: normalizedForSave,
           analysisStatus: currentCard.analysisStatus,
           analysisWarnings: currentCard.analysisWarnings || [],
@@ -3901,13 +3915,13 @@ Page({
       } else {
         // 新增卡片或内容变化：只有允许分析时才进入 pending，否则直接收口为 failed。
         nextForm = {
-          ...form,
+          ...currentForm,
           englishText: normalizedForSave,
           analysisStatus: validation.canAnalyze === false ? 'failed' : 'pending',
           analysisWarnings: [],
           analysisErrors: [],
           analysisSource: '',
-          understandingSource: normalizeUnderstandingSource('local', !!form.myUnderstanding),
+          understandingSource: normalizeUnderstandingSource('local', !!currentForm.myUnderstanding),
           analyzeCacheKey: nextAnalyzeCacheKey,
           analyzedAt: ''
         };
@@ -3919,7 +3933,7 @@ Page({
       // 5. 淇濆瓨鎴愬姛鍚?fire-and-forget 瑙﹀彂鍚庡彴鍒嗘瀽
       if (shouldBackgroundAnalyze && savedCard && savedCard.id) {
         const analysisTextSnapshot = normalizedForSave;
-        const analysisCategory = form.category;
+        const analysisCategory = nextForm.category;
 
         this.runBackgroundEnglishCheck(
           savedCard.id,

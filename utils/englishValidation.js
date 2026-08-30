@@ -21,6 +21,7 @@ function categoryLabel(category) {
 
 function friendlyInvalidMessage(message) {
   const text = cleanText(message);
+  if (text.includes('garbled')) return '杩欐鍐呭鍍忔槸涔辩爜锛岃閲嶆柊杈撳叆';
   if (!text || text.includes('英文内容为空')) return '请输入要记录的英文';
   if (text.includes('不可见') || text.includes('控制字符')) return '内容中有无法识别的隐藏字符，请删除后重新输入';
   if (text.includes('中文字符')) return '英文内容里混入了中文，请删除中文后再试';

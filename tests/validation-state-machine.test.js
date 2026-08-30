@@ -130,6 +130,125 @@ test('editing clears an old warning immediately and the 1000ms preflight replace
   page.onUnload();
 });
 
+test('debounced validation auto switches category from backend word phrase and sentence', async () => {
+  const labels = pageDefinition.data.categoryOptions;
+  const cases = [
+    { text: 'because', backendCategory: 'word', expectedCategory: labels[0] },
+    { text: 'no way', backendCategory: 'phrase', expectedCategory: labels[1] },
+    { text: 'I like this movie.', backendCategory: 'sentence', expectedCategory: labels[2] }
+  ];
+
+  for (const item of cases) {
+    const page = createPage('', labels[0]);
+    let requests = 0;
+    validationHandler = async (text, category) => {
+      requests += 1;
+      assert.equal(text, item.text);
+      assert.equal(category, labels[0]);
+      return {
+        level: 'pass',
+        category: item.backendCategory,
+        normalizedText: text,
+        warnings: [],
+        errors: [],
+        evidence: []
+      };
+    };
+
+    page.onEnglishInput({ detail: { value: item.text } });
+    assert.equal(requests, 0);
+
+    await wait(1050);
+    assert.equal(requests, 1);
+    assert.equal(page.data.form.category, item.expectedCategory);
+    assert.equal(page.data.categoryIndex, page.data.categoryOptions.indexOf(item.expectedCategory));
+    assert.equal(page.data.validationInputKey, `${item.expectedCategory}\u0000${item.text}`);
+    page.onUnload();
+  }
+});
+
+test('new input cancels old debounce timer before validation request is sent', async () => {
+  const labels = pageDefinition.data.categoryOptions;
+  const page = createPage('', labels[0]);
+  const requestedTexts = [];
+  validationHandler = async (text) => {
+    requestedTexts.push(text);
+    return { level: 'pass', category: 'phrase', normalizedText: text, warnings: [], errors: [], evidence: [] };
+  };
+
+  page.onEnglishInput({ detail: { value: 'no' } });
+  await wait(500);
+  page.onEnglishInput({ detail: { value: 'no way' } });
+  await wait(1050);
+
+  assert.deepEqual(requestedTexts, ['no way']);
+  assert.equal(page.data.form.category, labels[1]);
+  page.onUnload();
+});
+
+test('stale validation response cannot switch category after newer input', async () => {
+  const labels = pageDefinition.data.categoryOptions;
+  const page = createPage('', labels[0]);
+  let releaseOldResponse;
+  const oldResponse = new Promise((resolve) => { releaseOldResponse = resolve; });
+  validationHandler = (text) => {
+    if (text === 'no way') return oldResponse;
+    return Promise.resolve({
+      level: 'pass',
+      category: 'sentence',
+      normalizedText: text,
+      warnings: [],
+      errors: [],
+      evidence: []
+    });
+  };
+
+  page.onEnglishInput({ detail: { value: 'no way' } });
+  await wait(1050);
+  assert.equal(page.data.validationStatus, 'checking');
+
+  page.onEnglishInput({ detail: { value: 'I like this movie.' } });
+  await wait(1050);
+  assert.equal(page.data.form.category, labels[2]);
+
+  releaseOldResponse({
+    level: 'pass',
+    category: 'phrase',
+    normalizedText: 'no way',
+    warnings: [],
+    errors: [],
+    evidence: []
+  });
+  await wait(0);
+
+  assert.equal(page.data.form.englishText, 'I like this movie.');
+  assert.equal(page.data.form.category, labels[2]);
+  assert.equal(page.data.validationInputKey, `${labels[2]}\u0000I like this movie.`);
+  page.onUnload();
+});
+
+test('backend paragraph category does not auto switch existing form category', async () => {
+  const labels = pageDefinition.data.categoryOptions;
+  const page = createPage('', labels[2]);
+  page.data.categoryIndex = page.data.categoryOptions.indexOf(labels[2]);
+  const paragraph = 'This is the first sentence. This is the second sentence.';
+  validationHandler = async (text) => ({
+    level: 'pass',
+    category: 'paragraph',
+    normalizedText: text,
+    warnings: [],
+    errors: [],
+    evidence: []
+  });
+
+  page.onEnglishInput({ detail: { value: paragraph } });
+  await wait(1050);
+
+  assert.equal(page.data.form.category, labels[2]);
+  assert.equal(page.data.categoryIndex, page.data.categoryOptions.indexOf(labels[2]));
+  assert.equal(page.data.validationInputKey, `${labels[2]}\u0000${paragraph}`);
+  page.onUnload();
+});
 test('a rapid AI tap validates first and INVALID never starts AI', async () => {
   const page = createPage('我的');
   let analyzeCalls = 0;
