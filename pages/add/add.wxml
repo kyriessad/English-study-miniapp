@@ -24,7 +24,10 @@
     </view>
 
     <view id="english-section" class="form-item">
-  <view class="label">英文内容</view>
+  <view class="label-row">
+    <view class="label">英文内容</view>
+    <button class="original-pronunciation-btn {{pronunciationPlaying ? 'original-pronunciation-btn-active' : ''}}" disabled="{{isReadonlyDetailMode || pronunciationLoading || !form.englishText || validationCanPronounce === false}}" bindtap="onOriginalPronunciationTap">🔊</button>
+  </view>
   <textarea
       class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}} {{validationStatus === 'invalid' ? 'textarea-english-invalid' : ''}}"
       auto-height
@@ -92,9 +95,9 @@
     <!-- Edit-mode pronunciation (only for edit, not add/readonly) -->
     <view wx:if="{{deferNonCriticalReady && isEdit && !isReadonlyDetailMode}}" class="edit-lexical-section">
       <view class="edit-lexical-main">
-        <text wx:if="{{editPhoneticDisplay}}" class="edit-phonetic">{{editPhoneticDisplay}}</text>
-        <text wx:elif="{{editPhoneticLoading}}" class="edit-phonetic-empty">音标加载中...</text>
-        <text wx:elif="{{editPhoneticLoaded}}" class="edit-phonetic-empty">暂无音标</text>
+        <text wx:if="{{(form.category === '单词' || form.category === '短语') && editPhoneticDisplay}}" class="edit-phonetic">{{editPhoneticDisplay}}</text>
+        <text wx:elif="{{(form.category === '单词' || form.category === '短语') && editPhoneticLoading}}" class="edit-phonetic-empty">音标加载中...</text>
+        <text wx:elif="{{(form.category === '单词' || form.category === '短语') && editPhoneticLoaded && !editPhoneticDisplay}}" class="edit-phonetic-empty">暂无音标</text>
       </view>
       <view class="edit-voice-row">
         <view class="edit-voice-toggle">
@@ -169,7 +172,10 @@
 
       <view wx:if="{{aiExampleSentence}}" class="reference-row">
         <view class="reference-label">例句</view>
-        <view class="reference-value reference-example">{{aiExampleSentence}}</view>
+        <view class="reference-example-line">
+          <view class="reference-value reference-example">{{aiExampleSentence}}</view>
+          <button class="example-pronunciation-btn {{pronunciationPlaying ? 'example-pronunciation-btn-active' : ''}}" disabled="{{pronunciationLoading}}" bindtap="onNotesExamplePronunciationTap">🔊</button>
+        </view>
       </view>
 
       <view wx:if="{{aiExampleTranslation}}" class="reference-row">
@@ -208,14 +214,15 @@
     <view class="form-item">
       <view class="label">这次是在哪里看到的？</view>
       <view class="label-subtitle">写下场景，以后复习时更容易想起来</view>
-      <input
-        class="textarea input-source {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+      <textarea
+        class="textarea input-source textarea-where-encountered {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        auto-height
         disabled="{{isReadonlyDetailMode}}"
         placeholder="例如：NBA 解说、老友记 S1E2、B站评论区"
         value="{{form.whereEncountered}}"
         maxlength="100"
         bindinput="onWhereEncounteredInput"
-      />
+      ></textarea>
       <view wx:if="{{!isReadonlyDetailMode && recentSources.length > 0}}" class="recent-sources">
         <text class="recent-sources-label">最近用过：</text>
         <view class="recent-sources-pills">
@@ -249,11 +256,6 @@
     <view wx:if="{{deferNonCriticalReady}}" class="form-item">
       <view class="notes-label-row">
         <view class="label">补充备注</view>
-        <view
-          wx:if="{{notesExampleAvailable && !isReadonlyDetailMode}}"
-          class="notes-example-pronounce-btn {{notesExamplePlaying ? 'notes-example-pronounce-btn-active' : ''}}"
-          bindtap="onNotesExamplePronunciationTap"
-        >{{notesExampleLoading ? '加载中' : (notesExamplePlaying ? '播放中' : '例句发音')}}</view>
       </view>
 
       <textarea

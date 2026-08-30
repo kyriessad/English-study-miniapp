@@ -737,7 +737,7 @@ function downloadDiagnosticTestAudio() {
   });
 }
 
-function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyKey = '') {
+function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyKey = '', regenerateContext = null) {
   const data = {
     text: text,
     cardType: category || 'auto',
@@ -746,6 +746,7 @@ function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyK
   if (forceRefresh) {
     data.forceRefresh = true;
   }
+  if (regenerateContext) data.regenerateContext = regenerateContext;
   const headers = {};
   if (idempotencyKey) {
     headers['Idempotency-Key'] = idempotencyKey;
@@ -885,7 +886,7 @@ function utf8BytesToString(bytes) {
  * full AnalyzeResponse) when the "done" line arrives; rejects on transport
  * errors. One request — never retries here.
  */
-function analyzeEnglishDirectStream(text, category, onEvent, forceRefresh = false, taskHolder = null, idempotencyKey = '', diagnostics = {}) {
+function analyzeEnglishDirectStream(text, category, onEvent, forceRefresh = false, taskHolder = null, idempotencyKey = '', diagnostics = {}, regenerateContext = null) {
   return new Promise((resolve, reject) => {
     const generationId = Number(diagnostics.generationId) || 0;
     const headers = buildHeaders({
@@ -1007,6 +1008,7 @@ function analyzeEnglishDirectStream(text, category, onEvent, forceRefresh = fals
           cardType: category || 'auto',
           targetLang: 'zh',
           ...(forceRefresh ? { forceRefresh: true } : {})
+          , ...(regenerateContext ? { regenerateContext } : {})
         },
         header: headers,
         enableChunked: true,

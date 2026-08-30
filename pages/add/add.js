@@ -761,11 +761,11 @@ Page({
     };
   },
 
-  async callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh = false, idempotencyKey = '') {
+  async callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh = false, idempotencyKey = '', regenerateContext = null) {
     // Let errors propagate so the caller can tell a busy backend (503) or a
     // network outage (statusCode 0) apart from a real AI failure, instead of
     // collapsing every failure into a generic "缃戠粶鏆傛椂涓嶇ǔ".
-    const backendResp = await analyzeEnglishDirect(text, category, forceRefresh, idempotencyKey);
+    const backendResp = await analyzeEnglishDirect(text, category, forceRefresh, idempotencyKey, regenerateContext);
     return this.mapBackendAnalyzeResult(backendResp, text, category, cacheKey);
   },
 
@@ -1070,7 +1070,7 @@ Page({
     }
   },
 
-  async callBackendAnalyzeStream(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '') {
+  async callBackendAnalyzeStream(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '', regenerateContext = null) {
     const startedAt = Date.now();
     this._beginStreamPreview(text, requestGeneration, startedAt);
     this._streamRawSynonyms = [];
@@ -1100,7 +1100,7 @@ Page({
         if (typeof onStreamEvent === 'function') {
           onStreamEvent(event, startedAt);
         }
-      }, forceRefresh, taskHolder, idempotencyKey, { generationId: requestGeneration });
+      }, forceRefresh, taskHolder, idempotencyKey, { generationId: requestGeneration }, regenerateContext);
 
       gotFinal = finalData !== null && typeof finalData === 'object';
       if (gotFinal) {
@@ -1212,7 +1212,8 @@ Page({
       options.onStreamEvent,
       options.requestGeneration,
       forceRefresh,
-      options.idempotencyKey || ''
+      options.idempotencyKey || '',
+      options.regenerateContext || null
     );
     if (!this._inflightAnalyze) {
       this._inflightAnalyze = Object.create(null);
@@ -1228,7 +1229,7 @@ Page({
     }
   },
 
-  async _performAnalyzeEnglish(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '') {
+  async _performAnalyzeEnglish(text, category, cacheKey, onStreamEvent, requestGeneration, forceRefresh = false, idempotencyKey = '', regenerateContext = null) {
     let streamErrorStatus = 0;
 
     // Interactive auto-analysis uses the streaming endpoint so the reference
@@ -1242,7 +1243,8 @@ Page({
         onStreamEvent,
         requestGeneration,
         forceRefresh,
-        idempotencyKey
+        idempotencyKey,
+        regenerateContext
       );
       const staleGeneration =
         typeof requestGeneration === 'number' &&
@@ -1297,7 +1299,7 @@ Page({
     // Try direct backend (the only AI path now that cloud functions are removed).
     let directErrorStatus = 0;
     try {
-      const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh, idempotencyKey);
+      const directResult = await this.callBackendAnalyzeDirect(text, category, cacheKey, forceRefresh, idempotencyKey, regenerateContext);
       if (directResult) {
         console.log('[add] analyze source: direct backend');
         console.log('[add] exampleSentence received:', Boolean(directResult.exampleSentence));
@@ -1604,8 +1606,8 @@ Page({
     this._editPhoneticTimer = null;
     this._editPronunciationSafetyTimer = null;
 
-    // Only create pronunciation controller for edit mode
-    if (Boolean(options.id)) {
+    // Use the shared pronunciation controller for both add and edit flows.
+    if (!isReadonlyDetailMode(options)) {
       this.pronunciationController = createPronunciationController(this);
     }
 
@@ -1689,6 +1691,10 @@ Page({
           console.log('[edit-pronunciation] onLoad: englishText empty, deferring to loadCard');
         }
 
+        if (englishText && !initialData.isReadonlyDetailMode && this.pronunciationController && typeof this.pronunciationController.load === 'function') {
+          this.pronunciationController.load(englishText);
+        }
+
         if (englishText && !initialData.isReadonlyDetailMode) {
           this.scheduleEnglishValidation();
         }
@@ -1706,7 +1712,7 @@ Page({
     this.abortActiveAnalysis();
     this._destroyEditAudio();
 
-    if (this.pronunciationController) {
+    if (this.pronunciationController && typeof this.pronunciationController.load === 'function') {
       this.pronunciationController.destroy();
       this.pronunciationController = null;
     }
@@ -2269,7 +2275,8 @@ Page({
     onStreamEvent = null,
     requestGeneration = null,
     forceRefresh = false,
-    idempotencyKey = ''
+    idempotencyKey = '',
+    regenerateContext = null
   } = {}) {
     const normalizedText = normalizeEnglishText(text)
 
@@ -2326,7 +2333,8 @@ Page({
         onStreamEvent,
         requestGeneration,
         forceRefresh,
-        idempotencyKey
+        idempotencyKey,
+        regenerateContext
       })
 
       const validation = analyzeResult.validation || {}
@@ -2571,6 +2579,14 @@ Page({
       suggestLoading: false
     }
 
+    if (
+      this.pronunciationController &&
+      typeof this.pronunciationController.stop === 'function' &&
+      normalizePlainText(this.data.aiExampleSentence) !== normalizePlainText(nextData.aiExampleSentence)
+    ) {
+      this.pronunciationController.stop();
+    }
+
     console.log('[AI TRACE 9] reference data before render =', JSON.stringify({
       suggestionText: nextData.suggestionText,
       aiExampleSentence: nextData.aiExampleSentence,
@@ -2776,6 +2792,18 @@ Page({
 
     const englishText = String(validation.normalizedText || this.data.form.englishText || '');
     const category = this.data.form.category || CARD_CATEGORIES[0];
+    const regenerateContext = {
+      exampleSentence: this.data.aiExampleSentence || '',
+      dialogue: { english: this.data.aiDialogueEnglish || [], chinese: this.data.aiDialogueChinese || [] }
+    };
+    const previousAiDisplay = {
+      aiExampleSentence: this.data.aiExampleSentence,
+      aiExampleTranslation: this.data.aiExampleTranslation,
+      aiUsageScenario: this.data.aiUsageScenario,
+      aiDialogueEnglish: this.data.aiDialogueEnglish,
+      aiDialogueChinese: this.data.aiDialogueChinese,
+      suggestionText: this.data.suggestionText
+    };
 
     if (!englishText) {
       return;
@@ -2813,7 +2841,8 @@ Page({
         onStreamEvent,
         requestGeneration,
         forceRefresh: true,
-        idempotencyKey
+        idempotencyKey,
+        regenerateContext
       });
 
       if (this.data.isLeavingPage || requestGeneration !== this.analysisGeneration) {
@@ -2830,6 +2859,11 @@ Page({
         return;
       }
 
+      if (!analysis || analysis.ok === false) {
+        this.setData(previousAiDisplay);
+        wx.showToast({ title: '重新生成失败，请再试', icon: 'none' });
+        return;
+      }
       this.applyAnalysisToPage(analysis, englishText, requestGeneration);
     } finally {
       if (requestGeneration === this.analysisGeneration) {
@@ -3020,6 +3054,10 @@ Page({
 
     this.setData(nextData, () => this.scheduleEnglishValidation());
 
+    if (this.pronunciationController) {
+      this.pronunciationController.load(normalizedNextText);
+    }
+
     // Edit mode: schedule phonetic lookup on text change
     if (this.data.isEdit) {
       this._scheduleEditPhonetic(normalizedNextText);
@@ -3040,6 +3078,13 @@ Page({
     }
 
     this.ensureEnglishValidation({ force: false, trigger: 'blur' });
+  },
+
+  onOriginalPronunciationTap() {
+    if (this.data.isReadonlyDetailMode || this.data.validationCanPronounce === false) return;
+    const text = normalizePlainText(this.data.form.englishText);
+    if (!text || !this.pronunciationController || typeof this.pronunciationController.playText !== 'function') return;
+    this.pronunciationController.playText(text);
   },
 
   onUnderstandingInput(event) {
@@ -3594,16 +3639,15 @@ Page({
     return Boolean(normalizePlainText(exampleSentence) || extractEnglishExampleFromNotes(notes));
   },
 
-  getExampleSentenceForPronunciation() {
-    const fromAnalysis = normalizePlainText(this.data.aiExampleSentence);
-    if (fromAnalysis) return fromAnalysis;
-    return extractEnglishExampleFromNotes(this.data.form.notes || '');
-  },
-
   onNotesExamplePronunciationTap() {
-    const exampleSentence = this.getExampleSentenceForPronunciation();
+    const exampleSentence = normalizePlainText(this.data.aiExampleSentence);
     if (!exampleSentence) {
       wx.showToast({ title: '暂无可播放的例句', icon: 'none' });
+      return;
+    }
+
+    if (this.pronunciationController && typeof this.pronunciationController.playText === 'function') {
+      this.pronunciationController.playText(exampleSentence);
       return;
     }
 

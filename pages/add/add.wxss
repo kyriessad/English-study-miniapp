@@ -73,6 +73,48 @@
   color: #344054;
 }
 
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.label-row .label { margin-bottom: 12rpx; }
+
+.original-pronunciation-btn,
+.example-pronunciation-btn {
+  flex-shrink: 0;
+  width: 56rpx;
+  min-width: 56rpx;
+  height: 56rpx;
+  line-height: 54rpx;
+  padding: 0;
+  margin: 0 0 12rpx 16rpx;
+  border: 1rpx solid #cfe6d6;
+  border-radius: 18rpx;
+  background: #f5fbf7;
+  color: #3f8b61;
+  font-size: 26rpx;
+  font-weight: 700;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.original-pronunciation-btn::after,
+.example-pronunciation-btn::after { border: none; }
+.original-pronunciation-btn[disabled],
+.example-pronunciation-btn[disabled] { color: #a8b4ad; background: #f3f5f4; }
+.original-pronunciation-btn-active,
+.example-pronunciation-btn-active { color: #fff; background: #35b779; }
+
+.reference-example-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.reference-example-line .reference-value { flex: 1; }
+
 .no-margin {
   margin-bottom: 0;
 }
@@ -106,6 +148,12 @@
 
 .textarea-understanding {
   min-height: 50rpx;
+}
+
+.textarea-where-encountered {
+  min-height: 92rpx;
+  max-height: 300rpx;
+  line-height: 1.5;
 }
 
 .textarea-proxy {

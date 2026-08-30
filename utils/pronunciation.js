@@ -257,14 +257,14 @@ function createPronunciationController(page) {
     }
   }
 
-  function play(text) {
+  function playInternal(text, requireAvailable) {
     const targetText = String(text || page.data.pronunciationText || audioText || '').trim();
     logTtsDiagnostic('button_clicked', {
       voice: currentVoice,
       hasText: Boolean(targetText),
       pronunciationAvailable: Boolean(page.data.pronunciationAvailable)
     });
-    if (!targetText || !page.data.pronunciationAvailable) {
+    if (!targetText || (requireAvailable && !page.data.pronunciationAvailable)) {
       wx.showToast({
         title: '本地发音暂不可用',
         icon: 'none'
@@ -321,6 +321,15 @@ function createPronunciationController(page) {
           icon: 'none'
         });
       });
+  }
+
+  function play(text) {
+    playInternal(text, true);
+  }
+
+  // Play an explicit snapshot (for AI examples) without requiring lexical data.
+  function playText(text) {
+    playInternal(text, false);
   }
 
   function getVoice() {
@@ -407,6 +416,7 @@ function createPronunciationController(page) {
   return {
     load,
     play,
+    playText,
     reset,
     stop,
     destroy,
