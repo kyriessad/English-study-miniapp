@@ -24,11 +24,21 @@
     </view>
 
     <view id="english-section" class="form-item">
-  <view class="label-row">
-    <view class="label">英文内容</view>
-    <button class="original-pronunciation-btn {{pronunciationPlaying ? 'original-pronunciation-btn-active' : ''}}" disabled="{{isReadonlyDetailMode || pronunciationLoading || !form.englishText || validationCanPronounce === false}}" bindtap="onOriginalPronunciationTap">🔊</button>
-  </view>
-  <textarea
+      <view class="label-row">
+        <view class="label">英文内容</view>
+        <view class="english-pronunciation-area">
+          <text
+            wx:if="{{(form.category === '单词' || form.category === '短语') && phoneticDisplay}}"
+            class="phonetic-display"
+          >{{phoneticDisplay}}</text>
+          <button
+            class="original-pronunciation-btn {{pronunciationPlaying ? 'original-pronunciation-btn-active' : ''}}"
+            disabled="{{isReadonlyDetailMode || pronunciationLoading || !form.englishText || validationCanPronounce === false}}"
+            bindtap="onOriginalPronunciationTap"
+          >🔊</button>
+        </view>
+      </view>
+      <textarea
       class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}} {{validationStatus === 'invalid' ? 'textarea-english-invalid' : ''}}"
       auto-height
       disabled="{{isReadonlyDetailMode}}"
@@ -38,7 +48,7 @@
       maxlength="-1"
       bindinput="onEnglishInput"
       bindblur="onEnglishBlur"
-    ></textarea>
+      ></textarea>
 
     <view wx:if="{{deferNonCriticalReady && !isReadonlyDetailMode && validationStatus === 'checking'}}" class="validation-checking">
       正在检查这段英文...
@@ -92,35 +102,6 @@
       {{aiServiceMessage}}
     </view>
 
-    <!-- Edit-mode pronunciation (only for edit, not add/readonly) -->
-    <view wx:if="{{deferNonCriticalReady && isEdit && !isReadonlyDetailMode}}" class="edit-lexical-section">
-      <view class="edit-lexical-main">
-        <text wx:if="{{(form.category === '单词' || form.category === '短语') && editPhoneticDisplay}}" class="edit-phonetic">{{editPhoneticDisplay}}</text>
-        <text wx:elif="{{(form.category === '单词' || form.category === '短语') && editPhoneticLoading}}" class="edit-phonetic-empty">音标加载中...</text>
-        <text wx:elif="{{(form.category === '单词' || form.category === '短语') && editPhoneticLoaded && !editPhoneticDisplay}}" class="edit-phonetic-empty">暂无音标</text>
-      </view>
-      <view class="edit-voice-row">
-        <view class="edit-voice-toggle">
-          <text
-            class="edit-voice-option {{editPronunciationVoice === 'male' ? 'edit-voice-active' : ''}}"
-            bindtap="onEditVoiceSwitchMale"
-          >男声</text>
-          <text class="edit-voice-sep">|</text>
-          <text
-            class="edit-voice-option {{editPronunciationVoice === 'female' ? 'edit-voice-active' : ''}}"
-            bindtap="onEditVoiceSwitchFemale"
-          >女声</text>
-        </view>
-        <button
-          class="edit-pronunciation-btn {{editPronunciationPlaying ? 'edit-pronunciation-btn-active' : ''}}"
-          disabled="{{editPronunciationLoading || !editPronunciationText || validationCanPronounce === false}}"
-          bindtap="onEditPronunciationTap"
-          bindlongpress="onEditPronunciationLongPress"
-        >
-          {{editPronunciationLoading ? '加载中' : (editPronunciationPlaying ? '播放中' : '发音')}}
-        </button>
-      </view>
-    </view>
 </view>
 
       <view

@@ -143,8 +143,6 @@ test('AI restriction has inline reason before click and uses unified toast', asy
 test('pronunciation restriction has inline reason before click and uses unified toast', async () => {
   const page = createPage('doomscroll');
   page.data.isEdit = true;
-  page.data.editPronunciationText = 'doomscroll';
-  page.data.editPronunciationVoice = 'male';
   page.pronunciationController = {};
   let downloads = 0;
   downloadHandler = async () => { downloads += 1; return ''; };
@@ -165,7 +163,7 @@ test('pronunciation restriction has inline reason before click and uses unified 
     '暂时无法确认这个词的可靠发音'
   ]);
 
-  await page.onEditPronunciationTap();
+  await page.onOriginalPronunciationTap();
   assert.equal(downloads, 0);
   assert.deepEqual(toastTitles, ['请先修改英文内容']);
 });

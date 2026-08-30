@@ -49,6 +49,22 @@
   font-weight: 600;
 }
 
+.voice-preference-options {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.voice-preference-option {
+  color: #98a2b3;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.voice-preference-option--active {
+  color: #5eaa64;
+}
+
 .settings-item-arrow {
   font-size: 32rpx;
   margin-left: 8rpx;

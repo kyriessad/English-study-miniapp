@@ -76,10 +76,23 @@
 .label-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  margin-bottom: 12rpx;
 }
 
-.label-row .label { margin-bottom: 12rpx; }
+.label-row .label {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.english-pronunciation-area {
+  margin-left: auto;
+  max-width: calc(100% - 150rpx);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12rpx;
+  min-width: 0;
+}
 
 .original-pronunciation-btn,
 .example-pronunciation-btn {
@@ -102,6 +115,9 @@
 
 .original-pronunciation-btn::after,
 .example-pronunciation-btn::after { border: none; }
+.english-pronunciation-area .original-pronunciation-btn {
+  margin: 0;
+}
 .original-pronunciation-btn[disabled],
 .example-pronunciation-btn[disabled] { color: #a8b4ad; background: #f3f5f4; }
 .original-pronunciation-btn-active,
@@ -144,6 +160,18 @@
 
 .textarea-english {
   min-height: 50rpx;
+}
+
+.phonetic-display {
+  flex-shrink: 1;
+  margin: 0;
+  font-size: 26rpx;
+  line-height: 1.4;
+  color: #5f7569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360rpx;
 }
 
 .textarea-understanding {
@@ -261,7 +289,7 @@
   margin-top: 12rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 15rpx;
 }
 
 .validation-issue {
@@ -383,97 +411,6 @@
   color: #667085;
 }
 
-/* Edit-mode pronunciation section */
-.edit-lexical-section {
-  margin-top: 16rpx;
-  padding: 16rpx 18rpx;
-  background: #f6faf7;
-  border-radius: 14rpx;
-  border: 1rpx solid #dce8df;
-}
-
-.edit-lexical-main {
-  min-height: 36rpx;
-  margin-bottom: 8rpx;
-}
-
-.edit-phonetic {
-  font-size: 26rpx;
-  color: #5f7569;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.edit-phonetic-empty {
-  font-size: 22rpx;
-  color: #9ba8a0;
-  line-height: 1.4;
-}
-
-.edit-voice-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12rpx;
-}
-
-.edit-voice-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  font-size: 22rpx;
-  color: #8ea798;
-  line-height: 1;
-}
-
-.edit-voice-option {
-  padding: 2rpx 8rpx;
-  color: #8ea798;
-  font-size: 22rpx;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.edit-voice-active {
-  color: #35b779;
-  font-weight: 800;
-}
-
-.edit-voice-sep {
-  color: #c8d6cd;
-  font-size: 20rpx;
-  padding: 0 2rpx;
-}
-
-.edit-pronunciation-btn {
-  width: 112rpx;
-  height: 56rpx;
-  line-height: 56rpx;
-  padding: 0;
-  margin: 0;
-  border-radius: 999rpx;
-  border: 1rpx solid #cfe6d6;
-  background: #f5fbf7;
-  color: #3f8b61;
-  font-size: 24rpx;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.edit-pronunciation-btn::after {
-  border: none;
-}
-
-.edit-pronunciation-btn[disabled] {
-  color: #a8b4ad;
-  background: #f3f5f4;
-}
-
-.edit-pronunciation-btn-active {
-  color: #ffffff;
-  background: #35b779;
-}
-
 .notes-label-row {
   display: flex;
   align-items: center;
@@ -581,7 +518,7 @@
 .meta-pill {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  gap: 15rpx;
   min-height: 62rpx;
   padding: 0 24rpx;
   border-radius: 999rpx;
@@ -911,7 +848,7 @@
 }
 
 .reference-row {
-  margin-bottom: 10rpx;
+  margin-bottom: 50rpx;
 }
 
 .reference-label {

@@ -1,4 +1,5 @@
 const { logoutBackendAuth } = require('../../utils/apiClient');
+const { getStoredVoice, saveStoredVoice } = require('../../utils/pronunciation');
 
 const DAILY_GOAL_KEY = 'dailyGoal';
 const DAILY_GOAL_DEFAULT = 5;
@@ -30,16 +31,31 @@ Page({
     dailyGoal: DAILY_GOAL_DEFAULT,
     dailyGoalIndex: 1,
     dailyGoalLabel: '5 张',
-    dailyGoalLabels: DAILY_GOAL_LABELS
+    dailyGoalLabels: DAILY_GOAL_LABELS,
+    pronunciationVoice: getStoredVoice(),
+    pronunciationVoiceLabel: getStoredVoice() === 'female' ? '\u5973\u58f0' : '\u7537\u58f0'
   },
 
   onShow() {
     const goal = readDailyGoal();
     const idx = DAILY_GOAL_OPTIONS.indexOf(goal);
+    const voice = getStoredVoice();
     this.setData({
       dailyGoal: goal,
       dailyGoalIndex: idx !== -1 ? idx : 1,
-      dailyGoalLabel: DAILY_GOAL_LABELS[idx !== -1 ? idx : 1]
+      dailyGoalLabel: DAILY_GOAL_LABELS[idx !== -1 ? idx : 1],
+      pronunciationVoice: voice,
+      pronunciationVoiceLabel: voice === 'female' ? '\u5973\u58f0' : '\u7537\u58f0'
+    });
+  },
+
+  onPronunciationPreferenceTap(event) {
+    const voice = event && event.currentTarget && event.currentTarget.dataset.voice;
+    if (voice !== 'male' && voice !== 'female') return;
+    saveStoredVoice(voice);
+    this.setData({
+      pronunciationVoice: voice,
+      pronunciationVoiceLabel: voice === 'female' ? '\u5973\u58f0' : '\u7537\u58f0'
     });
   },
 

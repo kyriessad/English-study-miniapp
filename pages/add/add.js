@@ -9,13 +9,11 @@
 } = require('../../utils/cardStorageFacade');
 
 const {
+  BACKEND_AUTH_STORAGE_KEYS,
   updateBackendCard,
   validateEnglish,
   analyzeEnglishDirect,
-  analyzeEnglishDirectStream,
-  downloadDiagnosticTestAudio,
-  getLastTtsRequestId,
-  logTtsDiagnostic
+  analyzeEnglishDirectStream
 } = require('../../utils/apiClient');
 
 const {
@@ -45,20 +43,6 @@ const ANALYZE_CACHE_STORAGE_KEY = 'englishAnalyzeCache_v2';
 const ANALYZE_CACHE_MAX_ITEMS = 200;
 const ANALYZE_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
 const STREAM_DIAGNOSTIC_VERSION = 'ai-stream-diag-20260824-1';
-
-function audioState(audio) {
-  if (!audio) {
-    return {};
-  }
-  return {
-    requestId: getLastTtsRequestId(),
-    src: String(audio.src || ''),
-    volume: Number(audio.volume),
-    duration: Number(audio.duration),
-    currentTime: Number(audio.currentTime),
-    paused: Boolean(audio.paused)
-  };
-}
 
 const LAST_ENCOUNTER_CONTEXT_KEY = 'englishCard.lastEncounterContext.v1';
 const BACKEND_CARD_TYPE_MAP = {
@@ -503,7 +487,9 @@ function buildRecentWhereEncounteredOptions() {
   var seen = Object.create(null);
   var result = [];
   try {
-    var raw = wx.getStorageSync('cardsCache');
+    var userId = String(wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId) || '').trim();
+    var scope = userId ? 'user:' + userId : 'anonymous';
+    var raw = wx.getStorageSync('cardsCache:' + scope);
     var cards = Array.isArray(raw) ? raw : [];
     for (var i = 0; i < cards.length; i++) {
       var card = cards[i];
@@ -686,18 +672,14 @@ Page({
     notesExampleLoading: false,
     notesExampleAvailable: false,
     referenceApplied: false,
-    editPhoneticDisplay: '',
-    editPhoneticLoading: false,
-    editPhoneticLoaded: false,
-    editPronunciationAvailable: false,
-    editPronunciationLoading: false,
-    editPronunciationPlaying: false,
-    editPronunciationVoice: DEFAULT_VOICE,
-    editPronunciationText: '',
-
-
-
-
+    lexicalInfoLoaded: false,
+    lexicalInfoLoading: false,
+    phoneticDisplay: '',
+    phoneticSource: '',
+    pronunciationAvailable: false,
+    pronunciationText: '',
+    pronunciationLoading: false,
+    pronunciationPlaying: false
   },
 
   mapBackendAnalyzeResult(backendResp, text, category, cacheKey) {
@@ -1573,23 +1555,10 @@ Page({
     };
   },
 
-  // ===== Edit pronunciation helpers =====
-
-  _getCurrentEditEnglish() {
-    return String(
-      this.data.form && this.data.form.englishText
-        ? this.data.form.englishText
-        : this.data.editPronunciationText || ''
-    ).trim();
-  },
-
   onLoad(options) {
     logAiStreamDiagnostic('frontend_code_identity', {
       diagnosticVersion: STREAM_DIAGNOSTIC_VERSION
     });
-    console.log('[edit-pronunciation] implementation version: edit-audio-fix-20260704-2');
-    console.log('[edit-pronunciation] onLoad options', JSON.stringify(options));
-
     this.pageOptions = options || {};
     this.suggestionCache = Object.create(null);
     this.englishValidationTimer = null;
@@ -1602,10 +1571,6 @@ Page({
     this.delayedLoadCardTimer = null;
     this.deferNonCriticalTimer = null;
     this.analysisGeneration = 0;
-    this._editPhoneticRequestId = 0;
-    this._editPhoneticTimer = null;
-    this._editPronunciationSafetyTimer = null;
-
     // Use the shared pronunciation controller for both add and edit flows.
     if (!isReadonlyDetailMode(options)) {
       this.pronunciationController = createPronunciationController(this);
@@ -1652,52 +1617,16 @@ Page({
     }
 
     initialData.recentSources = buildRecentWhereEncounteredOptions();
-    if (isEdit) {
-      initialData.editPronunciationVoice = getStoredVoice();
-    }
-
     this.setData(initialData, () => {
       this.setNavigationTitle();
 
       const englishText = initialData.form && initialData.form.englishText
         ? initialData.form.englishText
         : '';
-      const category = initialData.form && initialData.form.category
-        ? initialData.form.category
-        : CARD_CATEGORIES[0];
-
-      console.log('[edit-pronunciation] onLoad setData callback', {
-        isEdit: isEdit,
-        cardId: options.id || '',
-        formEnglish: englishText || '(empty)',
-        isReadonlyDetailMode: initialData.isReadonlyDetailMode,
-        hasCachedCard: Boolean(cachedCard)
-      });
-
-        // Always keep editPronunciationText in sync with form English text
-        // so the pronunciation button is never disabled due to stale data
-        if (englishText && isEdit) {
-          var patch = { editPronunciationText: englishText };
-          this.setData(patch);
-          console.log('[edit-pronunciation] onLoad: synced editPronunciationText from form', { editPronunciationText: englishText });
-        }
-
-        // 涓嶅啀鑷姩璋冪敤 AI 鍒嗘瀽锛氱瓑鐢ㄦ埛鐐瑰嚮銆孉I 鍒嗘瀽銆嶆寜閽€傜紪杈戞ā寮忎笅淇濈暀鍘熸湁鍙戦煶鍒濆鍖栥€?
-        // Edit mode: load phonetics for the initial English text
-        if (isEdit && englishText && !initialData.isReadonlyDetailMode) {
-          console.log('[edit-pronunciation] calling _loadEditPhonetic from onLoad, text:', englishText);
-          this._loadEditPhonetic(englishText);
-        } else if (isEdit && !englishText && !initialData.isReadonlyDetailMode) {
-          console.log('[edit-pronunciation] onLoad: englishText empty, deferring to loadCard');
-        }
-
-        if (englishText && !initialData.isReadonlyDetailMode && this.pronunciationController && typeof this.pronunciationController.load === 'function') {
-          this.pronunciationController.load(englishText);
-        }
-
-        if (englishText && !initialData.isReadonlyDetailMode) {
-          this.scheduleEnglishValidation();
-        }
+      if (englishText && !initialData.isReadonlyDetailMode) {
+        this.pronunciationController.load(englishText);
+        this.scheduleEnglishValidation();
+      }
     });
   },
 
@@ -1712,7 +1641,7 @@ Page({
     this.abortActiveAnalysis();
     this._destroyEditAudio();
 
-    if (this.pronunciationController && typeof this.pronunciationController.load === 'function') {
+    if (this.pronunciationController && typeof this.pronunciationController.destroy === 'function') {
       this.pronunciationController.destroy();
       this.pronunciationController = null;
     }
@@ -1875,7 +1804,6 @@ Page({
 
     if (textChangedByNormalization) {
       patch['form.englishText'] = nextText;
-      if (this.data.isEdit) patch.editPronunciationText = nextText;
     }
 
     if (nextCategory !== category) {
@@ -2918,34 +2846,18 @@ Page({
     });
 
     const englishText = nextData.form.englishText || '';
-    const category = nextData.form.category || CARD_CATEGORIES[0];
-
-    console.log('[edit-pronunciation] loadCard completed', {
-      cardId: cardId,
-      formEnglish: englishText || '(empty)',
-      editPronunciationText: this.data.editPronunciationText || '(empty)',
-      isReadonlyDetailMode: this.data.isReadonlyDetailMode
-    });
-
     if (this.data.isReadonlyDetailMode) {
       return;
     }
 
     if (englishText) {
-      // Sync editPronunciationText immediately so the button is never disabled
-      this.setData({ editPronunciationText: englishText });
-      console.log('[edit-pronunciation] loadCard: synced editPronunciationText from form', { editPronunciationText: englishText });
-
       // 涓嶅啀鑷姩璋冪敤 AI 鍒嗘瀽锛氱瓑鐢ㄦ埛鐐瑰嚮銆孉I 鍒嗘瀽銆嶆寜閽€?
-      // Initialize pronunciation: ensure editPronunciationText is set and load phonetics
-      if (!this.data.isReadonlyDetailMode) {
-        console.log('[edit-pronunciation] loadCard calling _loadEditPhonetic, text:', englishText);
-        this._loadEditPhonetic(englishText);
+      // Use the shared controller for add and edit so phoneticDisplay is populated consistently.
+      if (this.pronunciationController && typeof this.pronunciationController.load === 'function') {
+        this.pronunciationController.load(englishText);
       }
       this.clearEnglishValidationForEdit();
       this.scheduleEnglishValidation();
-    } else {
-      console.log('[edit-pronunciation] loadCard: englishText empty, skipping pronunciation init');
     }
   },
 
@@ -3058,11 +2970,6 @@ Page({
       this.pronunciationController.load(normalizedNextText);
     }
 
-    // Edit mode: schedule phonetic lookup on text change
-    if (this.data.isEdit) {
-      this._scheduleEditPhonetic(normalizedNextText);
-    }
-
   },
 
   onEnglishBlur(event) {
@@ -3080,189 +2987,10 @@ Page({
     this.ensureEnglishValidation({ force: false, trigger: 'blur' });
   },
 
-  onOriginalPronunciationTap() {
-    if (this.data.isReadonlyDetailMode || this.data.validationCanPronounce === false) return;
-    const text = normalizePlainText(this.data.form.englishText);
-    if (!text || !this.pronunciationController || typeof this.pronunciationController.playText !== 'function') return;
-    this.pronunciationController.playText(text);
-  },
-
-  onUnderstandingInput(event) {
-    if (this.data.isReadonlyDetailMode) return;
-    this.setData({
-      'form.myUnderstanding': event.detail.value
-    });
-    this.refreshReferenceApplied();
-  },
-
-  // ===== Edit-mode pronunciation (only active when isEdit && !isReadonlyDetailMode) =====
-
-  _loadEditPhonetic(text) {
-    var cardId = this.data.cardId || (this.data.form && this.data.form.cardId) || '';
-    console.log('[edit-pronunciation] _loadEditPhonetic entered', {
-      cardId: cardId || '(unknown)',
-      text: String(text || '').trim() || '(empty)',
-      hasController: Boolean(this.pronunciationController),
-      isEdit: this.data.isEdit,
-      isReadonlyDetailMode: this.data.isReadonlyDetailMode
-    });
-
-    if (!this.pronunciationController || !this.data.isEdit || this.data.isReadonlyDetailMode) {
-      console.log('[edit-pronunciation] _loadEditPhonetic blocked by guard');
-      return;
-    }
-
-    var normalizedText = String(text || '').trim();
-    // Use a dedicated request ID to prevent stale responses
-    this._editPhoneticRequestId += 1;
-    var requestId = this._editPhoneticRequestId;
-
-    if (!normalizedText) {
-      console.log('[edit-pronunciation] _loadEditPhonetic: empty text, clearing');
-      this.setData({
-        editPhoneticDisplay: '',
-        editPhoneticLoaded: true,
-        editPhoneticLoading: false,
-        editPronunciationAvailable: false,
-        editPronunciationText: ''
-      });
-      return;
-    }
-
-    console.log('[edit-pronunciation] lexical request', { text: normalizedText, requestId: requestId });
-
-    this.setData({
-      editPhoneticLoading: true,
-      editPhoneticLoaded: false,
-      editPhoneticDisplay: '',
-      editPronunciationAvailable: false,
-      editPronunciationText: normalizedText
-    });
-
-    console.log('[edit-pronunciation] after setData (before API)', {
-      editPronunciationText: this.data.editPronunciationText,
-      editPronunciationLoading: this.data.editPronunciationLoading,
-      editPronunciationAvailable: this.data.editPronunciationAvailable
-    });
-
-    // Use the controller's internal load (but map to edit-prefixed data keys)
-    // We need to directly call getLexicalInfo to get edit-specific keys
-    var self = this;
-    var getLexicalInfo = require('../../utils/apiClient').getLexicalInfo;
-    var resolvePhoneticDisplay = require('../../utils/pronunciation').resolvePhoneticDisplay;
-
-    getLexicalInfo(normalizedText).then(function (info) {
-      if (requestId !== self._editPhoneticRequestId) {
-        console.log('[edit-pronunciation] lexical response stale, requestId:', requestId, 'current:', self._editPhoneticRequestId);
-        return;
-      }
-
-      console.log('[edit-pronunciation] lexical response', {
-        text: (info && info.text) || normalizedText,
-        phonetic: (info && info.phonetic) || '(none)',
-        wordPhonetics: (info && info.wordPhonetics) ? JSON.stringify(info.wordPhonetics) : '(none)',
-        pronunciationAvailable: Boolean(info && info.pronunciationAvailable)
-      });
-
-      var resolved = resolvePhoneticDisplay(info);
-      self.setData({
-        editPhoneticDisplay: resolved.phoneticDisplay,
-        editPhoneticLoaded: true,
-        editPhoneticLoading: false,
-        editPronunciationAvailable: Boolean(info && info.pronunciationAvailable),
-        editPronunciationText: (info && info.text) || normalizedText
-      });
-
-      console.log('[edit-pronunciation] after API success setData', {
-        editPhoneticDisplay: self.data.editPhoneticDisplay || '(empty)',
-        editPronunciationText: self.data.editPronunciationText,
-        editPronunciationAvailable: self.data.editPronunciationAvailable
-      });
-    }).catch(function (err) {
-      if (requestId !== self._editPhoneticRequestId) {
-        console.log('[edit-pronunciation] lexical error stale, requestId:', requestId);
-        return;
-      }
-
-      console.log('[edit-pronunciation] lexical error', String(err && err.errMsg || err || 'unknown'));
-      self.setData({
-        editPhoneticDisplay: '',
-        editPhoneticLoaded: true,
-        editPhoneticLoading: false,
-        editPronunciationAvailable: false,
-        editPronunciationText: normalizedText
-      });
-
-      console.log('[edit-pronunciation] after API error setData', {
-        editPronunciationText: self.data.editPronunciationText,
-        editPronunciationAvailable: self.data.editPronunciationAvailable
-      });
-    });
-  },
-
-  _scheduleEditPhonetic(text) {
-    if (!this.data.isEdit || this.data.isReadonlyDetailMode) return;
-
-    if (this._editPhoneticTimer) {
-      clearTimeout(this._editPhoneticTimer);
-      this._editPhoneticTimer = null;
-    }
-
-    // Clear old phonetics immediately
-    var normalizedText = String(text || '').trim();
-    console.log('[edit-pronunciation] _scheduleEditPhonetic', { text: normalizedText || '(empty)' });
-
-    if (!normalizedText) {
-      this.setData({
-        editPhoneticDisplay: '',
-        editPhoneticLoaded: false,
-        editPhoneticLoading: false,
-        editPronunciationAvailable: false,
-        editPronunciationText: ''
-      });
-      console.log('[edit-pronunciation] _scheduleEditPhonetic: text empty, button now disabled');
-      return;
-    }
-
-    // Clear old display while waiting for debounce, but update text immediately
-    this.setData({
-      editPhoneticDisplay: '',
-      editPhoneticLoaded: false,
-      editPhoneticLoading: true,
-      editPronunciationText: normalizedText
-    });
-
-    var self = this;
-    this._editPhoneticTimer = setTimeout(function () {
-      self._editPhoneticTimer = null;
-      self._loadEditPhonetic(text);
-    }, 400);
-  },
-
-  async onEditPronunciationTap() {
-    var text = this._getCurrentEditEnglish();
-    var cardId = this.data.cardId || (this.data.form && this.data.form.cardId) || '';
-    var voice = this.data.editPronunciationVoice || DEFAULT_VOICE;
-
-    console.log('[edit-pronunciation] tap entered', {
-      cardId: cardId || '(unknown)',
-      text: text || '(empty)',
-      editPronunciationText: this.data.editPronunciationText || '(empty)',
-      formEnglishText: (this.data.form && this.data.form.englishText) || '(empty)',
-      editPronunciationAvailable: this.data.editPronunciationAvailable,
-      editPronunciationLoading: this.data.editPronunciationLoading,
-      editPronunciationPlaying: this.data.editPronunciationPlaying,
-      voice: voice
-    });
-
-    if (!this.pronunciationController) {
-      console.log('[edit-pronunciation] tap blocked: no pronunciationController');
-      return;
-    }
-    if (!text) {
-      console.log('[edit-pronunciation] tap blocked: text is empty');
-      return;
-    }
+  async onOriginalPronunciationTap() {
+    if (this.data.isReadonlyDetailMode || !this.pronunciationController) return;
+    var text = normalizePlainText(this.data.form.englishText);
+    if (!text) return;
     if (text.length > 300) {
       wx.showToast({ title: '内容较长，暂不支持整段发音', icon: 'none' });
       return;
@@ -3279,269 +3007,22 @@ Page({
       wx.showToast({ title: '请先修改英文内容', icon: 'none' });
       return;
     }
-    text = String(validation.normalizedText || this._getCurrentEditEnglish());
 
-    console.log('[edit-pronunciation] proceeding to play', { text: text, voice: voice });
-
-    // ---- loading safety timeout: prevent permanent "鍔犺浇涓? ----
-    var self = this;
-    if (this._editPronunciationSafetyTimer) {
-      clearTimeout(this._editPronunciationSafetyTimer);
-      this._editPronunciationSafetyTimer = null;
-    }
-    this._editPronunciationSafetyTimer = setTimeout(function () {
-      self._editPronunciationSafetyTimer = null;
-      if (self.data.editPronunciationLoading) {
-        console.log('[edit-pronunciation] SAFETY: loading timeout, forcing reset');
-        self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        wx.showToast({ title: '发音加载超时，请重试', icon: 'none' });
-      }
-    }, 15000);
-    // --------------------------------------------------------
-
-    try {
-      var downloadPronunciationAudio = require('../../utils/apiClient').downloadPronunciationAudio;
-      var audioContext = null;
-
-      // Create a temporary audio context for edit playback
-      if (!this._editAudioContext) {
-        console.log('[edit-pronunciation] creating new _editAudioContext');
-        this._editAudioContext = wx.createInnerAudioContext();
-        this._editAudioContext.obeyMuteSwitch = false;
-
-        this._editAudioContext.onCanplay(function () {
-          logTtsDiagnostic('edit_audio_on_canplay', audioState(self._editAudioContext));
-        });
-        this._editAudioContext.onPlay(function () {
-          logTtsDiagnostic('edit_audio_on_play', audioState(self._editAudioContext));
-          console.log('[edit-pronunciation] audio onPlay fired');
-          if (self._editPronunciationSafetyTimer) {
-            clearTimeout(self._editPronunciationSafetyTimer);
-            self._editPronunciationSafetyTimer = null;
-          }
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: true });
-        });
-        this._editAudioContext.onEnded(function () {
-          logTtsDiagnostic('edit_audio_on_ended', audioState(self._editAudioContext));
-          console.log('[edit-pronunciation] audio onEnded fired');
-          if (self._editPronunciationSafetyTimer) {
-            clearTimeout(self._editPronunciationSafetyTimer);
-            self._editPronunciationSafetyTimer = null;
-          }
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-        this._editAudioContext.onStop(function () {
-          console.log('[edit-pronunciation] audio onStop fired');
-          if (self._editPronunciationSafetyTimer) {
-            clearTimeout(self._editPronunciationSafetyTimer);
-            self._editPronunciationSafetyTimer = null;
-          }
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-        this._editAudioContext.onWaiting(function () {
-          logTtsDiagnostic('edit_audio_on_waiting', audioState(self._editAudioContext));
-        });
-        this._editAudioContext.onError(function (err) {
-          logTtsDiagnostic('edit_audio_on_error', {
-            ...audioState(self._editAudioContext),
-            errCode: err && err.errCode ? err.errCode : '',
-            errMsg: String(err && err.errMsg || err || 'unknown')
-          });
-          console.log('[edit-pronunciation] audio onError fired', String(err && err.errMsg || err || 'unknown'));
-          if (self._editPronunciationSafetyTimer) {
-            clearTimeout(self._editPronunciationSafetyTimer);
-            self._editPronunciationSafetyTimer = null;
-          }
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-          wx.showToast({ title: '发音暂时不可用', icon: 'none' });
-        });
-      }
-
-      audioContext = this._editAudioContext;
-
-      if (this.data.editPronunciationPlaying || this.data.editPronunciationLoading) {
-        console.log('[edit-pronunciation] stopping previous playback');
-        try { audioContext.stop(); } catch (_) {}
-      }
-
-      this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
-      logTtsDiagnostic('edit_button_clicked', {
-        voice: voice,
-        hasText: Boolean(text)
-      });
-      downloadPronunciationAudio(text, voice)
-        .then(function (tempFilePath) {
-          logTtsDiagnostic('edit_audio_src_set', {
-            tempFilePath: tempFilePath,
-            src: tempFilePath,
-            requestId: getLastTtsRequestId()
-          });
-          audioContext.src = tempFilePath;
-          logTtsDiagnostic('edit_audio_play_called', audioState(audioContext));
-          audioContext.play();
-        })
-        .catch(function (err) {
-          console.log('[edit-pronunciation] audio download failed', String(err && err.errMsg || err || 'unknown'));
-          if (self._editPronunciationSafetyTimer) {
-            clearTimeout(self._editPronunciationSafetyTimer);
-            self._editPronunciationSafetyTimer = null;
-          }
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-          wx.showToast({ title: '发音暂时不可用', icon: 'none' });
-        });
-    } catch (err) {
-      console.log('[edit-pronunciation] exception during playback setup', String(err && err.message || err));
-      if (this._editPronunciationSafetyTimer) {
-        clearTimeout(this._editPronunciationSafetyTimer);
-        this._editPronunciationSafetyTimer = null;
-      }
-      this.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-      wx.showToast({ title: '发音暂时不可用', icon: 'none' });
+    text = String(validation.normalizedText || text);
+    if (typeof this.pronunciationController.playText === 'function') {
+      this.pronunciationController.playText(text);
     }
   },
 
-  onEditPronunciationLongPress() {
-    const self = this;
-    try {
-      if (!this._editAudioContext) {
-        this._editAudioContext = wx.createInnerAudioContext();
-        this._editAudioContext.obeyMuteSwitch = false;
-        this._editAudioContext.onCanplay(function () {
-          logTtsDiagnostic('edit_audio_on_canplay', audioState(self._editAudioContext));
-        });
-        this._editAudioContext.onPlay(function () {
-          logTtsDiagnostic('edit_audio_on_play', audioState(self._editAudioContext));
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: true });
-        });
-        this._editAudioContext.onWaiting(function () {
-          logTtsDiagnostic('edit_audio_on_waiting', audioState(self._editAudioContext));
-        });
-        this._editAudioContext.onEnded(function () {
-          logTtsDiagnostic('edit_audio_on_ended', audioState(self._editAudioContext));
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-        this._editAudioContext.onStop(function () {
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-        this._editAudioContext.onError(function (err) {
-          logTtsDiagnostic('edit_audio_on_error', {
-            ...audioState(self._editAudioContext),
-            errCode: err && err.errCode ? err.errCode : '',
-            errMsg: String(err && err.errMsg || err || 'unknown')
-          });
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-      }
-
-      const audioContext = this._editAudioContext;
-      try { audioContext.stop(); } catch (_) {}
-      audioContext.volume = 1;
-      this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
-      logTtsDiagnostic('test_mp3_button_clicked', {
-        requestId: getLastTtsRequestId(),
-        applyInnerAudioOption: false
-      });
-      downloadDiagnosticTestAudio()
-        .then(function (tempFilePath) {
-          audioContext.src = tempFilePath;
-          logTtsDiagnostic('test_mp3_audio_src_set', audioState(audioContext));
-          logTtsDiagnostic('test_mp3_audio_play_called', audioState(audioContext));
-          audioContext.play();
-        })
-        .catch(function (err) {
-          logTtsDiagnostic('test_mp3_audio_download_failed', {
-            requestId: getLastTtsRequestId(),
-            errMsg: String(err && err.errMsg || err || 'unknown')
-          });
-          self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-        });
-    } catch (err) {
-      logTtsDiagnostic('test_mp3_audio_exception', {
-        requestId: getLastTtsRequestId(),
-        errMsg: String(err && err.message || err || 'unknown')
-      });
-      this.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-    }
-    setTimeout(() => {
-      if (typeof wx.setInnerAudioOption === 'function') {
-        wx.setInnerAudioOption({
-          obeyMuteSwitch: false,
-          speakerOn: true,
-          mixWithOther: true,
-          success(res) {
-            logTtsDiagnostic('set_inner_audio_option_success', {
-              requestId: getLastTtsRequestId(),
-              errMsg: String(res && res.errMsg || '')
-            });
-          },
-          fail(err) {
-            logTtsDiagnostic('set_inner_audio_option_fail', {
-              requestId: getLastTtsRequestId(),
-              errMsg: String(err && err.errMsg || err || 'unknown')
-            });
-          }
-        });
-      }
-      this.onEditPronunciationLongPressWithoutOptionReplay();
-    }, 2000);
-  },
-
-  onEditPronunciationLongPressWithoutOptionReplay() {
-    const self = this;
-    const audioContext = this._editAudioContext;
-    if (!audioContext) {
-      return;
-    }
-    try { audioContext.stop(); } catch (_) {}
-    audioContext.volume = 1;
-    this.setData({ editPronunciationLoading: true, editPronunciationPlaying: false });
-    logTtsDiagnostic('test_mp3_button_clicked', {
-      requestId: getLastTtsRequestId(),
-      applyInnerAudioOption: true
+  onUnderstandingInput(event) {
+    if (this.data.isReadonlyDetailMode) return;
+    this.setData({
+      'form.myUnderstanding': event.detail.value
     });
-    downloadDiagnosticTestAudio()
-      .then(function (tempFilePath) {
-        audioContext.src = tempFilePath;
-        logTtsDiagnostic('test_mp3_audio_src_set', audioState(audioContext));
-        logTtsDiagnostic('test_mp3_audio_play_called', audioState(audioContext));
-        audioContext.play();
-      })
-      .catch(function (err) {
-        logTtsDiagnostic('test_mp3_audio_download_failed', {
-          requestId: getLastTtsRequestId(),
-          errMsg: String(err && err.errMsg || err || 'unknown')
-        });
-        self.setData({ editPronunciationLoading: false, editPronunciationPlaying: false });
-      });
-  },
-
-  onEditVoiceSwitchMale() {
-    if (!this.pronunciationController) return;
-    this.pronunciationController.setVoice('male');
-    this.setData({ editPronunciationVoice: 'male' });
-  },
-
-  onEditVoiceSwitchFemale() {
-    if (!this.pronunciationController) return;
-    this.pronunciationController.setVoice('female');
-    this.setData({ editPronunciationVoice: 'female' });
+    this.refreshReferenceApplied();
   },
 
   _destroyEditAudio() {
-    this._editPhoneticRequestId += 1;
-    if (this._editPhoneticTimer) {
-      clearTimeout(this._editPhoneticTimer);
-      this._editPhoneticTimer = null;
-    }
-    if (this._editPronunciationSafetyTimer) {
-      clearTimeout(this._editPronunciationSafetyTimer);
-      this._editPronunciationSafetyTimer = null;
-    }
-    if (this._editAudioContext) {
-      try { this._editAudioContext.stop(); } catch (_) {}
-      try { this._editAudioContext.destroy(); } catch (_) {}
-      this._editAudioContext = null;
-    }
     if (this._notesExampleAudioContext) {
       try { this._notesExampleAudioContext.stop(); } catch (_) {}
       try { this._notesExampleAudioContext.destroy(); } catch (_) {}
@@ -3651,13 +3132,13 @@ Page({
       return;
     }
 
-    const voice = this.data.editPronunciationVoice || getStoredVoice() || DEFAULT_VOICE;
+    const voice = getStoredVoice() || DEFAULT_VOICE;
     const self = this;
     const downloadPronunciationAudio = require('../../utils/apiClient').downloadPronunciationAudio;
     const logTtsDiagnostic = require('../../utils/apiClient').logTtsDiagnostic;
 
     // Reuse the same download 鈫?local temp file 鈫?InnerAudioContext pattern as the
-    // word pronunciation (onEditPronunciationTap). No second TTS, no direct URL playback.
+    // shared word pronunciation. No second TTS, no direct URL playback.
     if (!this._notesExampleAudioContext) {
       this._notesExampleAudioContext = wx.createInnerAudioContext();
       this._notesExampleAudioContext.obeyMuteSwitch = false;

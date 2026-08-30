@@ -16,6 +16,14 @@
         </view>
       </picker>
     </view>
+
+    <view class="settings-item">
+      <view class="settings-item-label">发音偏好</view>
+      <view class="voice-preference-options">
+        <text class="voice-preference-option {{pronunciationVoice === 'male' ? 'voice-preference-option--active' : ''}}" data-voice="male" bindtap="onPronunciationPreferenceTap">男声</text>
+        <text class="voice-preference-option {{pronunciationVoice === 'female' ? 'voice-preference-option--active' : ''}}" data-voice="female" bindtap="onPronunciationPreferenceTap">女声</text>
+      </view>
+    </view>
   </view>
 
   <!-- 其他 -->

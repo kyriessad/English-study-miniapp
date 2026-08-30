@@ -1,4 +1,5 @@
 const {
+  BACKEND_AUTH_STORAGE_KEYS,
   createBackendCard,
   deleteBackendCard,
   listBackendCards,
@@ -18,7 +19,6 @@ const {
 // =====================================================================
 
 const STORAGE_KEY = 'cardsCache';
-const LEGACY_STORAGE_KEY = 'englishKnowledgeCards';
 const CARDS_LAST_SYNC_KEY = 'cardsLastSyncAt';
 const REVIEW_BATCH_SIZE = 5;
 
@@ -31,12 +31,24 @@ const BACKEND_SYNC_STATUS_PENDING = 'pending';
 const BACKEND_SYNC_STATUS_SYNCED = 'synced';
 const BACKEND_SYNC_STATUS_FAILED = 'failed';
 
-let backgroundBackendRefreshPromise = null;
+let backgroundBackendRefresh = null;
 let pendingSyncInProgress = false;
 
 // 增量同步游标：上次成功同步服务端的最新 updated_at（ISO 字符串）。
 // null 表示尚未从 storage 恢复，恢复后为 '' 表示无游标（强制全量同步）。
-let lastCardsSync = null;
+
+function getCardStorageScope() {
+  try {
+    const userId = trimValue(wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId));
+    return userId ? `user:${userId}` : 'anonymous';
+  } catch (_) {
+    return 'anonymous';
+  }
+}
+
+function getScopedStorageKey(baseKey, scope = getCardStorageScope()) {
+  return `${baseKey}:${scope}`;
+}
 
 const BACKEND_CATEGORY_TO_CARD_TYPE = {
   '\u5355\u8bcd': 'word',
@@ -1226,17 +1238,11 @@ function dedupeCards(cards) {
 }
 
 // [CORE] getStoredCardsRaw — 存储基元，全文件依赖
-function getStoredCardsRaw() {
-  const cards = wx.getStorageSync(STORAGE_KEY);
+function getStoredCardsRaw(storageKey = getScopedStorageKey(STORAGE_KEY)) {
+  const cards = wx.getStorageSync(storageKey);
 
   if (Array.isArray(cards)) {
     return dedupeCards(cards);
-  }
-
-  const legacyCards = wx.getStorageSync(LEGACY_STORAGE_KEY);
-
-  if (Array.isArray(legacyCards)) {
-    return dedupeCards(legacyCards);
   }
 
   return [];
@@ -1254,8 +1260,8 @@ function getLocalCards(options = {}) {
 }
 
 // [CORE] saveLocalCards — 存储基元，全文件依赖
-function saveLocalCards(cards) {
-  wx.setStorageSync(STORAGE_KEY, dedupeCards(cards));
+function saveLocalCards(cards, storageKey = getScopedStorageKey(STORAGE_KEY)) {
+  wx.setStorageSync(storageKey, dedupeCards(cards));
 }
 
 
@@ -1348,6 +1354,7 @@ async function fetchBackendCardsSince(updatedSince = null) {
 
     if (updatedSince) {
       params.updated_since = updatedSince;
+      params.include_deleted = true;
     }
 
     const response = await listBackendCards(params);
@@ -1372,21 +1379,20 @@ async function fetchBackendCardsSince(updatedSince = null) {
   return { cards: allCards, syncCursor: syncCursor, serverTime: serverTime };
 }
 
-function readLastCardsSync() {
+function readLastCardsSync(storageKey = getScopedStorageKey(CARDS_LAST_SYNC_KEY)) {
   try {
-    return wx.getStorageSync(CARDS_LAST_SYNC_KEY) || '';
+    return wx.getStorageSync(storageKey) || '';
   } catch (error) {
     return '';
   }
 }
 
-function saveLastCardsSync(cursor) {
+function saveLastCardsSync(cursor, storageKey = getScopedStorageKey(CARDS_LAST_SYNC_KEY)) {
   const value = trimValue(cursor);
-  lastCardsSync = value;
 
   try {
     if (value) {
-      wx.setStorageSync(CARDS_LAST_SYNC_KEY, value);
+      wx.setStorageSync(storageKey, value);
     }
   } catch (error) {
     // ignore
@@ -1410,16 +1416,16 @@ function applyIncrementalBackendChanges(existingCards, changedBackendCards) {
 }
 
 async function refreshCardsCacheFromBackend() {
-  if (backgroundBackendRefreshPromise) {
-    return backgroundBackendRefreshPromise;
+  const scope = getCardStorageScope();
+  if (backgroundBackendRefresh && backgroundBackendRefresh.scope === scope) {
+    return backgroundBackendRefresh.promise;
   }
 
-  backgroundBackendRefreshPromise = (async () => {
-    if (lastCardsSync === null) {
-      lastCardsSync = readLastCardsSync();
-    }
-
-    const cachedCards = getStoredCardsRaw();
+  const cardsStorageKey = getScopedStorageKey(STORAGE_KEY, scope);
+  const cursorStorageKey = getScopedStorageKey(CARDS_LAST_SYNC_KEY, scope);
+  const refreshPromise = (async () => {
+    const lastCardsSync = readLastCardsSync(cursorStorageKey);
+    const cachedCards = getStoredCardsRaw(cardsStorageKey);
 
     // 只有「有游标 且 本地缓存非空」才走增量；缓存缺失/损坏时回退全量同步。
     const canIncremental = Boolean(lastCardsSync) && cachedCards.length > 0;
@@ -1478,7 +1484,11 @@ async function refreshCardsCacheFromBackend() {
       nextCards = dedupeCards([].concat(filteredNextCards, pendingCards));
     }
 
-    saveLocalCards(nextCards);
+    if (scope !== getCardStorageScope()) {
+      return getLocalCards();
+    }
+
+    saveLocalCards(nextCards, cardsStorageKey);
 
     // 只在成功后才推进游标。增量时后端已返回不回退的 sync_cursor；
     // 首次全量时从最新卡的 updated_at 推导游标（无卡则退回 server_time）。
@@ -1494,15 +1504,18 @@ async function refreshCardsCacheFromBackend() {
       nextCursor = newestUpdatedAt || (result.serverTime || '');
     }
     if (nextCursor) {
-      saveLastCardsSync(nextCursor);
+      saveLastCardsSync(nextCursor, cursorStorageKey);
     }
 
     return nextCards.filter((card) => !card.deleted);
   })().finally(() => {
-    backgroundBackendRefreshPromise = null;
+    if (backgroundBackendRefresh && backgroundBackendRefresh.promise === refreshPromise) {
+      backgroundBackendRefresh = null;
+    }
   });
 
-  return backgroundBackendRefreshPromise;
+  backgroundBackendRefresh = { scope: scope, promise: refreshPromise };
+  return refreshPromise;
 }
 
 // ===== [CURRENT] 卡片 CRUD 主链路 =====

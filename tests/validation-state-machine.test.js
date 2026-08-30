@@ -346,8 +346,6 @@ test('CONTENT_WARNING can save without starting background AI', async () => {
 test('CONTENT_WARNING never reaches pronunciation download', async () => {
   const page = createPage();
   page.data.isEdit = true;
-  page.data.editPronunciationText = 'becuase';
-  page.data.editPronunciationVoice = 'male';
   page.pronunciationController = {};
   let downloads = 0;
   downloadHandler = async () => { downloads += 1; return ''; };
@@ -364,7 +362,7 @@ test('CONTENT_WARNING never reaches pronunciation download', async () => {
     canPronounce: false
   });
 
-  await page.onEditPronunciationTap();
+  await page.onOriginalPronunciationTap();
   assert.equal(downloads, 0);
   assert.equal(page.data.validationCanPronounce, false);
 });

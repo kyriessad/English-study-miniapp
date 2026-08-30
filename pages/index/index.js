@@ -593,6 +593,7 @@ Page({
   },
 
   async onShow() {
+    this._hasAuthoritativeCardStats = false;
     // Initialize requestSeq counters
     if (this._overviewReqSeq === undefined) this._overviewReqSeq = 0;
     if (this._statsReqSeq === undefined) this._statsReqSeq = 0;
@@ -687,19 +688,7 @@ Page({
       const result = await getCards();
       let localCards = normalizeCardList(result);
 
-      // Step 2: if getCards() returned nothing, fall back to raw cardsCache
-      if (localCards.length === 0) {
-        try {
-          const cardsCache = wx.getStorageSync('cardsCache');
-          const cacheCards = normalizeCardList(cardsCache);
-          if (cacheCards.length > 0) {
-            console.log('[index] recovered ' + cacheCards.length + ' cards from cardsCache fallback');
-            localCards = cacheCards;
-          }
-        } catch (e) { /* ignore storage read error */ }
-      }
-
-      // Step 3: if we have cards, set data immediately
+      // Step 2: if we have cards, set data immediately
       if (localCards.length > 0) {
         this.setData({ cards: localCards });
 
@@ -732,7 +721,7 @@ Page({
         this.applyFilters();
       }
 
-      // Step 4: Load cached review overview
+      // Step 3: Load cached review overview
       try {
         const cachedOverview = wx.getStorageSync('reviewOverviewCache');
         if (cachedOverview) {
@@ -919,18 +908,10 @@ Page({
     }
   },
 
-  applyCardStats(stats) {
+  applyCardStats(stats, options = {}) {
     if (!stats) return;
 
-    // Phase 6G-hotfix: if local cards have more entries than the backend total
-    // (e.g. pending cards not yet synced), compute stats locally for consistency.
-    var localCardsCount = Array.isArray(this.data.cards) ? this.data.cards.length : 0;
-    var backendTotal = Number(stats.total || 0);
-    if (localCardsCount > backendTotal) {
-      console.log('[phase6g-home-state] backend stats total=' + backendTotal + ' < local cards=' + localCardsCount + ', using local computation');
-      this.computeLocalCardStats(this.data.cards);
-      return;
-    }
+    if (options.authoritative) this._hasAuthoritativeCardStats = true;
 
     const libraryTabs = this.data.libraryTabs.map((tab) => ({
       ...tab,
@@ -983,7 +964,7 @@ Page({
     try {
       var stats = await getCardStats();
       if (seq !== this._statsReqSeq) return;
-      this.applyCardStats(stats);
+      this.applyCardStats(stats, { authoritative: true });
     } catch (error) {
       console.warn('[index] card stats fetch failed', error);
     }
@@ -1074,9 +1055,10 @@ Page({
     const displayTotalCount = tabFilteredCount;
     const displayCurrentCount = Math.min(filtered.length || 0, displayTotalCount);
 
-    // Phase 6G: Compute local stats from the actual card list to stay consistent
-    // even when backend stats lag (e.g. pending cards not yet synced).
-    this.computeLocalCardStats(cards);
+    // Cached stats are only a startup fallback. A successful backend stats response wins.
+    if (!this._hasAuthoritativeCardStats) {
+      this.computeLocalCardStats(cards);
+    }
 
     // 4C-3: newOnlyEntryState — 以后端 overview.extra_today 为权威，本地兜底
     var tabNewOnlyState = computeNewOnlyButtonState(cards);

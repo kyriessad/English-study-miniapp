@@ -31,11 +31,7 @@ function normalizeDisplayPhonetic(value) {
   return clean ? '/' + clean + '/' : '';
 }
 
-/**
- * Build a display string for word-level phonetics.
- * Format: "word1 /p1/  word2 /p2/"
- * Words without phonetic show as-is without slashes.
- */
+/** Build one pure phonetic string when every word has a phonetic. */
 function buildWordPhoneticsDisplay(wordPhonetics) {
   if (!Array.isArray(wordPhonetics) || wordPhonetics.length === 0) {
     return '';
@@ -44,18 +40,17 @@ function buildWordPhoneticsDisplay(wordPhonetics) {
   var parts = [];
   for (var i = 0; i < wordPhonetics.length; i++) {
     var item = wordPhonetics[i];
-    var word = (item && item.word) ? String(item.word) : '';
-    if (!word) continue;
-
     var phonetic = (item && item.phonetic) ? String(item.phonetic).trim() : '';
-    if (phonetic) {
-      parts.push(word + ' /' + phonetic + '/');
-    } else {
-      parts.push(word);
+    if (!item || !String(item.word || '').trim() || !phonetic) {
+      return '';
     }
+    parts.push(phonetic.replace(/^[/\[]+|[/\]]+$/g, '').trim());
   }
 
-  return parts.join('  ');
+  if (parts.some(function (part) { return !part; })) {
+    return '';
+  }
+  return normalizeDisplayPhonetic(parts.join(' '));
 }
 
 /**
