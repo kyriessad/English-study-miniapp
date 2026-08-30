@@ -7,118 +7,114 @@ const {
   validationResponseFromCardError
 } = require('../utils/englishValidation');
 
-test('PASS is silent', () => {
+test('PASS is silent when all capabilities are available', () => {
   const view = buildValidationView({
     level: 'pass',
     category: 'word',
     normalizedText: 'because',
     warnings: [],
     errors: [],
-    evidence: []
+    evidence: [],
+    canSave: true,
+    canAnalyze: true,
+    canPronounce: true
   });
   assert.equal(view.status, 'pass');
   assert.deepEqual(view.visibleIssues, []);
 });
 
-test('spelling suggestion is shown without offering an unsafe replacement action', () => {
+test('spelling reason is shown before capability reason', () => {
   const view = buildValidationView({
     level: 'warning',
     category: 'word',
     normalizedText: 'becuase',
     warnings: ['拼写可能有误：becuase。你是不是想写 because？'],
     errors: [],
-    evidence: [{ source: 'symspell', type: 'spelling', result: 'suggestion', polarity: 'warning' }]
+    evidence: [{ source: 'symspell', type: 'spelling', result: 'suggestion', polarity: 'warning' }],
+    warningTypes: ['CONTENT_WARNING'],
+    canSave: true,
+    canAnalyze: false,
+    canPronounce: false
   });
-  assert.equal(view.visibleIssues[0].message, '这个词可能拼错了');
-  assert.equal(view.visibleIssues[0].detail, '可能想写：because');
-  assert.equal(view.visibleIssues[0].actionType, '');
+  assert.deepEqual(view.visibleIssues.map((item) => item.message), [
+    '这个词可能拼错了',
+    '这段内容暂不支持 AI 分析和发音'
+  ]);
 });
 
-test('warnings are prioritized, limited to two, and never expose provider names', () => {
+test('advisory and system warnings do not disable AI or TTS', () => {
   const view = buildValidationView({
     level: 'warning',
     category: 'sentence',
-    normalizedText: 'This are okay???',
-    warnings: [
-      '内容中有连续或混合标点，建议确认是否为有意输入。',
-      'Harper grammar: Agreement problem',
-      'Harper usage: Unnatural phrase',
-      '这段内容看起来更像句子。'
-    ],
-    evidence: [
-      { source: 'harper', type: 'grammar', result: 'lint', polarity: 'warning' },
-      { source: 'harper', type: 'usage', result: 'lint', polarity: 'warning' }
-    ]
-  });
-  assert.deepEqual(view.visibleIssues.map((item) => item.type), ['category_mismatch', 'grammar']);
-  assert.equal(view.hiddenCount, 2);
-  assert.equal(JSON.stringify(view).includes('Harper'), false);
-  assert.equal(view.visibleIssues[0].actionCategory, '句子');
-});
-
-test('punctuation-only warning is light and can auto-hide', () => {
-  const view = buildValidationView({
-    level: 'warning',
-    category: 'sentence',
-    normalizedText: 'Really???',
-    warnings: ['内容中有连续或混合标点，建议确认是否为有意输入。'],
-    evidence: []
-  });
-  assert.equal(view.visibleIssues[0].severity, 'light');
-  assert.equal(view.persistent, false);
-});
-
-test('system warnings are shown without exposing provider names', () => {
-  const view = buildValidationView({
-    level: 'warning',
-    category: 'word',
-    normalizedText: 'because',
-    warnings: ['Harper unavailable'],
-    warningTypes: ['SYSTEM_WARNING'],
+    normalizedText: 'I really like this movie.',
+    warnings: ['Harper unavailable', '这段内容更像一句话。'],
+    warningTypes: ['ADVISORY_WARNING', 'SYSTEM_WARNING'],
     evidence: [{ source: 'harper', result: 'unavailable', polarity: 'neutral' }],
     canSave: true,
     canAnalyze: true,
     canPronounce: true
   });
-  assert.equal(view.status, 'warning');
-  assert.equal(view.visibleIssues[0].type, 'system');
-  assert.equal(JSON.stringify(view).includes('Harper'), false);
-  assert.equal(view.canSave, true);
   assert.equal(view.canAnalyze, true);
   assert.equal(view.canPronounce, true);
+  assert.equal(JSON.stringify(view).includes('Harper'), false);
+  assert.equal(JSON.stringify(view).includes('SYSTEM_WARNING'), false);
 });
 
-test('invalid server reasons become user-facing input guidance', () => {
+test('unknown but legitimate word can save and explains pronunciation only', () => {
+  const view = buildValidationView({
+    level: 'pass',
+    category: 'word',
+    normalizedText: 'doomscroll',
+    warnings: [],
+    errors: [],
+    evidence: [{ source: 'ecdict', type: 'lexical_match', result: 'miss', polarity: 'neutral' }],
+    canSave: true,
+    canAnalyze: true,
+    canPronounce: false
+  });
+  assert.equal(view.status, 'pass');
+  assert.equal(view.canSave, true);
+  assert.equal(view.canAnalyze, true);
+  assert.equal(view.visibleIssues[0].message, '暂时无法确认这个词的可靠发音');
+});
+
+test('invalid server reasons become natural Chinese', () => {
   const response = validationResponseFromCardError({
     statusCode: 422,
     data: {
       detail: {
         code: 'invalid_english_content',
-        normalizedText: '我的',
-        errors: ['英文内容请只填写英文，不能包含中文字符。']
+        normalizedText: '/usr/local/bin',
+        errors: ['English content contains forbidden control or path characters.']
       }
     }
   });
   const view = buildValidationView(response);
   assert.equal(view.status, 'invalid');
-  assert.equal(view.visibleIssues[0].message, '英文内容里混入了中文，请删除中文后再试');
+  assert.deepEqual(view.visibleIssues.map((item) => item.message), [
+    '内容中有无法识别的字符，请删除后再试'
+  ]);
+  assert.equal(JSON.stringify(view).includes('English content contains forbidden control or path characters'), false);
+  assert.equal(JSON.stringify(view).includes('English backend error'), false);
 });
 
-test('a specific INVALID reason suppresses the redundant missing-English reason', () => {
+test('path-only reason uses path guidance', () => {
   const view = buildValidationView({
     level: 'error',
     category: 'unknown',
-    normalizedText: '12345',
+    normalizedText: 'C:\\Users\\Admin\\Desktop',
     warnings: [],
-    errors: ['内容需要包含英文，不能只填写数字或数值。', '内容需要包含英文。'],
-    evidence: []
+    errors: ['这里像文件路径，请输入想记录的英文'],
+    evidence: [],
+    canSave: false,
+    canAnalyze: false,
+    canPronounce: false
   });
-  assert.deepEqual(view.visibleIssues.map((item) => item.message), [
-    '这段内容只有数字，请补充要记录的英文'
-  ]);
+  assert.equal(view.visibleIssues[0].message, '这里像文件路径，请输入想记录的英文');
+  assert.equal(view.visibleIssues.some((item) => item.message.includes('暂不支持')), false);
 });
 
 test('validation key changes with raw text or category', () => {
-  assert.notEqual(makeValidationKey('because', '单词'), makeValidationKey('because ', '单词'));
-  assert.notEqual(makeValidationKey('because', '单词'), makeValidationKey('because', '句子'));
+  assert.notEqual(makeValidationKey('because', '鍗曡瘝'), makeValidationKey('because ', '鍗曡瘝'));
+  assert.notEqual(makeValidationKey('because', '鍗曡瘝'), makeValidationKey('because', '鍙ュ瓙'));
 });

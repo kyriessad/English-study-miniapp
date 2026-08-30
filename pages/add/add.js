@@ -2609,7 +2609,7 @@ Page({
         return;
       }
       if (validation.canAnalyze === false) {
-        wx.showToast({ title: '请先修改英文内容再使用 AI', icon: 'none' });
+        wx.showToast({ title: '请先修改英文内容', icon: 'none' });
         return;
       }
       const englishText = String(validation.normalizedText || this.data.form.englishText || '');
@@ -3231,7 +3231,7 @@ Page({
       return;
     }
     if (validation.canPronounce === false) {
-      wx.showToast({ title: '请先修改英文内容再发音', icon: 'none' });
+      wx.showToast({ title: '请先修改英文内容', icon: 'none' });
       return;
     }
     text = String(validation.normalizedText || this._getCurrentEditEnglish());

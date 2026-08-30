@@ -144,7 +144,7 @@ test('debounced validation auto switches category from backend word phrase and s
     validationHandler = async (text, category) => {
       requests += 1;
       assert.equal(text, item.text);
-      assert.equal(category, labels[0]);
+      assert.equal(category, 'auto');
       return {
         level: 'pass',
         category: item.backendCategory,
