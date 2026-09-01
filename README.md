@@ -12,6 +12,8 @@ for authentication and persisted data.
 - Direct and NDJSON-streaming English analysis
 - Lexical information and Piper pronunciation playback
 - Daily, new-card, and free review sessions, feedback, and history
+- Public material discovery with known/remember interactions
+- A fixed daily quote that prefills the existing add-card flow
 - Local cache for temporary network failures
 
 ## Requirements
@@ -60,10 +62,10 @@ localhost URL are not valid production settings.
 
 ## Testing
 
-The repository uses Node's built-in test runner for the current streaming
-regression test:
+The repository uses Node's built-in test runner for deterministic client
+contracts:
 
-    node --test .\tests\stream-provisional.test.js
+    node --test .\tests\stream-provisional.test.js .\tests\discovery-flow.test.js
 
 Success: Node reports all subtests passing. No npm install is required for this
 test file.
@@ -71,7 +73,7 @@ test file.
 ## Project Layout
 
     app.js                    application startup and backend auth restoration
-    pages/                    card, review, history, settings, and other screens
+    pages/                    home, discovery, card, review, history, and settings
     utils/apiClient.js        backend API, wx.login, JWT, and streaming client
     utils/pronunciation.js    pronunciation behavior
     utils/recordStorage.js    local card/review cache and backend synchronization

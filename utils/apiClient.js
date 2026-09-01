@@ -361,6 +361,29 @@ function deleteBackendCard(cardId) {
   });
 }
 
+function getDiscoveryPacks() {
+  return request({ url: '/api/discovery/packs', method: 'GET' });
+}
+
+function getDiscoveryItems(params = {}) {
+  return request({
+    url: '/api/discovery/items' + buildQueryString(params),
+    method: 'GET'
+  });
+}
+
+function setDiscoveryItemKnown(itemId, known) {
+  return request({
+    url: `/api/discovery/items/${encodeURIComponent(itemId)}/state`,
+    method: 'PUT',
+    data: { known: Boolean(known) }
+  });
+}
+
+function getTodayQuote() {
+  return request({ url: '/api/discovery/today-quote', method: 'GET' });
+}
+
 function getReviewOverview(params) {
   return request({
     url: '/api/reviews/overview' + buildQueryString(params || {}),
@@ -1094,6 +1117,10 @@ module.exports = {
   createBackendCard,
   updateBackendCard,
   deleteBackendCard,
+  getDiscoveryPacks,
+  getDiscoveryItems,
+  setDiscoveryItemKnown,
+  getTodayQuote,
   getCardStats,
   createReviewSession,
   getReviewOverview,

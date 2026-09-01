@@ -11,8 +11,10 @@ const {
   getCardStats,
   createReviewSession,
   submitReviewFeedback,
-  refreshBackendAuth
+  refreshBackendAuth,
+  getTodayQuote
 } = require('../../utils/apiClient');
+const { saveDiscoveryPrefill } = require('../../utils/discoveryPrefill');
 
 const {
   getPendingActionCount,
@@ -589,7 +591,10 @@ Page({
     actualCompletedToday: 0,
     isGoalMet: false,
     isGoalOverachieved: false,
-    isGoalBlocked: false
+    isGoalBlocked: false,
+    todayQuote: null,
+    todayQuoteLoading: false,
+    todayQuoteError: false
   },
 
   async onShow() {
@@ -661,7 +666,8 @@ Page({
       await Promise.all([
         this.loadReviewOverview().catch((e) => console.warn('[index] pull refresh overview failed', e)),
         this.loadCardStats().catch((e) => console.warn('[index] pull refresh stats failed', e)),
-        this.refreshBackendCards().catch((e) => console.warn('[index] pull refresh cards failed', e))
+        this.refreshBackendCards().catch((e) => console.warn('[index] pull refresh cards failed', e)),
+        this.loadTodayQuote().catch((e) => console.warn('[index] pull refresh quote failed', e))
       ]);
 
       // Phase 6H: sync pending cards on pull refresh
@@ -761,7 +767,8 @@ Page({
       await Promise.all([
         this.loadReviewOverview(),
         this.loadCardStats(),
-        this.refreshBackendCards()
+        this.refreshBackendCards(),
+        this.loadTodayQuote()
       ]);
 
       // Phase 6H: sync pending local cards to backend after data is loaded
@@ -1382,6 +1389,37 @@ Page({
   goToAddPage() {
     if (this.data.isManageMode) return;
     wx.navigateTo({ url: '/pages/add/add' });
+  },
+
+  goToDiscover() {
+    if (this.data.isManageMode) return;
+    wx.navigateTo({ url: '/pages/discover/index' });
+  },
+
+  async loadTodayQuote() {
+    this.setData({ todayQuoteLoading: true, todayQuoteError: false });
+    try {
+      const response = await getTodayQuote();
+      this.setData({
+        todayQuote: response && response.item ? response.item : null,
+        todayQuoteLoading: false,
+        todayQuoteError: false
+      });
+    } catch (error) {
+      console.warn('[index] load today quote failed', error);
+      this.setData({ todayQuoteLoading: false, todayQuoteError: true });
+    }
+  },
+
+  onTodayQuoteRemember() {
+    const item = this.data.todayQuote;
+    if (!item) return;
+    if (item.in_library) {
+      wx.showToast({ title: '已经在卡片库里了', icon: 'none' });
+      return;
+    }
+    saveDiscoveryPrefill(item, '今日一句');
+    wx.navigateTo({ url: '/pages/add/add?from=today-quote' });
   },
 
   goToReview() {

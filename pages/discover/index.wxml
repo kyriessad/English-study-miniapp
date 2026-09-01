@@ -1,0 +1,51 @@
+<view class="page discover-page">
+  <view class="discover-intro">
+    <view class="discover-title">找到真正想记住的英文</view>
+    <view class="discover-subtitle">认识的轻轻划过，喜欢的再放进自己的卡片库。</view>
+  </view>
+
+  <scroll-view class="pack-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
+    <view class="pack-row">
+      <view
+        wx:for="{{packs}}"
+        wx:key="code"
+        id="discover-pack-{{item.code}}"
+        class="pack-pill {{selectedPackCode === item.code ? 'pack-pill-active' : ''}}"
+        data-code="{{item.code}}"
+        bindtap="onPackTap"
+      >
+        <text>{{item.title}}</text>
+        <text class="pack-count">{{item.remaining_count}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="search-box">
+    <text class="search-icon">⌕</text>
+    <input placeholder="搜索英文或中文" value="{{searchText}}" bindinput="onSearchInput" />
+  </view>
+
+  <view wx:if="{{loading}}" class="state-copy">正在准备素材...</view>
+  <view wx:elif="{{errorMessage}}" class="state-copy state-error">{{errorMessage}}</view>
+  <view wx:elif="{{items.length === 0}}" class="state-copy">这一组暂时没有更多内容了</view>
+
+  <view class="material-list">
+    <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card">
+      <view class="material-card-top">
+        <view class="material-type">{{item.card_type === 'word' ? '单词' : (item.card_type === 'phrase' ? '短语' : '句子')}}</view>
+        <view class="sound-btn" data-id="{{item.id}}" catchtap="onPronounceTap">{{playingItemId === item.id ? '...' : '🔊'}}</view>
+      </view>
+      <view class="material-english">{{item.content}}</view>
+      <view class="material-chinese">{{item.chinese}}</view>
+      <view class="material-actions">
+        <button class="known-btn" data-id="{{item.id}}" bindtap="onKnownTap">认识</button>
+        <button
+          class="remember-btn {{item.in_library ? 'remember-btn-done' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="onRememberTap"
+        >{{item.in_library ? '已在卡片库' : '想记住'}}</button>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{loadingMore}}" class="state-copy">继续加载...</view>
+</view>

@@ -1,0 +1,27 @@
+.discover-page { min-height: 100vh; padding: 32rpx 28rpx 80rpx; box-sizing: border-box; background: #fbfcf7; color: #263128; }
+.discover-intro { padding: 12rpx 4rpx 26rpx; }
+.discover-title { font-size: 42rpx; line-height: 1.3; font-weight: 700; }
+.discover-subtitle { margin-top: 12rpx; color: #768177; font-size: 26rpx; line-height: 1.6; }
+.pack-scroll { width: 100%; margin-bottom: 24rpx; white-space: nowrap; }
+.pack-row { display: inline-flex; gap: 14rpx; padding: 2rpx 4rpx 10rpx; }
+.pack-pill { display: inline-flex; align-items: center; gap: 10rpx; padding: 14rpx 22rpx; border: 1rpx solid #dfe9dc; border-radius: 999rpx; background: #fff; color: #657465; font-size: 25rpx; }
+.pack-pill-active { color: #356944; border-color: #b9dabe; background: #edf8ef; font-weight: 650; }
+.pack-count { min-width: 30rpx; color: #8a998b; font-size: 21rpx; text-align: center; }
+.search-box { display: flex; align-items: center; gap: 12rpx; height: 76rpx; padding: 0 22rpx; background: #fff; border: 1rpx solid #e5ece2; border-radius: 22rpx; box-sizing: border-box; }
+.search-box input { flex: 1; font-size: 27rpx; }
+.search-icon { color: #8b978c; }
+.material-list { margin-top: 24rpx; }
+.material-card { margin-bottom: 22rpx; padding: 28rpx; background: #fff; border: 1rpx solid #e8eee5; border-radius: 28rpx; box-shadow: 0 10rpx 26rpx rgba(86,126,82,.06); }
+.material-card-top { display: flex; align-items: center; justify-content: space-between; }
+.material-type { color: #5f8466; font-size: 22rpx; font-weight: 650; }
+.sound-btn { padding: 8rpx 10rpx; font-size: 27rpx; }
+.material-english { margin-top: 12rpx; font-size: 34rpx; line-height: 1.45; font-weight: 650; word-break: break-word; }
+.material-chinese { margin-top: 12rpx; color: #657465; font-size: 27rpx; line-height: 1.6; }
+.material-actions { display: flex; gap: 16rpx; margin-top: 24rpx; }
+.material-actions button { flex: 1; height: 72rpx; border-radius: 20rpx; font-size: 26rpx; line-height: 72rpx; }
+.material-actions button::after { border: 0; }
+.known-btn { background: #f2f4f0; color: #687269; }
+.remember-btn { background: #5eaa64; color: #fff; }
+.remember-btn-done { background: #e9f3e8; color: #56805d; }
+.state-copy { padding: 70rpx 20rpx; text-align: center; color: #899489; font-size: 26rpx; }
+.state-error { color: #9c6a5f; }

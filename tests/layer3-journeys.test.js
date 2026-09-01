@@ -16,7 +16,7 @@ const artifactPath = process.env.LAYER3_ARTIFACT_PATH
 const journeys = [
   { id: 'L3-VALIDATION-PASS', scenarioId: 'VAL-PASS-001', module: 'validation' },
   { id: 'L3-VALIDATION-CONTENT', scenarioId: 'VAL-CONTENT-001', module: 'validation' },
-  { id: 'L3-VALIDATION-ADVISORY', scenarioId: 'VAL-ADVISORY-001', module: 'validation' },
+  { id: 'L3-PUNCTUATION-ALLOWED', scenarioId: 'VAL-PUNCTUATION-001', module: 'validation' },
   { id: 'L3-VALIDATION-SYSTEM', scenarioId: 'VAL-SYSTEM-001', module: 'validation' },
   { id: 'L3-VALIDATION-ERROR', scenarioId: 'VAL-HARD-001', module: 'validation' },
   { id: 'L3-CARD-WARNING-SAVE', scenarioId: 'VAL-CONTENT-001', module: 'card-create-edit' },
@@ -25,6 +25,8 @@ const journeys = [
   { id: 'L3-PRONUNCIATION-KNOWN', scenarioId: 'VAL-PASS-001', module: 'pronunciation' },
   { id: 'L3-PRONUNCIATION-CONTENT-BLOCK', scenarioId: 'VAL-CONTENT-001', module: 'pronunciation' },
   { id: 'L3-REVIEW-FIXTURE', scenarioId: 'VAL-PASS-001', module: 'review' },
+  { id: 'L3-DISCOVERY-SAVE-REVIEW', scenarioId: 'VAL-PASS-001', module: 'discovery' },
+  { id: 'L3-TODAY-QUOTE-SAVE-REVIEW', scenarioId: 'VAL-PASS-001', module: 'today-quote' },
   { id: 'L3-AUTH-RECOVERY-LOGOUT', scenarioId: 'VAL-PASS-001', module: 'auth' },
   { id: 'L3-SYNC-REPLAY', scenarioId: 'VAL-PASS-001', module: 'sync' },
   { id: 'L3-FULL-SMOKE', scenarioId: 'VAL-PASS-001', module: 'full-smoke' },

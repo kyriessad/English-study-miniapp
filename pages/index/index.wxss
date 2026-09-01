@@ -2713,6 +2713,22 @@
   border-color: #A7F3D0;
 }
 
+/* ===== Today quote and discovery ===== */
+.today-quote-section { margin: 10rpx 0 22rpx; }
+.today-quote-heading { margin: 0 4rpx 14rpx; color: #607263; font-size: 24rpx; font-weight: 650; }
+.today-quote-card { padding: 30rpx; border: 1rpx solid #e2eadf; border-radius: 30rpx; background: linear-gradient(145deg, #f5faf2, #fffdf8); box-shadow: 0 12rpx 30rpx rgba(86,126,82,.07); }
+.today-quote-english { color: #28352b; font-size: 33rpx; font-weight: 650; line-height: 1.55; }
+.today-quote-chinese { margin-top: 14rpx; color: #6f7c70; font-size: 26rpx; line-height: 1.6; }
+.today-quote-action { width: 180rpx; height: 66rpx; margin: 24rpx 0 0 auto; border-radius: 999rpx; background: #5eaa64; color: #fff; font-size: 25rpx; line-height: 66rpx; }
+.today-quote-action::after { border: 0; }
+.today-quote-action-done { background: #e7f1e5; color: #56785b; }
+.today-quote-placeholder { padding: 32rpx; border: 1rpx dashed #dfe7dc; border-radius: 26rpx; color: #8a968b; background: #fafcf8; font-size: 25rpx; text-align: center; }
+.discover-entry { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24rpx; padding: 25rpx 28rpx; border: 1rpx solid #e5ebe2; border-radius: 26rpx; background: #fff; }
+.discover-entry-hover { background: #f7faf5; }
+.discover-entry-title { color: #344238; font-size: 29rpx; font-weight: 680; }
+.discover-entry-subtitle { margin-top: 7rpx; color: #7c897d; font-size: 23rpx; }
+.discover-entry-arrow { color: #75a27b; font-size: 48rpx; font-weight: 300; }
+
 /* ===== Phase 4B: 首页旧快速筛选隐藏 ===== */
 
 .home-control-section,

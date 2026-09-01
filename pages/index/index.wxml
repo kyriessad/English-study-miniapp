@@ -8,6 +8,31 @@
     <view class="header-settings" bindtap="goToSettings" hover-class="header-settings--hover">设置</view>
   </view>
 
+  <!-- ===== Today Quote ===== -->
+  <view id="today-quote-section" class="today-quote-section">
+    <view class="today-quote-heading">今日一句</view>
+    <view wx:if="{{todayQuote}}" class="today-quote-card">
+      <view class="today-quote-english">{{todayQuote.content}}</view>
+      <view class="today-quote-chinese">{{todayQuote.chinese}}</view>
+      <button
+        id="today-quote-remember"
+        class="today-quote-action {{todayQuote.in_library ? 'today-quote-action-done' : ''}}"
+        bindtap="onTodayQuoteRemember"
+      >{{todayQuote.in_library ? '已在卡片库' : '想记住'}}</button>
+    </view>
+    <view wx:elif="{{todayQuoteLoading}}" class="today-quote-placeholder">正在取来今天的句子...</view>
+    <view wx:else class="today-quote-placeholder">今天的句子稍后再来</view>
+  </view>
+
+  <!-- ===== Discovery Entry ===== -->
+  <view id="discover-entry" class="discover-entry" bindtap="goToDiscover" hover-class="discover-entry-hover">
+    <view>
+      <view class="discover-entry-title">发现素材</view>
+      <view class="discover-entry-subtitle">从词书和真实表达里，挑你真正想记住的</view>
+    </view>
+    <view class="discover-entry-arrow">›</view>
+  </view>
+
 
   <!-- ===== Main Buttons ===== -->
   <!-- goal_blocked && not goal_met: 复习一下 35% (secondary) + 添加卡片继续 65% (primary) -->

@@ -34,6 +34,7 @@ const {
   makeValidationKey,
   validationResponseFromCardError
 } = require('../../utils/englishValidation');
+const { consumeDiscoveryPrefill } = require('../../utils/discoveryPrefill');
 const PAGE_ANIMATION_SAFE_DELAY = 0;
 const ENGLISH_VALIDATION_DELAY_MS = 1000;
 const LIGHT_VALIDATION_VISIBLE_MS = 5000;
@@ -1509,20 +1510,25 @@ Page({
     };
   },
 
-  getDefaultFormState() {
+  getDefaultFormState(prefill) {
     const inputContext = getInputContext();
     const lastEncounterContext = getLastEncounterContext();
+    const source = prefill || {};
+    const category = CARD_CATEGORIES.includes(source.category) ? source.category : CARD_CATEGORIES[0];
   
     return {
       cardId: '',
-      categoryIndex: 0,
+      categoryIndex: Math.max(CARD_CATEGORIES.indexOf(category), 0),
       inheritedContextText: '',
       hasUserChangedCategory: false,
       form: {
         ...createEmptyForm(),
         examScene: inputContext.examScene,
         examModule: inputContext.examModule,
-        whereEncountered: lastEncounterContext
+        category,
+        englishText: source.englishText || '',
+        myUnderstanding: source.myUnderstanding || '',
+        whereEncountered: source.whereEncountered || lastEncounterContext
       }
     };
   },
@@ -1610,9 +1616,10 @@ Page({
         }, PAGE_ANIMATION_SAFE_DELAY);
       }
     } else {
+      const discoveryPrefill = consumeDiscoveryPrefill();
       initialData = {
         ...initialData,
-        ...this.getDefaultFormState()
+        ...this.getDefaultFormState(discoveryPrefill)
       };
     }
 
