@@ -1,0 +1,16 @@
+@import "./demo.wxss";
+
+.home-page { padding-bottom: 80rpx; }
+.feature-card { min-height: 390rpx; }
+.feature-kicker { color: #6f8873; font-size: 24rpx; font-weight: 650; }
+.compact-list { margin-top: 18rpx; }
+.compact-card { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-bottom: 14rpx; padding: 22rpx 24rpx; border: 1rpx solid #e8eee5; border-radius: 22rpx; background: #fff; box-shadow: 0 8rpx 20rpx rgba(86, 126, 82, .05); }
+.compact-copy { flex: 1; min-width: 0; }
+.compact-en { color: #2b3b2f; font-size: 29rpx; line-height: 1.4; font-weight: 700; word-break: break-word; }
+.compact-zh { margin-top: 6rpx; color: #758278; font-size: 23rpx; line-height: 1.45; }
+.compact-remember { flex: 0 0 auto; min-width: 128rpx; height: 56rpx; line-height: 56rpx; padding: 0 16rpx; margin: 0; border: 0; border-radius: 999rpx; background: #edf7ec; color: #56805d; font-size: 22rpx; }
+.compact-remember::after { border: 0; }
+.compact-remember.remembered { background: #dfeedd; }
+.discover-banner { justify-content: space-between; margin-top: 24rpx; padding: 24rpx 28rpx; }
+.banner-title { color: #344238; font-size: 29rpx; font-weight: 700; }
+.banner-arrow { margin-left: 8rpx; color: #5eaa64; font-size: 38rpx; font-weight: 400; }

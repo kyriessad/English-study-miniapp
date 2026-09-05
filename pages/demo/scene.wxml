@@ -1,0 +1,8 @@
+<view class="page scene-page">
+  <view class="subpage-top"><view class="back" bindtap="goBack">‹</view><view class="eyebrow">按场景找到值得记住的英语</view></view>
+  <view class="page-title">{{title}}</view>
+  <scroll-view class="category-scroll" scroll-x="true" show-scrollbar="false"><view class="category-row"><view wx:for="{{categories}}" wx:key="*this" class="category-pill {{selected === item ? 'category-pill-active' : ''}}" data-category="{{item}}" bindtap="selectCategory">{{item}}</view></view></scroll-view>
+  <view class="scene-toolbar"><view><view class="section-title">{{selected}}</view><view class="scene-hint">浏览这一类真实表达</view></view><button class="ghost-button" bindtap="changeBatch">换一批</button></view>
+  <view class="material-list"><view wx:for="{{items}}" wx:key="id" class="material-card" data-id="{{item.id}}" bindtap="openDetail"><view class="material-top"><view class="material-tag">{{item.category}}</view><button class="sound-btn" catchtap="play" data-id="{{item.id}}">◉</button></view><view class="material-en">{{item.en}}</view><view class="material-zh">{{item.zh}}</view><view class="material-context">{{item.context}}</view><button class="remember-button {{item.joined ? 'remembered' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.joined ? '已加入' : '想记住'}}</button></view></view>
+  <view wx:if="{{empty}}" class="empty">暂无内容</view>
+</view>

@@ -1,0 +1,2 @@
+@import "./demo.wxss";
+.review-context{margin-top:12rpx;text-align:center;color:#91a095;font-size:23rpx}.unknown-button{display:block;margin:22rpx auto 0;padding:0;color:#9aa49c;background:transparent;font-size:24rpx}.unknown-button::after{border:0}

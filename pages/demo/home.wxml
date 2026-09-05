@@ -1,0 +1,23 @@
+<view class="page home-page">
+  <view class="home-topbar"><view><view class="eyebrow">TODAY</view><view class="page-title">今日精选</view></view></view>
+
+  <view wx:if="{{featured.length > 0}}" class="feature-card" data-id="{{featured[0].id}}" bindtap="openFeatured">
+    <view class="feature-kicker">精选表达</view>
+    <view class="feature-en">{{featured[0].en}}</view>
+    <view class="feature-zh">{{featured[0].zh}}</view>
+    <view class="feature-meta">{{featured[0].context}}</view>
+    <view class="feature-actions"><button class="icon-button" catchtap="playFeature">◉ 播放</button><button class="remember-button {{featured[0].saved ? 'remembered' : ''}}" catchtap="remember" data-id="{{featured[0].id}}">{{featured[0].saved ? '已加入' : '想记住'}}</button></view>
+  </view>
+
+  <view class="compact-list">
+    <block wx:for="{{featured}}" wx:for-index="cardIndex" wx:key="id">
+      <view wx:if="{{cardIndex > 0}}" class="compact-card" data-id="{{item.id}}" bindtap="openFeatured">
+        <view class="compact-copy"><view class="compact-en">{{item.en}}</view><view class="compact-zh">{{item.zh}}</view></view>
+        <button class="compact-remember {{item.saved ? 'remembered' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.saved ? '已加入' : '想记住'}}</button>
+      </view>
+    </block>
+  </view>
+
+  <view class="discover-banner" bindtap="goDiscover"><view class="banner-title">发现更多英语 <text class="banner-arrow">›</text></view></view>
+  <view class="add-link" bindtap="goAdd">＋ 添加我遇到的英语</view>
+</view>

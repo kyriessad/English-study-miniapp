@@ -1,0 +1,17 @@
+<view class="page add-page">
+  <view class="back" bindtap="goBack">‹ 首页</view>
+  <view class="eyebrow">把你遇到的英语留下来</view>
+  <view class="page-title">添加英语</view>
+  <view class="form-card">
+    <view class="form-block">
+      <view class="field-label">英文</view>
+      <textarea class="add-textarea" placeholder="例如：That makes sense." value="{{english}}" bindinput="onEnglishInput" auto-height></textarea>
+      <view class="examples"><text class="examples-label">试试：</text><text class="example" data-value="That makes sense." bindtap="useExample">That makes sense.</text><text class="example" data-value="I'll keep you posted." bindtap="useExample">I'll keep you posted.</text></view>
+    </view>
+    <view class="form-block">
+      <view class="field-label">我的理解</view>
+      <textarea class="add-textarea" placeholder="用你自己的话写一句理解（可选）" value="{{understanding}}" bindinput="onUnderstandingInput" auto-height></textarea>
+    </view>
+  </view>
+  <button class="action action-primary" bindtap="save">{{saved ? '已加入' : '加入我的英语'}}</button>
+</view>
