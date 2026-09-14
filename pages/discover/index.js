@@ -1,21 +1,23 @@
-const {
-  getDiscoveryPacks,
-  getDiscoveryItems,
-  setDiscoveryItemKnown,
-  downloadPronunciationAudio
-} = require('../../utils/apiClient');
+const api = require('../../utils/api/index');
+const { downloadPronunciationAudio } = require('../../utils/apiClient');
 const { getStoredVoice } = require('../../utils/pronunciation');
 const { saveDiscoveryPrefill } = require('../../utils/discoveryPrefill');
 
 const PAGE_SIZE = 20;
+const DOMAIN_TITLES = { life: '生活英语', reading: '阅读英语' };
 
 Page({
   data: {
-    packs: [],
-    selectedPackCode: '',
-    selectedPackTitle: '',
+    domain: 'life',
+    domainTitle: '生活英语',
+    categories: [],
+    selectedCategoryCode: '',
+    selectedCategoryTitle: '',
+    sourceItems: [],
     items: [],
     total: 0,
+    nextCursor: '',
+    hasMore: false,
     loading: true,
     loadingMore: false,
     errorMessage: '',
@@ -25,14 +27,14 @@ Page({
   },
 
   onLoad(options) {
-    this.initialPackCode = String(options && options.pack || '');
-    this.searchTimer = null;
+    const requestedDomain = String(options && options.domain || '').toLowerCase();
+    const domain = DOMAIN_TITLES[requestedDomain] ? requestedDomain : 'life';
     this.audioContext = null;
-    this.loadPacks();
+    this.setData({ domain, domainTitle: DOMAIN_TITLES[domain] });
+    this.loadCategories();
   },
 
   onUnload() {
-    if (this.searchTimer) clearTimeout(this.searchTimer);
     if (this.audioContext) {
       try { this.audioContext.destroy(); } catch (_) {}
       this.audioContext = null;
@@ -40,51 +42,54 @@ Page({
   },
 
   onPullDownRefresh() {
-    Promise.all([this.loadPacks(true), this.loadItems(true)]).finally(() => wx.stopPullDownRefresh());
+    this.loadCategories(true).finally(() => wx.stopPullDownRefresh());
   },
 
   onReachBottom() {
-    if (!this.data.loadingMore && this.data.items.length < this.data.total) this.loadItems(false);
+    if (this.data.hasMore && !this.data.loadingMore) this.loadItems(false);
   },
 
-  async loadPacks(keepSelection = false) {
+  async loadCategories(keepSelection = false) {
     try {
-      const response = await getDiscoveryPacks();
-      const packs = Array.isArray(response && response.items) ? response.items : [];
+      const response = await api.discovery.listCategories();
+      const groups = Array.isArray(response && response.items) ? response.items : [];
+      const group = groups.find((item) => item.code === this.data.domain);
+      const categories = group && Array.isArray(group.children) ? group.children : [];
       let selected = keepSelection
-        ? packs.find((item) => item.code === this.data.selectedPackCode)
-        : packs.find((item) => item.code === this.initialPackCode);
-      if (!selected) selected = packs[0];
+        ? categories.find((item) => item.code === this.data.selectedCategoryCode)
+        : null;
+      if (!selected) selected = categories[0];
       this.setData({
-        packs,
-        selectedPackCode: selected ? selected.code : '',
-        selectedPackTitle: selected ? selected.title : '',
-        loading: packs.length ? this.data.loading : false,
-        errorMessage: packs.length ? '' : '素材还在准备中'
+        categories,
+        selectedCategoryCode: selected ? selected.code : '',
+        selectedCategoryTitle: selected ? selected.title : '',
+        loading: categories.length > 0,
+        errorMessage: categories.length ? '' : '这一类素材还在准备中'
       });
-      if (!keepSelection) await this.loadItems(true);
+      if (selected) await this.loadItems(true);
     } catch (error) {
-      console.warn('[discover] load packs failed', error);
+      console.warn('[discover] load categories failed', error);
       this.setData({ loading: false, errorMessage: '素材暂时加载失败，请稍后重试' });
     }
   },
 
   async loadItems(reset) {
-    const pack = this.data.selectedPackCode;
-    if (!pack || (!reset && this.data.loadingMore)) return;
-    const offset = reset ? 0 : this.data.items.length;
+    const categoryCode = this.data.selectedCategoryCode;
+    if (!categoryCode || (!reset && (this.data.loadingMore || !this.data.hasMore))) return;
     this.setData(reset ? { loading: true, errorMessage: '' } : { loadingMore: true });
     try {
-      const response = await getDiscoveryItems({
-        pack,
+      const response = await api.discovery.listCategoryItems(categoryCode, {
         limit: PAGE_SIZE,
-        offset,
-        q: this.data.searchText
+        cursor: reset ? '' : this.data.nextCursor
       });
       const nextItems = Array.isArray(response && response.items) ? response.items : [];
+      const sourceItems = reset ? nextItems : this.data.sourceItems.concat(nextItems);
       this.setData({
-        items: reset ? nextItems : this.data.items.concat(nextItems),
-        total: Number(response && response.total || 0),
+        sourceItems,
+        items: this.filterItems(sourceItems),
+        total: Number(response && response.category && response.category.itemCount || sourceItems.length),
+        nextCursor: String(response && response.nextCursor || ''),
+        hasMore: Boolean(response && response.hasMore),
         loading: false,
         loadingMore: false
       });
@@ -94,51 +99,73 @@ Page({
     }
   },
 
-  onPackTap(event) {
+  filterItems(items) {
+    const keyword = this.data.searchText.trim().toLowerCase();
+    if (!keyword) return items;
+    return items.filter((item) => [item.content, item.translation, item.chinese]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword));
+  },
+
+  onCategoryTap(event) {
     const code = String(event.currentTarget.dataset.code || '');
-    const selected = this.data.packs.find((item) => item.code === code);
-    if (!selected || code === this.data.selectedPackCode) return;
-    this.setData({ selectedPackCode: code, selectedPackTitle: selected.title, items: [], total: 0 });
+    const selected = this.data.categories.find((item) => item.code === code);
+    if (!selected || code === this.data.selectedCategoryCode) return;
+    this.setData({
+      selectedCategoryCode: code,
+      selectedCategoryTitle: selected.title,
+      sourceItems: [],
+      items: [],
+      total: 0,
+      nextCursor: '',
+      hasMore: false
+    });
     this.loadItems(true);
   },
 
   onSearchInput(event) {
-    this.setData({ searchText: String(event.detail.value || '') });
-    if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => this.loadItems(true), 350);
+    const searchText = String(event.detail.value || '');
+    this.setData({ searchText }, () => {
+      this.setData({ items: this.filterItems(this.data.sourceItems) });
+    });
   },
 
   async onKnownTap(event) {
     const itemId = String(event.currentTarget.dataset.id || '');
     if (!itemId || this.data.markingItemId) return;
-    const previousItems = this.data.items.slice();
+    const previousSourceItems = this.data.sourceItems.slice();
+    const sourceItems = previousSourceItems.filter((item) => String(item.id) !== itemId);
     this.setData({
       markingItemId: itemId,
-      items: previousItems.filter((item) => String(item.id) !== itemId),
+      sourceItems,
+      items: this.filterItems(sourceItems),
       total: Math.max(0, this.data.total - 1)
     });
     try {
-      await setDiscoveryItemKnown(itemId, true);
-      const packs = this.data.packs.map((pack) => pack.code === this.data.selectedPackCode
-        ? { ...pack, remaining_count: Math.max(0, Number(pack.remaining_count || 0) - 1) }
-        : pack);
-      this.setData({ packs, markingItemId: '' });
+      await api.discovery.setKnown(itemId, true);
+      this.setData({ markingItemId: '' });
     } catch (error) {
       console.warn('[discover] mark known failed', error);
-      this.setData({ items: previousItems, total: previousItems.length, markingItemId: '' });
+      this.setData({
+        sourceItems: previousSourceItems,
+        items: this.filterItems(previousSourceItems),
+        total: previousSourceItems.length,
+        markingItemId: ''
+      });
       wx.showToast({ title: '操作失败，请重试', icon: 'none' });
     }
   },
 
   onRememberTap(event) {
     const itemId = String(event.currentTarget.dataset.id || '');
-    const item = this.data.items.find((candidate) => String(candidate.id) === itemId);
+    const item = this.data.sourceItems.find((candidate) => String(candidate.id) === itemId);
     if (!item) return;
-    if (item.in_library) {
+    if (item.inLibrary) {
       wx.showToast({ title: '已经在卡片库里了', icon: 'none' });
       return;
     }
-    saveDiscoveryPrefill(item, `发现素材 · ${item.pack_title || this.data.selectedPackTitle}`);
+    saveDiscoveryPrefill(item, `发现素材 · ${item.categoryTitle || this.data.selectedCategoryTitle}`);
     const url = '/pages/add/add?from=discovery';
     wx.navigateTo({
       url,
@@ -151,7 +178,7 @@ Page({
 
   async onPronounceTap(event) {
     const itemId = String(event.currentTarget.dataset.id || '');
-    const item = this.data.items.find((candidate) => String(candidate.id) === itemId);
+    const item = this.data.sourceItems.find((candidate) => String(candidate.id) === itemId);
     if (!item || this.data.playingItemId) return;
     this.setData({ playingItemId: itemId });
     try {

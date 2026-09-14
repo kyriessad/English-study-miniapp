@@ -1,1 +1,24 @@
-<view class="page review-page" wx:if="{{entries.length}}"><view class="review-top"><view class="eyebrow">{{book.title}}</view><view class="review-progress"><text>{{index + 1}}</text> / {{entries.length}}</view></view><view class="review-card"><view class="review-label">选择正确的中文理解</view><view class="review-en">{{entries[index].en}}</view><view class="review-phonetic">{{entries[index].phonetic}}</view><view class="options"><button wx:for="{{entries[index].options}}" wx:key="*this" class="option {{selected === index ? (index === 0 ? 'option-correct' : 'option-wrong') : ''}}" data-index="{{index}}" bindtap="choose"><text class="option-letter">{{index === 0 ? 'A' : index === 1 ? 'B' : index === 2 ? 'C' : 'D'}}</text><text class="option-text">{{item}}</text></button></view><view wx:if="{{showAnswer}}" class="answer-reveal">正确答案：{{entries[index].zh}}</view><view wx:if="{{answered}}" class="feedback">{{showAnswer ? '第二次仍答错，答案已揭晓' : '答对了，记得很牢'}}</view></view><button wx:if="{{answered}}" class="action action-primary" bindtap="next">下一题</button></view>
+<view class="page review-page book-review-page" style="padding-top: {{safeTop}}px;" wx:if="{{entries.length}}">
+  <view class="review-top">
+    <button class="close-button" bindtap="goBack">×</button>
+    <view class="review-progress">{{book.exam}} · {{index + 1}} / {{entries.length}}</view>
+  </view>
+  <view class="review-progress-track"><view class="review-progress-fill" style="width:{{(index + 1) / entries.length * 100}}%"></view></view>
+  <view class="review-focus">
+    <view class="review-en">{{entries[index].en}}</view>
+    <view class="review-phonetic">{{entries[index].phonetic}}</view>
+    <view class="review-divider"></view>
+    <view class="review-label">选择最合适的中文理解</view>
+  </view>
+  <view class="options">
+    <button wx:for="{{entries[index].options}}" wx:key="*this" class="option {{showAnswer && index === 0 ? 'option-correct' : (selected === index ? (index === 0 ? 'option-correct' : 'option-wrong') : '')}}" data-index="{{index}}" bindtap="choose">
+      <text wx:if="{{selected === index && index !== 0}}" class="option-status option-cross">×</text>
+      <text class="option-text">{{item}}</text>
+      <text wx:if="{{(showAnswer && index === 0) || (selected === index && index === 0)}}" class="option-status option-check">✓</text>
+      <text wx:else class="option-arrow">›</text>
+    </button>
+  </view>
+  <button class="unknown-button" bindtap="unknown">—　不知道　—</button>
+  <view wx:if="{{showExample}}" class="review-example"><view class="review-example-label">例句</view><view class="review-example-en">{{entries[index].sentence}}</view></view>
+  <button wx:if="{{showExample || awaitingNext}}" class="action action-primary review-continue" bindtap="next">{{awaitingNext ? '继续复习' : '再试一次'}}</button>
+</view>

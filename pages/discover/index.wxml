@@ -1,21 +1,21 @@
 <view class="page discover-page">
   <view class="discover-intro">
-    <view class="discover-title">找到真正想记住的英文</view>
+    <view class="discover-title">{{domainTitle}} · 找到真正想记住的英文</view>
     <view class="discover-subtitle">认识的轻轻划过，喜欢的再放进自己的卡片库。</view>
   </view>
 
   <scroll-view class="pack-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
     <view class="pack-row">
       <view
-        wx:for="{{packs}}"
+        wx:for="{{categories}}"
         wx:key="code"
-        id="discover-pack-{{item.code}}"
-        class="pack-pill {{selectedPackCode === item.code ? 'pack-pill-active' : ''}}"
+        id="discover-category-{{item.code}}"
+        class="pack-pill {{selectedCategoryCode === item.code ? 'pack-pill-active' : ''}}"
         data-code="{{item.code}}"
-        bindtap="onPackTap"
+        bindtap="onCategoryTap"
       >
         <text>{{item.title}}</text>
-        <text class="pack-count">{{item.remaining_count}}</text>
+        <text class="pack-count">{{item.itemCount}}</text>
       </view>
     </view>
   </scroll-view>
@@ -32,18 +32,18 @@
   <view class="material-list">
     <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card">
       <view class="material-card-top">
-        <view class="material-type">{{item.card_type === 'word' ? '单词' : (item.card_type === 'phrase' ? '短语' : '句子')}}</view>
+        <view class="material-type">{{item.cardType === 'word' ? '单词' : (item.cardType === 'phrase' ? '短语' : '句子')}}</view>
         <view class="sound-btn" data-id="{{item.id}}" catchtap="onPronounceTap">{{playingItemId === item.id ? '...' : '🔊'}}</view>
       </view>
       <view class="material-english">{{item.content}}</view>
-      <view class="material-chinese">{{item.chinese}}</view>
+      <view class="material-chinese">{{item.translation || item.chinese}}</view>
       <view class="material-actions">
         <button class="known-btn" data-id="{{item.id}}" bindtap="onKnownTap">认识</button>
         <button
-          class="remember-btn {{item.in_library ? 'remember-btn-done' : ''}}"
+          class="remember-btn {{item.inLibrary ? 'remember-btn-done' : ''}}"
           data-id="{{item.id}}"
           bindtap="onRememberTap"
-        >{{item.in_library ? '已在卡片库' : '想记住'}}</button>
+        >{{item.inLibrary ? '已在卡片库' : '想记住'}}</button>
       </view>
     </view>
   </view>

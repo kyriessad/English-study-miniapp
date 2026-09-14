@@ -1,2 +1,23 @@
 @import "./demo.wxss";
 .review-context{margin-top:12rpx;text-align:center;color:#91a095;font-size:23rpx}.unknown-button{display:block;margin:22rpx auto 0;padding:0;color:#9aa49c;background:transparent;font-size:24rpx}.unknown-button::after{border:0}
+
+.review-page { height:100vh; min-height:0; padding:46rpx 52rpx 36rpx; overflow:hidden; }
+.review-top { flex:0 0 62rpx; }
+.close-button { width:56rpx; height:56rpx; color:#203b27; font-size:48rpx; }
+.review-progress { color:#203b27; font-family:Georgia,"Times New Roman",serif; font-size:27rpx; }
+.review-progress-track { flex:0 0 8rpx; height:8rpx; margin-top:16rpx; }
+.review-focus { flex:0 0 470rpx; margin-top:12rpx; }
+.review-en { font-size:78rpx; line-height:1.08; font-style:italic; font-weight:400; }
+.review-phonetic { margin-top:16rpx; font-family:Georgia,"Times New Roman",serif; font-size:29rpx; color:#607564; }
+.review-divider { width:74rpx; height:3rpx; margin-top:36rpx; background:#bdcdb9; }
+.review-label { margin-top:34rpx; font-size:25rpx; color:#607564; }
+.options { gap:12rpx; margin-top:0; }
+.option { min-height:90rpx; padding:18rpx 34rpx; border-radius:16rpx; }
+.option-text { font-size:29rpx; }
+.option-arrow { color:#496f4e; font-size:44rpx; }
+.unknown-button { margin-top:auto; font-size:25rpx; color:#8b9a8c; }
+.review-example { margin-top:22rpx; padding:22rpx 26rpx; border:1rpx solid #d5e1d1; border-radius:16rpx; background:rgba(255,255,250,.76); }
+.review-example-label { color:#496f4e; font-size:23rpx; font-weight:600; }
+.review-example-en { margin-top:10rpx; color:#315737; font-family:Georgia,"Times New Roman",serif; font-size:25rpx; line-height:1.5; }
+.review-detail-notice { margin-top:16rpx; padding:18rpx 24rpx; border-radius:999rpx; background:rgba(224,237,219,.82); color:#315737; font-size:25rpx; text-align:center; }
+.review-continue { flex:0 0 70rpx; margin-top:18rpx; }

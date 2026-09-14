@@ -1,4 +1,6 @@
 {
-  "navigationBarTitleText": "我的卡片",
-  "enablePullDownRefresh": true
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "首页",
+  "backgroundColor": "#F2F8EF",
+  "backgroundTextStyle": "dark"
 }

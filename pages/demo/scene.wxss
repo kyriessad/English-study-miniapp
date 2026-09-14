@@ -1,2 +1,37 @@
 @import "./demo.wxss";
-.category-scroll{margin:24rpx -28rpx 0;padding:0 28rpx}.category-row{display:flex;gap:12rpx;white-space:nowrap}.category-pill{display:inline-block;padding:14rpx 22rpx;border-radius:999rpx;background:#fff;color:#718078;border:1rpx solid #e5ece2;font-size:25rpx}.category-pill-active{background:#5eaa64;color:#fff;border-color:#5eaa64}.scene-toolbar{display:flex;align-items:center;justify-content:space-between;margin-top:28rpx}.scene-hint{margin-top:6rpx;color:#98a398;font-size:22rpx}.ghost-button{height:62rpx;line-height:62rpx;padding:0 22rpx;margin:0;border-radius:999rpx;color:#5e8f6e;background:#edf8ef;font-size:24rpx}.ghost-button::after{border:0}.material-list{margin-top:18rpx}.material-card{position:relative;margin-bottom:18rpx;padding:24rpx;border:1rpx solid #e8eee5;border-radius:26rpx;background:#fff;box-shadow:0 10rpx 24rpx rgba(86,126,82,.06)}.material-top{display:flex;justify-content:space-between;align-items:center}.material-tag{color:#78a17d;font-size:22rpx}.sound-btn{width:52rpx;height:52rpx;line-height:52rpx;padding:0;margin:0;border:1rpx solid #d8ebdc;border-radius:16rpx;background:#f5fbf7;color:#5eaa64;font-size:25rpx}.sound-btn::after{border:0}.material-en{margin-top:16rpx;color:#26352b;font-size:34rpx;line-height:1.4;font-weight:700}.material-zh{margin-top:8rpx;color:#647268;font-size:27rpx}.material-context{margin-top:10rpx;color:#98a398;font-size:23rpx}.material-card .remember-button{margin-top:18rpx;width:100%;height:68rpx;line-height:68rpx}.remember-button{border:0}.remember-button::after{border:0}
+.category-scroll{position:sticky;top:0;z-index:5;padding-top:8rpx;padding-bottom:8rpx;background:#f8fbf6}.list-status{padding:18rpx 0;color:#a0aaa2;font-size:21rpx;text-align:center}
+
+.category-scroll {
+  position:static;
+  margin:26rpx -28rpx 0;
+  padding:0 28rpx 8rpx;
+  background:transparent;
+}
+.scene-list { margin-top:20rpx; }
+.scene-card {
+  min-height:170rpx;
+  margin-bottom:16rpx;
+  padding:28rpx 98rpx 26rpx 28rpx;
+  border:1rpx solid #d8e3d5;
+  border-radius:16rpx;
+  background:rgba(255,253,248,.88);
+  box-shadow:none;
+}
+.scene-en { font-family:Georgia,"Times New Roman",serif; font-size:35rpx; line-height:1.25; }
+.scene-zh { margin-top:12rpx; color:#48604b; font-size:24rpx; }
+.scene-meta { margin-top:10rpx; }
+.scene-card .sound-btn { right:26rpx; width:58rpx; height:58rpx; line-height:58rpx; }
+
+.scene-page { padding-right:24rpx; padding-left:24rpx; padding-bottom:132rpx; overflow:visible; }
+.scene-page .subpage-top { margin:0 8rpx; }
+.scene-page .subpage-heading .page-title { font-size:44rpx; }
+.category-scroll { margin:30rpx -24rpx 0; padding:0 24rpx 12rpx; }
+.category-row { gap:12rpx; }
+.category-pill { height:58rpx; box-sizing:border-box; padding:12rpx 24rpx; border-radius:999rpx; font-size:24rpx; line-height:32rpx; }
+.scene-toolbar { margin:12rpx 8rpx 0; }
+.material-list { margin-top:16rpx; }
+.material-card { min-height:174rpx; margin-bottom:14rpx; padding:22rpx 86rpx 20rpx 30rpx; border-radius:16rpx; }
+.material-tag { padding:6rpx 16rpx; font-size:21rpx; }
+.material-en { font-size:34rpx; line-height:1.25; }
+.material-zh { margin-top:7rpx; font-size:26rpx; }
+.material-card .sound-btn { top:48rpx; right:24rpx; }

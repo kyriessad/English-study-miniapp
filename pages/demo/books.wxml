@@ -1,1 +1,23 @@
-<view class="page books-page"><view class="subpage-top"><view class="back" bindtap="goBack">‹</view><view class="eyebrow">按考试目标系统学习</view></view><view class="page-title">词汇书</view><view class="page-subtitle">整本加入后独立学习，不会批量进入我的英语</view><view class="book-list"><view wx:for="{{books}}" wx:key="id" class="book-card" data-id="{{item.id}}" bindtap="openBook"><view class="book-cover" style="background:{{item.color}}"><view class="book-cover-mark">A</view></view><view class="book-copy"><view class="book-title">{{item.title}}</view><view class="book-exam">{{item.exam}}</view><view class="book-desc">{{item.description}}</view><view class="book-meta">{{item.count}} 词 · 已学习 {{item.learned}}</view></view><view class="book-arrow">›</view></view></view></view>
+<view class="page books-page" style="padding-top: {{safeTop}}px;">
+  <view class="subpage-top">
+    <view class="back" bindtap="goBack">‹</view>
+    <view class="subpage-heading">
+      <view class="page-title">词汇书</view>
+      <view class="page-subtitle">高频词汇轻松积累</view>
+    </view>
+  </view>
+  <view class="search-wrap book-search"><text class="icon icon-search"></text><view class="search-placeholder">搜索英文、理解或来源</view></view>
+  <view wx:if="{{loading && books.length === 0}}" class="core-status">正在加载词汇书…</view>
+  <view wx:elif="{{error && books.length === 0}}" class="core-status core-status-error"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+  <view class="book-list">
+    <view wx:for="{{books}}" wx:key="id" class="book-card" data-code="{{item.code}}" bindtap="openBook">
+      <view class="book-cover" style="background:{{item.color}}"><view class="book-cover-mark">{{item.coverMark}}</view></view>
+      <view class="book-copy">
+        <view class="book-title">{{item.title}}</view>
+        <view class="book-meta">{{item.count}} 词<text wx:if="{{item.reviewedCount}}"> · 已复习 {{item.reviewedCount}}</text></view>
+      </view>
+      <view class="book-arrow">›</view>
+    </view>
+  </view>
+  <view class="book-footer-note">从词汇书开始，开启高效积累之旅。</view>
+</view>

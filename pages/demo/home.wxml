@@ -1,23 +1,76 @@
-<view class="page home-page">
-  <view class="home-topbar"><view><view class="eyebrow">TODAY</view><view class="page-title">今日精选</view></view></view>
+<view class="page home-page" style="padding-top: {{safeTop}}px;">
+  <view class="home-glow home-glow-top" aria-hidden="true"></view>
+  <view class="home-glow home-glow-side" aria-hidden="true"></view>
 
-  <view wx:if="{{featured.length > 0}}" class="feature-card" data-id="{{featured[0].id}}" bindtap="openFeatured">
-    <view class="feature-kicker">精选表达</view>
-    <view class="feature-en">{{featured[0].en}}</view>
-    <view class="feature-zh">{{featured[0].zh}}</view>
-    <view class="feature-meta">{{featured[0].context}}</view>
-    <view class="feature-actions"><button class="icon-button" catchtap="playFeature">◉ 播放</button><button class="remember-button {{featured[0].saved ? 'remembered' : ''}}" catchtap="remember" data-id="{{featured[0].id}}">{{featured[0].saved ? '已加入' : '想记住'}}</button></view>
+  <view class="home-header">
+    <view class="home-greeting">Hello, Learner!</view>
+    <view class="home-notification" aria-label="通知" role="img"></view>
   </view>
 
-  <view class="compact-list">
-    <block wx:for="{{featured}}" wx:for-index="cardIndex" wx:key="id">
-      <view wx:if="{{cardIndex > 0}}" class="compact-card" data-id="{{item.id}}" bindtap="openFeatured">
-        <view class="compact-copy"><view class="compact-en">{{item.en}}</view><view class="compact-zh">{{item.zh}}</view></view>
-        <button class="compact-remember {{item.saved ? 'remembered' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.saved ? '已加入' : '想记住'}}</button>
+  <view wx:if="{{loading && featured.length === 0}}" class="core-status">正在加载今日推荐…</view>
+  <view wx:elif="{{error && featured.length === 0}}" class="core-status core-status-error">
+    <view>{{error}}</view>
+    <button class="text-link" bindtap="retryLoad">重新加载</button>
+  </view>
+  <view wx:if="{{featured.length > 0}}" class="recommendation-card">
+    <view class="recommendation-hero" data-id="{{featured[0].id}}" bindtap="openFeatured">
+      <view class="recommendation-kicker">今日推荐</view>
+      <view class="recommendation-rule"></view>
+      <view class="recommendation-english">{{featured[0].en}}</view>
+      <view class="feature-quick-actions">
+        <button class="feature-quick-button" catchtap="playFeature">播放</button>
+        <button class="feature-quick-button {{featured[0].saved ? 'feature-quick-button-saved' : ''}}" catchtap="remember" data-id="{{featured[0].id}}">{{featured[0].saved ? '已加入' : '想记住'}}</button>
       </view>
-    </block>
+    </view>
+
+    <view class="recommendation-list">
+      <block wx:for="{{featured}}" wx:for-index="cardIndex" wx:key="id">
+        <view wx:if="{{cardIndex > 0}}" class="recommendation-row" data-id="{{item.id}}" bindtap="openFeatured">
+          <view class="recommendation-copy">
+            <view class="recommendation-row-en">{{item.en}}</view>
+            <view class="recommendation-row-zh">{{item.zh}}</view>
+          </view>
+          <button class="row-remember {{item.saved ? 'row-remember-saved' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.saved ? '已加入' : '想记住'}}</button>
+          <view class="chevron" aria-hidden="true"></view>
+        </view>
+      </block>
+
+      <view class="home-add-action" bindtap="goAdd" hover-class="home-action-pressed">
+        <text class="home-add-plus">＋</text>
+        <text>添加英文内容</text>
+      </view>
+    </view>
   </view>
 
-  <view class="discover-banner" bindtap="goDiscover"><view class="banner-title">发现更多英语 <text class="banner-arrow">›</text></view></view>
-  <view class="add-link" bindtap="goAdd">＋ 添加我遇到的英语</view>
+  <view class="discover-section">
+    <view class="discover-heading" bindtap="goDiscover">发现更多英语</view>
+
+    <view class="discover-row" data-key="life" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-cup" aria-hidden="true"></view>
+      <view class="discover-copy">
+        <view class="discover-title">生活英语</view>
+        <view class="discover-subtitle">日常口语实用场景</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
+    <view class="discover-row" data-key="reading" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-book" aria-hidden="true"></view>
+      <view class="discover-copy">
+        <view class="discover-title">阅读英语</view>
+        <view class="discover-subtitle">精选短文和故事</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
+    <view class="discover-row" data-key="books" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-words" aria-hidden="true">A-Z</view>
+      <view class="discover-copy">
+        <view class="discover-title">词汇书</view>
+        <view class="discover-subtitle">高频词汇轻松积累</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
+  </view>
 </view>

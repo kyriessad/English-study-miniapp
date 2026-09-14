@@ -1,0 +1,16 @@
+<view wx:if="{{loading && !book}}" class="page book-detail-page core-status" style="padding-top: {{safeTop}}px;">正在加载词汇书…</view>
+<view wx:elif="{{error && !book}}" class="page book-detail-page core-status core-status-error" style="padding-top: {{safeTop}}px;"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+<view class="page book-detail-page" style="padding-top: {{safeTop}}px;" wx:elif="{{book}}">
+  <view class="subpage-top">
+    <view class="back" bindtap="goBack">‹</view>
+    <view class="subpage-heading">
+      <view class="page-title">{{book.coverMark}}</view>
+      <view class="page-subtitle">{{book.title}}</view>
+    </view>
+  </view>
+  <view class="book-hero"><view class="book-cover large"><view class="book-cover-mark">{{book.coverMark}}</view></view><view class="book-hero-copy"><view class="page-title">{{book.count}} 词</view><view class="book-total">{{reviewedCount ? '已复习 ' + reviewedCount + ' 词' : '尚未开始复习'}}</view><view class="progress-line"><view class="progress-track"><view class="progress-fill" style="width:{{progressPercent}}%"></view></view><text>{{book.description}}</text></view></view></view>
+  <view class="book-actions"><button class="action action-primary" bindtap="startLearning">{{book.started ? '继续学习' : '开始学习'}}</button></view>
+  <view class="section-head detail-head"><view class="section-title">本书词条</view><view class="section-link">{{entries.length}} 条展示</view></view>
+  <view class="entry-list"><view wx:for="{{entries}}" wx:key="id" class="entry-card" data-id="{{item.id}}" bindtap="openEntry"><view class="entry-copy"><view class="entry-en">{{item.en}}</view><view class="entry-phonetic">{{item.phonetic}}</view><view class="entry-zh">{{item.zh}}</view><view class="entry-sentence">{{item.sentence}}</view><view wx:if="{{item.reviewed}}" class="entry-reviewed">已复习</view></view><button class="entry-add {{item.joined ? 'entry-add-done' : ''}}" catchtap="joinPersonal" data-id="{{item.id}}">{{item.joined ? '✅ 已加入' : '加入我的英语'}}</button></view></view>
+</view>
+

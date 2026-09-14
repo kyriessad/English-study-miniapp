@@ -13,16 +13,17 @@ App({
     this.restoreBackendAuthFromStorage();
     runLegacyStorageCleanup();
 
-    // 重要：
-    // 现在先不在启动阶段自动登录 Python 后端。
-    // 阶段 B 继续验收”新增卡片同步失败不影响本地保存”。
-    // this.initBackendLoginSafe();
+    // The first usable release reads and writes the Python backend directly.
+    // Start authentication early; request-level 401 recovery remains the fallback.
+    this.initBackendLoginSafe();
   },
 
   globalData: {
     backendUserId: '',
     backendAccessToken: '',
     backendLoginAt: '',
+    backendAuthStatus: 'unauthenticated',
+    backendAuthError: null,
     indexViewMode: null
   },
 
@@ -31,6 +32,10 @@ App({
       this.globalData.backendUserId = wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId) || '';
       this.globalData.backendAccessToken = wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.accessToken) || '';
       this.globalData.backendLoginAt = wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.loginAt) || '';
+      this.globalData.backendAuthStatus = this.globalData.backendAccessToken
+        ? 'authenticated'
+        : 'unauthenticated';
+      this.globalData.backendAuthError = null;
 
       console.log('[backend-auth] restored backend auth from storage');
     } catch (error) {
@@ -44,8 +49,16 @@ App({
         return this.backendLoginPromise;
       }
 
+      this.globalData.backendAuthStatus = 'loading';
+      this.globalData.backendAuthError = null;
       this.backendLoginPromise = this.loginBackendSilently()
+        .then((authState) => {
+          this.globalData.backendAuthStatus = authState ? 'authenticated' : 'unauthenticated';
+          return authState;
+        })
         .catch((error) => {
+          this.globalData.backendAuthStatus = 'network-error';
+          this.globalData.backendAuthError = error || null;
           console.warn('[backend-auth] Backend login failed, continue without backend', error);
           return null;
         })
@@ -56,6 +69,8 @@ App({
       return this.backendLoginPromise;
     } catch (error) {
       this.backendLoginPromise = null;
+      this.globalData.backendAuthStatus = 'network-error';
+      this.globalData.backendAuthError = error || null;
       console.warn('[backend-auth] Backend login failed, continue without backend', error);
       return Promise.resolve(null);
     }
@@ -100,6 +115,8 @@ App({
     this.globalData.backendUserId = backendUserId;
     this.globalData.backendAccessToken = backendAccessToken;
     this.globalData.backendLoginAt = backendLoginAt;
+    this.globalData.backendAuthStatus = 'authenticated';
+    this.globalData.backendAuthError = null;
 
     return {
       backendUserId,
@@ -109,16 +126,9 @@ App({
   },
 
   async loginBackendSilently() {
-    try {
-      console.log('[backend-auth] Starting backend login');
-
-      const backendAuth = await refreshBackendAuth();
-
-      console.log('[backend-auth] Backend login success, backend user id:', backendAuth.backendUserId);
-      return backendAuth;
-    } catch (error) {
-      console.warn('[backend-auth] Backend login failed, continue without backend', error);
-      return null;
-    }
+    console.log('[backend-auth] Starting backend login');
+    const backendAuth = await refreshBackendAuth();
+    console.log('[backend-auth] Backend login success, backend user id:', backendAuth.backendUserId);
+    return backendAuth;
   }
 });

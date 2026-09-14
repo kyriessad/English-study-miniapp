@@ -2,7 +2,6 @@
   addCard,
   getCardById,
   updateCard,
-  deleteCard,
   updateBackendCardSyncState,
   DEFAULT_EXAM_SCENE,
   DEFAULT_EXAM_MODULE
@@ -528,6 +527,8 @@ function createEmptyForm() {
     englishText: '',
     whereEncountered: '',
     myUnderstanding: '',
+    exampleSentence: '',
+    exampleTranslation: '',
     notes: ''
   };
 }
@@ -1556,6 +1557,8 @@ Page({
         englishText: card.englishText || '',
         whereEncountered: card.whereEncountered || '',
         myUnderstanding: card.myUnderstanding || '',
+        exampleSentence: card.exampleSentence || '',
+        exampleTranslation: card.exampleTranslation || '',
         notes
       }
     };
@@ -2948,6 +2951,8 @@ Page({
       this.abortActiveAnalysis();
       nextData.isAnalyzing = false;
       nextData.translating = false;
+      nextData['form.exampleSentence'] = '';
+      nextData['form.exampleTranslation'] = '';
     }
 
     if (normalizedNextText !== this.data.suggestionSourceText) {
@@ -3046,6 +3051,18 @@ Page({
     });
   },
 
+  onExampleSentenceInput(event) {
+    if (this.data.isReadonlyDetailMode) return;
+    this.setData({ 'form.exampleSentence': event.detail.value });
+    this.refreshReferenceApplied();
+  },
+
+  onExampleTranslationInput(event) {
+    if (this.data.isReadonlyDetailMode) return;
+    this.setData({ 'form.exampleTranslation': event.detail.value });
+    this.refreshReferenceApplied();
+  },
+
   computeReferenceApplied(suggestionOverride, exampleSentenceOverride, exampleTranslationOverride) {
     const understanding = normalizeEnglishText(
       arguments.length >= 1 ? (suggestionOverride || '') : (this.data.understandingSuggestion || this.data.suggestionText)
@@ -3053,16 +3070,17 @@ Page({
     const exampleSentence = normalizePlainText(
       arguments.length >= 2 ? (exampleSentenceOverride || '') : this.data.aiExampleSentence
     );
+    const exampleTranslation = normalizePlainText(
+      arguments.length >= 3 ? (exampleTranslationOverride || '') : this.data.aiExampleTranslation
+    );
 
     const currentUnderstanding = normalizeEnglishText(this.data.form.myUnderstanding || '');
-    const currentNotes = this.data.form.notes || '';
+    const currentExample = normalizePlainText(this.data.form.exampleSentence);
 
     const understandingOk = !understanding || currentUnderstanding === understanding;
 
-    let exampleOk = true;
-    if (exampleSentence) {
-      exampleOk = currentNotes.includes(exampleSentence);
-    }
+    // Any existing example is user-owned and must not be overwritten by AI reference data.
+    const exampleOk = !exampleSentence || Boolean(currentExample);
 
     return understandingOk && exampleOk;
   },
@@ -3082,7 +3100,6 @@ Page({
     const exampleTranslation = normalizePlainText(this.data.aiExampleTranslation);
 
     const currentUnderstanding = normalizeEnglishText(this.data.form.myUnderstanding || '');
-    const currentNotes = this.data.form.notes || '';
 
     const nextData = {};
 
@@ -3091,13 +3108,10 @@ Page({
       nextData['form.myUnderstanding'] = understanding;
     }
 
-    // Fill note with example (no labels)
-    if (exampleSentence && !currentNotes.includes(exampleSentence)) {
-      const exampleNote = exampleTranslation
-        ? `${exampleSentence}\n${exampleTranslation}`
-        : exampleSentence;
-      const newNotes = currentNotes ? `${currentNotes}\n\n${exampleNote}` : exampleNote;
-      nextData['form.notes'] = newNotes;
+    // Example is a first-class card field. Keep notes reserved for the user's notes.
+    if (exampleSentence && !normalizePlainText(this.data.form.exampleSentence)) {
+      nextData['form.exampleSentence'] = exampleSentence;
+      nextData['form.exampleTranslation'] = exampleTranslation;
     }
 
     // Only setData if there's something to fill
@@ -3626,45 +3640,5 @@ Page({
   async handleSubmitAndContinue() {
     if (this.data.isReadonlyDetailMode) return;
     await this.submitCard('continue');
-  },
-
-  handleDelete() {
-    if (this.data.isReadonlyDetailMode) return;
-    const { isEdit, cardId } = this.data;
-
-    if (!isEdit) {
-      return;
-    }
-
-    wx.showModal({
-      title: '删除卡片',
-      content: '确定删除这张英语卡片吗？',
-      success: async (result) => {
-        if (!result.confirm) {
-          return;
-        }
-
-        try {
-          await deleteCard(cardId);
-        } catch (error) {
-          wx.showToast({
-            title: '删除失败',
-            icon: 'none'
-          });
-          return;
-        }
-
-        refreshPreviousPage();
-
-        wx.showToast({
-          title: '已删除',
-          icon: 'success'
-        });
-
-        setTimeout(() => {
-          wx.navigateBack({ delta: 1 });
-        }, 800);
-      }
-    });
   }
 });

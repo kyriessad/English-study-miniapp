@@ -1,4 +1,4 @@
-<view class="page">
+<view class="page add-page">
   <view class="form-card">
 
     <view class="meta-pills">
@@ -23,7 +23,7 @@
       </block>
     </view>
 
-    <view id="english-section" class="form-item">
+    <view id="english-section" class="form-item form-item-english">
       <view class="label-row">
         <view class="label">英文内容</view>
         <view class="english-pronunciation-area">
@@ -192,7 +192,7 @@
       </view>
     </view>
 
-    <view class="form-item">
+    <view class="form-item form-item-context">
       <view class="label">这次是在哪里看到的？</view>
       <view class="label-subtitle">写下场景，以后复习时更容易想起来</view>
       <textarea
@@ -218,7 +218,7 @@
       </view>
     </view>
 
-    <view class="form-item">
+    <view class="form-item form-item-understanding">
   <view class="label">我的理解</view>
       <textarea
       class="textarea textarea-understanding {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
@@ -234,7 +234,30 @@
     ></textarea>
 </view>
 
-    <view wx:if="{{deferNonCriticalReady}}" class="form-item">
+    <view class="form-item form-item-example">
+      <view class="label">例句（可选）</view>
+      <textarea
+        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        auto-height
+        disabled="{{isReadonlyDetailMode}}"
+        placeholder="可以手动填写；AI 分析后也可采用参考例句"
+        value="{{form.exampleSentence}}"
+        maxlength="500"
+        bindinput="onExampleSentenceInput"
+      ></textarea>
+      <textarea
+        wx:if="{{form.exampleSentence || form.exampleTranslation}}"
+        class="textarea example-translation-input {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        auto-height
+        disabled="{{isReadonlyDetailMode}}"
+        placeholder="例句中文翻译（可选）"
+        value="{{form.exampleTranslation}}"
+        maxlength="500"
+        bindinput="onExampleTranslationInput"
+      ></textarea>
+    </view>
+
+    <view wx:if="{{deferNonCriticalReady}}" class="form-item form-item-notes">
       <view class="notes-label-row">
         <view class="label">补充备注</view>
       </view>
@@ -265,7 +288,7 @@
     </button>
 </view>
 
-<!-- 首页进入：普通编辑，允许更新和删除 -->
+<!-- 普通编辑：删除操作统一放在“我的英语”列表 -->
 <view
   wx:elif="{{isEdit && !isFromReviewMode && !isFromTodayReviewedMode && !isReadonlyDetailMode}}"
   class="submit-actions"
@@ -277,14 +300,6 @@
       bindtap="handleSubmitAndBack"
     >
       {{isSaving ? '更新中...' : '更新卡片'}}
-    </button>
-
-    <button
-      class="danger-btn submit-btn"
-      disabled="{{isSaving}}"
-      bindtap="handleDelete"
-    >
-      删除卡片
     </button>
 </view>
 

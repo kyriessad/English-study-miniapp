@@ -1,4 +1,5 @@
 const { BACKEND_BASE_URL } = require('./localBackendConfig');
+const { AppError } = require('./api/errors');
 
 let hasLoggedResolvedBackendBaseUrl = false;
 let lastTtsRequestId = '';
@@ -43,6 +44,7 @@ const BACKEND_AUTH_STORAGE_KEYS = {
   accessToken: 'backendAccessToken',
   loginAt: 'backendLoginAt'
 };
+const ANALYSIS_REQUEST_TIMEOUT_MS = 105000;
 
 let refreshPromise = null;
 let authGeneration = 0;
@@ -117,6 +119,12 @@ function updateAppBackendAuth(authState) {
     app.globalData.backendUserId = authState.backendUserId || '';
     app.globalData.backendAccessToken = authState.backendAccessToken || '';
     app.globalData.backendLoginAt = authState.backendLoginAt || '';
+    if (authState.backendAuthStatus) {
+      app.globalData.backendAuthStatus = authState.backendAuthStatus;
+    }
+    if (Object.prototype.hasOwnProperty.call(authState, 'backendAuthError')) {
+      app.globalData.backendAuthError = authState.backendAuthError;
+    }
   } catch (error) {
     console.warn('[apiClient] Failed to update app backend auth state', error);
   }
@@ -129,6 +137,11 @@ function saveBackendAuth(authData) {
 
   if (!backendUserId || !backendAccessToken) {
     throw new Error('Backend login response missing user id or access token');
+  }
+
+  const previousUserId = String(wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId) || '');
+  if (previousUserId && previousUserId !== backendUserId) {
+    authGeneration += 1;
   }
 
   const backendLoginAt = new Date().toISOString();
@@ -159,7 +172,9 @@ function clearBackendAuth() {
   updateAppBackendAuth({
     backendUserId: '',
     backendAccessToken: '',
-    backendLoginAt: ''
+    backendLoginAt: '',
+    backendAuthStatus: 'unauthenticated',
+    backendAuthError: null
   });
 }
 
@@ -202,11 +217,9 @@ function buildHeaders(headers, options = {}) {
 }
 
 function normalizeRequestError(error) {
-  return {
-    errMsg: error && error.errMsg ? error.errMsg : 'Backend request failed',
-    statusCode: error && error.statusCode ? error.statusCode : 0,
-    data: error && error.data ? error.data : null
-  };
+  const normalized = AppError.from(error, 'Backend request failed');
+  normalized.errMsg = normalized.message;
+  return normalized;
 }
 
 function sendRequest(options) {
@@ -215,7 +228,9 @@ function sendRequest(options) {
   return new Promise((resolve, reject) => {
     try {
       wx.request({
-        url: buildUrl(requestOptions.url || requestOptions.path || ''),
+        url: buildUrl(
+          `${requestOptions.url || requestOptions.path || ''}${buildQueryString(requestOptions.query || {})}`
+        ),
         method: requestOptions.method || 'GET',
         data: requestOptions.data || {},
         header: buildHeaders(requestOptions.header || requestOptions.headers, requestOptions),
@@ -288,7 +303,11 @@ function refreshBackendAuth() {
     const code = await requestWechatLoginCode();
     const authData = await loginWithWechatCode(code);
     if (generationAtStart !== authGeneration) {
-      throw new Error('Backend auth state changed during login');
+      throw new AppError('Backend auth state changed during login', {
+        code: 'AUTH_STATE_CHANGED',
+        statusCode: 401,
+        retryable: false
+      });
     }
     return saveBackendAuth(authData);
   })()
@@ -305,9 +324,18 @@ function refreshBackendAuth() {
 
 async function request(options) {
   const requestOptions = Object.assign({}, options || {});
+  const requestAuthGeneration = authGeneration;
 
   try {
-    return await sendRequest(requestOptions);
+    const response = await sendRequest(requestOptions);
+    if (requestAuthGeneration !== authGeneration) {
+      throw new AppError('Backend auth state changed during request', {
+        code: 'AUTH_STATE_CHANGED',
+        statusCode: 401,
+        retryable: false
+      });
+    }
+    return response;
   } catch (error) {
     if (
       error &&
@@ -317,11 +345,54 @@ async function request(options) {
       !autoRefreshSuppressed
     ) {
       await refreshBackendAuth();
-      return sendRequest(Object.assign({}, requestOptions, { _hasRetriedAuth: true }));
+      if (requestAuthGeneration !== authGeneration || autoRefreshSuppressed) {
+        throw new AppError('Backend auth state changed during request', {
+          code: 'AUTH_STATE_CHANGED',
+          statusCode: 401,
+          retryable: false
+        });
+      }
+      const response = await sendRequest(Object.assign({}, requestOptions, { _hasRetriedAuth: true }));
+      if (requestAuthGeneration !== authGeneration || autoRefreshSuppressed) {
+        throw new AppError('Backend auth state changed during request', {
+          code: 'AUTH_STATE_CHANGED',
+          statusCode: 401,
+          retryable: false
+        });
+      }
+      return response;
     }
 
     throw error;
   }
+}
+
+function getBackendAuthState() {
+  const userId = String((typeof wx !== 'undefined' && wx.getStorageSync
+    ? wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.userId)
+    : '') || '');
+  const accessToken = String((typeof wx !== 'undefined' && wx.getStorageSync
+    ? wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.accessToken)
+    : '') || '');
+  return {
+    status: accessToken && userId ? 'authenticated' : 'unauthenticated',
+    userId,
+    accessToken,
+    loginAt: String((typeof wx !== 'undefined' && wx.getStorageSync
+      ? wx.getStorageSync(BACKEND_AUTH_STORAGE_KEYS.loginAt)
+      : '') || '')
+  };
+}
+
+async function ensureBackendAuth() {
+  if (autoRefreshSuppressed) {
+    throw new AppError('Backend login is suppressed after logout', {
+      code: 'AUTH_SUPPRESSED', statusCode: 401, retryable: false
+    });
+  }
+  const state = getBackendAuthState();
+  if (state.status === 'authenticated') return state;
+  return refreshBackendAuth();
 }
 
 function getCurrentBackendUser() {
@@ -354,9 +425,11 @@ function updateBackendCard(cardId, patch) {
   });
 }
 
-function deleteBackendCard(cardId) {
+function deleteBackendCard(cardId, options = {}) {
   return request({
-    url: `/api/cards/${encodeURIComponent(cardId)}`,
+    url: `/api/cards/${encodeURIComponent(cardId)}${buildQueryString({
+      base_version: options.baseVersion || options.base_version
+    })}`,
     method: 'DELETE'
   });
 }
@@ -497,6 +570,14 @@ function getLexicalInfo(text) {
   return request({
     url: `/api/lexical-info${buildQueryString({ text })}`,
     method: 'GET'
+  });
+}
+
+function searchFreeExample(text) {
+  return request({
+    url: '/api/examples/search' + buildQueryString({ text: String(text || '') }),
+    method: 'GET',
+    timeout: 18000
   });
 }
 
@@ -760,7 +841,7 @@ function downloadDiagnosticTestAudio() {
   });
 }
 
-function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyKey = '', regenerateContext = null) {
+function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyKey = '', regenerateContext = null, timeoutMs = ANALYSIS_REQUEST_TIMEOUT_MS) {
   const data = {
     text: text,
     cardType: category || 'auto',
@@ -779,7 +860,7 @@ function analyzeEnglishDirect(text, category, forceRefresh = false, idempotencyK
     method: 'POST',
     data: data,
     headers: headers,
-    timeout: 60000
+    timeout: timeoutMs
   });
 }
 
@@ -1036,7 +1117,7 @@ function analyzeEnglishDirectStream(text, category, onEvent, forceRefresh = fals
         header: headers,
         enableChunked: true,
         responseType: 'arraybuffer',
-        timeout: 60000,
+        timeout: ANALYSIS_REQUEST_TIMEOUT_MS,
         success(response) {
           if (settled) return;
 
@@ -1103,6 +1184,8 @@ module.exports = {
   clearBackendAuth,
   logoutBackendAuth,
   getAccessToken,
+  getBackendAuthState,
+  ensureBackendAuth,
   getCurrentBackendUser,
   getReviewHistoryDetail,
   getSessionSummary,
@@ -1126,6 +1209,7 @@ module.exports = {
   getReviewOverview,
   getTodayReview,
   getLexicalInfo,
+  searchFreeExample,
   buildPronunciationAudioUrl,
   buildTtsDiagnosticTestAudioUrl,
   downloadPronunciationAudio,

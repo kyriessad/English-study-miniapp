@@ -1,0 +1,21 @@
+<view class="page recap-page" style="padding-top: {{safeTop}}px;">
+  <view class="recap-top"><view class="close-button" bindtap="home">×</view><view class="recap-kicker">本轮完成</view></view>
+  <view class="recap-celebration"><view class="recap-check">✓</view></view>
+  <view class="page-title">{{total}} 条英语已复习完成</view>
+  <view class="recap-subtitle">太棒了！坚持下去，积累看得见的进步。</view>
+  <view class="recap-list">
+    <view wx:for="{{items}}" wx:key="id" class="recap-card" data-id="{{item.id}}" bindtap="open">
+      <view class="recap-body">
+        <view class="recap-en">{{item.en}}</view>
+        <view class="recap-answer">{{item.answer}}</view>
+        <view class="recap-context">{{item.context}}</view>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{items.length === 0}}" class="empty">本轮还没有完成的内容</view>
+  <view class="recap-actions">
+    <button class="action action-primary" bindtap="again">再来一轮</button>
+    <button class="text-link" bindtap="home">回到复习首页</button>
+  </view>
+</view>
+

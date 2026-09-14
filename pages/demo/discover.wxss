@@ -1,1 +1,11 @@
 @import "./demo.wxss";
+
+.discover-page { padding-right:24rpx; padding-left:24rpx; padding-bottom:132rpx; overflow:visible; }
+.discover-page .subpage-top { margin:0 8rpx; }
+.discover-page .discover-tabs { margin:32rpx -24rpx 0; padding:18rpx 24rpx 28rpx; background:rgba(255,255,250,.38); }
+.discover-page .discover-tab { min-height:150rpx; padding:24rpx 28rpx; margin:0; border-bottom:1rpx solid #d5e1d1; border-radius:0; background:transparent; }
+.discover-tab-visual { flex:0 0 72rpx; width:72rpx; height:72rpx; border-radius:50%; background:#e3efe0; }
+.discover-tab-copy { margin-left:22rpx; }
+.discover-tab-title { font-size:30rpx; }
+.discover-tab-sub { margin-top:7rpx; color:#607564; font-size:23rpx; }
+.discover-tab-arrow { color:#496f4e; font-size:44rpx; }

@@ -1,1 +1,19 @@
-<view class="page discover-page"><view class="subpage-top"><view class="back" bindtap="goBack">‹</view><view class="eyebrow">选择你感兴趣的方向</view></view><view class="page-title">发现更多</view><view class="discover-lead">从生活表达、阅读素材和考试词汇中继续积累。</view><view class="discover-tabs"><view wx:for="{{tabs}}" wx:key="key" class="discover-tab" data-key="{{item.key}}" bindtap="open"><view class="discover-tab-mark">{{index + 1}}</view><view class="discover-tab-copy"><view class="discover-tab-title">{{item.title}}</view><view class="discover-tab-sub">{{item.sub}}</view><view class="discover-tab-cta">进入 ›</view></view></view></view></view>
+<view class="page discover-page" style="padding-top: {{safeTop}}px;">
+  <view class="subpage-top">
+    <view class="back" bindtap="goBack">‹</view>
+    <view class="subpage-heading">
+      <view class="page-title">发现更多英语</view>
+      <view class="page-subtitle">选择一种方式积累英语</view>
+    </view>
+  </view>
+  <view class="discover-tabs">
+    <view wx:for="{{tabs}}" wx:key="key" class="discover-tab" data-key="{{item.key}}" bindtap="open">
+      <view class="discover-tab-visual discover-visual-{{item.key}}"><view class="discover-line-icon"></view></view>
+      <view class="discover-tab-copy">
+        <view class="discover-tab-title">{{item.title}}</view>
+        <view class="discover-tab-sub">{{item.sub}}</view>
+      </view>
+      <view class="discover-tab-arrow">›</view>
+    </view>
+  </view>
+</view>

@@ -1,17 +1,15 @@
-<view class="page add-page">
-  <view class="back" bindtap="goBack">‹ 首页</view>
-  <view class="eyebrow">把你遇到的英语留下来</view>
-  <view class="page-title">添加英语</view>
+<view class="page add-page" style="padding-top: {{safeTop}}px;">
+  <view class="subpage-top add-header"><view class="back" bindtap="goBack">‹</view><view class="subpage-heading"><view class="page-title">添加英文内容</view><view class="page-subtitle">记录你遇到的单词、短语或句子</view></view></view>
   <view class="form-card">
-    <view class="form-block">
+    <view class="form-block form-block-primary">
       <view class="field-label">英文</view>
-      <textarea class="add-textarea" placeholder="例如：That makes sense." value="{{english}}" bindinput="onEnglishInput" auto-height></textarea>
-      <view class="examples"><text class="examples-label">试试：</text><text class="example" data-value="That makes sense." bindtap="useExample">That makes sense.</text><text class="example" data-value="I'll keep you posted." bindtap="useExample">I'll keep you posted.</text></view>
+      <textarea class="add-textarea" placeholder="输入你遇到的英文内容" value="{{english}}" bindinput="onEnglishInput" auto-height maxlength="500"></textarea>
+      <view wx:if="{{error}}" class="field-error">{{error}}</view>
     </view>
-    <view class="form-block">
-      <view class="field-label">我的理解</view>
-      <textarea class="add-textarea" placeholder="用你自己的话写一句理解（可选）" value="{{understanding}}" bindinput="onUnderstandingInput" auto-height></textarea>
-    </view>
+    <view class="form-block"><view class="field-label">我的理解</view><textarea class="add-textarea" placeholder="用你自己的话写一句理解（可选）" value="{{understanding}}" bindinput="onUnderstandingInput" auto-height maxlength="500"></textarea></view>
+    <view class="form-block"><view class="field-label">在哪里遇到</view><textarea class="add-textarea" placeholder="例如：会议、播客或阅读文章（可选）" value="{{where}}" bindinput="onWhereInput" auto-height maxlength="200"></textarea></view>
+    <view class="form-block"><view class="field-label">备注</view><textarea class="add-textarea" placeholder="补充一点记忆线索（可选）" value="{{note}}" bindinput="onNoteInput" auto-height maxlength="500"></textarea></view>
+    <view class="form-block"><view class="field-label">其他信息</view><textarea class="add-textarea" placeholder="可选" value="{{other}}" bindinput="onOtherInput" auto-height maxlength="500"></textarea></view>
+    <button class="action action-primary add-save" bindtap="save" loading="{{saving}}" disabled="{{saving}}">{{saving ? '保存中…' : '保存'}}</button>
   </view>
-  <button class="action action-primary" bindtap="save">{{saved ? '已加入' : '加入我的英语'}}</button>
 </view>

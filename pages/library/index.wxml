@@ -1,0 +1,66 @@
+<view class="page library-page" style="padding-top: {{safeTop}}px;">
+  <view class="library-heading" style="padding-right: {{menuRightInset}}px;"><view class="page-title">我的英语</view><button wx:if="{{viewMode === 'personal' && (filtered.length > 0 || managing)}}" class="manage-button" bindtap="toggleManage">{{managing ? '完成' : '管理'}}</button></view>
+  <view class="page-subtitle">积累点滴，遇见更好的自己。</view>
+  <view class="library-view-tabs">
+    <button class="library-view-tab {{viewMode === 'personal' ? 'library-view-tab-active' : ''}}" data-view="personal" bindtap="switchView">我的英语</button>
+    <button class="library-view-tab {{viewMode === 'wordbooks' ? 'library-view-tab-active' : ''}}" data-view="wordbooks" bindtap="switchView">词汇书</button>
+  </view>
+  <view class="search-wrap">
+    <text class="icon icon-search"></text>
+    <input class="search" placeholder="{{viewMode === 'wordbooks' ? '搜索单词或中文意思…' : '搜索我保存的英语内容…'}}" value="{{keyword}}" bindinput="search" />
+    <button wx:if="{{keyword}}" class="search-clear" aria-label="清除搜索" bindtap="clearSearch">×</button>
+  </view>
+  <view wx:if="{{viewMode === 'personal'}}" class="library-filters">
+    <view wx:for="{{tabs}}" wx:key="key" class="filter-tab {{filter === item.key ? 'filter-tab-active' : ''}}" data-filter="{{item.key}}" bindtap="chooseFilter">{{item.label}}</view>
+  </view>
+  <view wx:if="{{viewMode === 'personal' && cards.length > 0}}" class="library-sort-row"><text>共 {{filtered.length}} 条</text><picker mode="selector" range="{{sortOptions}}" range-key="label" value="{{sortIndex}}" bindchange="changeSort"><view class="library-sort-trigger">{{sortOptions[sortIndex].label}} <text>⌄</text></view></picker></view>
+  <view wx:else class="library-filters book-filters">
+    <view class="book-filter-row">
+      <view wx:for="{{bookFilters}}" wx:key="key" class="filter-tab {{selectedBookCode === item.key ? 'filter-tab-active' : ''}}" data-filter="{{item.key}}" bindtap="chooseBookFilter">{{item.label}}</view>
+    </view>
+  </view>
+
+  <block wx:if="{{viewMode === 'personal'}}">
+    <view wx:if="{{loading && cards.length === 0}}" class="core-status">正在加载我的英语…</view>
+    <view wx:elif="{{error && cards.length === 0}}" class="core-status core-status-error"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+    <view wx:if="{{keyword && filtered.length === 0}}" class="library-count">没有找到匹配内容</view>
+    <view class="library-list {{filtered.length === 0 ? 'library-list-empty' : ''}}">
+    <view wx:for="{{filtered}}" wx:key="id" class="library-swipe-row">
+      <view wx:if="{{!managing}}" class="library-swipe-actions"><button class="library-swipe-action library-swipe-edit" data-id="{{item.id}}" catchtap="editCard">编辑</button><button class="library-swipe-action library-swipe-delete" data-id="{{item.id}}" catchtap="deleteCard">删除</button></view>
+      <view class="library-item library-item-front {{managing ? 'library-item-managing' : ''}} {{swipedCardId === item.id ? 'library-item-swiped' : ''}}" data-id="{{item.id}}" bindtouchstart="onCardTouchStart" bindtouchmove="onCardTouchMove" bindtouchend="onCardTouchEnd" bindtouchcancel="onCardTouchCancel" bindlongpress="onCardLongPress" bindtap="handleItemTap">
+        <view wx:if="{{managing}}" class="selection-check {{selectedMap[item.id] ? 'selection-check-active' : ''}}" data-id="{{item.id}}" catchtap="toggleSelect">{{selectedMap[item.id] ? '✓' : ''}}</view>
+        <view class="library-item-copy"><view class="library-en-row"><view class="library-en">{{item.en}}</view></view><view class="library-zh">{{item.my || item.zh || '暂未填写理解'}}</view><view wx:if="{{item.where || item.note}}" class="library-note">在哪里遇到：{{item.where || item.note}}</view><view class="library-source">{{item.source}} · {{item.category}}</view></view>
+      </view>
+    </view>
+    <view wx:if="{{filtered.length === 0}}" class="library-empty">
+      <view class="library-empty-art {{keyword ? 'library-empty-search-art' : ''}}"><view class="empty-book"><view wx:if="{{keyword}}" class="empty-search-lens"></view></view><view class="empty-leaf"></view></view>
+      <view class="library-empty-title">{{keyword ? '没有找到匹配内容' : '还没有可复习的英语'}}</view>
+      <view class="library-empty-copy">{{keyword ? '试试更短的关键词，或清除搜索后查看全部内容。' : '把你想记住的单词、短语或句子加入这里。'}}</view>
+      <button wx:if="{{keyword}}" class="action library-clear-action" bindtap="clearSearch">清除搜索</button>
+      <button class="action action-primary library-empty-action" bindtap="add">＋ 添加英文内容</button>
+    </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view wx:if="{{wordbookLoading && wordbookEntries.length === 0}}" class="core-status">正在加载词汇书内容…</view>
+    <view wx:elif="{{wordbookError && wordbookEntries.length === 0}}" class="core-status core-status-error"><view>{{wordbookError}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+    <view class="library-wordbook-list">
+      <view wx:for="{{filteredWordbookEntries}}" wx:key="id" class="library-wordbook-card" data-id="{{item.id}}" bindtap="openWordbookEntry">
+        <view class="library-wordbook-copy">
+          <view class="library-wordbook-en">{{item.en}}</view>
+          <view class="library-wordbook-zh">{{item.zh}}</view>
+          <view class="library-wordbook-source">{{item.source}}</view>
+        </view>
+        <view class="chevron" aria-hidden="true"></view>
+      </view>
+      <view wx:if="{{wordbookLoaded && filteredWordbookEntries.length === 0}}" class="library-empty">
+        <view class="library-empty-title">没有找到匹配的词汇</view>
+        <view class="library-empty-copy">切换词汇书或尝试其他搜索词。</view>
+      </view>
+    </view>
+  </block>
+  <button wx:if="{{showBackToTop && !managing}}" class="back-to-top" style="top: {{floatingTop}}px;" aria-label="回到顶部" bindtap="backToTop"><text class="back-to-top-arrow">↑</text><text>回到顶部</text></button>
+  <button wx:if="{{!managing}}" class="floating-add" aria-label="添加英文内容" bindtap="add">＋ 添加英文内容</button>
+  <view wx:if="{{viewMode === 'personal' && managing}}" class="manage-bar"><button class="manage-select-all" bindtap="selectAll">全选</button><text>已选 {{selectedIds.length}} 条</text><button class="manage-delete {{selectedIds.length ? 'manage-delete-active' : ''}}" bindtap="deleteSelected">删除</button></view>
+</view>

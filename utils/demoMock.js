@@ -53,9 +53,9 @@ const personalCards = [
 ];
 
 const reviewCards = [
-  { id: 'p1', en: "I'll keep that in mind.", answer: '我会记住这一点。', context: '会议中听到', options: ['我会记住这一点。', '我会尽快回复你。', '这取决于具体情况。', '我只是随便看看。'] },
-  { id: 'p2', en: 'curious', answer: '好奇的；求知欲强的', context: '阅读文章', options: ['好奇的；求知欲强的', '不可避免的', '微妙的；不明显的', '采取行动'] },
-  { id: 'p3', en: 'take action', answer: '采取行动', context: '自己添加', options: ['采取行动', '分配；拨出', '实现；达到', '维持；支撑'] }
+  { id: 'p1', en: "I'll keep that in mind.", answer: '我会记住这一点。', context: '会议中听到', example: "I'll keep that in mind when we make the decision.", options: ['我会记住这一点。', '我会尽快回复你。', '这取决于具体情况。', '我只是随便看看。'] },
+  { id: 'p2', en: 'curious', answer: '好奇的；求知欲强的', context: '阅读文章', example: 'Children are naturally curious about the world around them.', options: ['好奇的；求知欲强的', '不可避免的', '微妙的；不明显的', '采取行动'] },
+  { id: 'p3', en: 'take action', answer: '采取行动', context: '自己添加', example: 'We need to take action before the problem gets worse.', options: ['采取行动', '分配；拨出', '实现；达到', '维持；支撑'] }
 ];
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }

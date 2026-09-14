@@ -1,363 +1,311 @@
+const api = require('../../utils/api/index');
 const {
-  getTodayReview,
-  submitReviewFeedback,
-} = require('../../utils/apiClient');
-
+  newClientActionId,
+  toReviewView,
+  errorMessage
+} = require('../../utils/coreViewModels');
 const {
   createPronunciationController,
   getStoredVoice,
   DEFAULT_VOICE
 } = require('../../utils/pronunciation');
 
-const DEFAULT_REVIEW_BATCH_SIZE = 5;
-const VALID_REVIEW_BATCH_SIZES = [5, 10, 15];
-const OPTION_PREVIEW_LIMIT = 48;
-
-function normalizeReviewBatchSize(value) {
-  const numericValue = Number(value || DEFAULT_REVIEW_BATCH_SIZE);
-  return VALID_REVIEW_BATCH_SIZES.includes(numericValue)
-    ? numericValue
-    : DEFAULT_REVIEW_BATCH_SIZE;
-}
-
-function getStoredReviewBatchSize() {
-  try {
-    return normalizeReviewBatchSize(wx.getStorageSync('reviewBatchSize'));
-  } catch (error) {
-    return DEFAULT_REVIEW_BATCH_SIZE;
-  }
-}
-
-function getCardTypeLabel(cardType) {
-  if (cardType === 'phrase') return '短语';
-  if (cardType === 'sentence') return '句子';
-  return '单词';
-}
-
-function generateClientActionId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
-
-function formatOptionText(text, expanded) {
-  const value = String(text || '');
-  if (expanded || value.length <= OPTION_PREVIEW_LIMIT) {
-    return value;
-  }
-  return value.slice(0, OPTION_PREVIEW_LIMIT) + '...';
-}
-
-function normalizeOptions(options, expandedMap) {
-  const map = expandedMap || {};
-  return (Array.isArray(options) ? options : []).map(function(option) {
-    const optionId = String(option && (option.option_id || option.optionId) || '');
-    const text = String(option && option.text || '');
-    const expanded = Boolean(map[optionId]);
-    return {
-      optionId,
-      text,
-      displayText: formatOptionText(text, expanded),
-      expanded,
-      isLong: text.length > OPTION_PREVIEW_LIMIT
-    };
-  }).filter(function(option) {
-    return option.optionId && option.text;
-  });
-}
-
-function normalizeReviewItem(item, expandedMap) {
-  if (!item) return null;
-  return {
-    raw: item,
-    id: item.card_id,
-    cardId: item.card_id,
-    sessionItemId: item.session_item_id,
-    questionId: item.question_id || '',
-    englishText: item.content || '',
-    category: getCardTypeLabel(item.card_type),
-    myUnderstanding: item.understanding || '',
-    whereEncountered: item.where_encountered || '',
-    notes: item.note || '',
-    isRepeat: Boolean(item.is_repeat),
-    attemptNo: Number(item.attempt_no || 1),
-    options: normalizeOptions(item.options || [], expandedMap || {})
-  };
-}
-
-function normalizeProgress(progress) {
-  return {
-    reviewed: Math.max(Number(progress && progress.reviewed || 0), 0),
-    total: Math.max(Number(progress && progress.total || 0), 0)
-  };
-}
-
-function getErrorMessage(error, fallbackMessage) {
-  const detail = error && error.data && error.data.detail;
-  if (typeof detail === 'string' && detail) return detail;
-  return fallbackMessage;
-}
+const CORRECT_ADVANCE_DELAY_MS = 650;
+const WRONG_FEEDBACK_DURATION_MS = 1000;
 
 Page({
   data: {
+    safeTop: 20,
     sessionId: '',
-    currentSessionType: 'daily_suggested',
-    reviewBatchSize: DEFAULT_REVIEW_BATCH_SIZE,
-    progress: { reviewed: 0, total: 0 },
-    currentItem: null,
-    currentCard: null,
-    pageState: 'loading',
-    reviewError: '',
-    submittingFeedback: false,
+    resumeToken: '',
+    current: null,
+    currentNo: 1,
+    total: 0,
     selectedOptionId: '',
-    optionExpanded: {},
-    questionStartedAt: 0,
-    displayCurrentNo: 0,
-    displayTotal: 0,
-    allDone: false,
+    answered: false,
+    isCorrect: false,
+    showExample: false,
+    awaitingNext: false,
+    detailReturnPending: false,
+    pendingNext: null,
+    done: false,
+    submitting: false,
     phoneticDisplay: '',
     lexicalInfoLoaded: false,
+    lexicalInfoLoading: false,
     pronunciationAvailable: false,
     pronunciationLoading: false,
     pronunciationPlaying: false,
-    pronunciationVoice: DEFAULT_VOICE
+    pronunciationVoice: DEFAULT_VOICE,
+    loading: true,
+    error: '',
+    recapItems: []
   },
 
   onLoad(options) {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.isPageUnloaded = false;
     this.pronunciationController = createPronunciationController(this);
-    this.setData({ pronunciationVoice: getStoredVoice() });
-
-    const sessionId = (options && (options.session_id || options.sessionId)) || '';
-    const sessionType = (options && (options.session_type || options.sessionType)) || 'daily_suggested';
+    this.requestedSize = Number(options.size || 5);
+    this.sessionId = String(options.session_id || '');
     this.setData({
-      sessionId,
-      currentSessionType: sessionType
+      safeTop: info.statusBarHeight || 20,
+      pronunciationVoice: getStoredVoice()
     });
-    this.loadBackendReviewSession({ sessionType });
+    this.loadSession();
   },
 
   onShow() {
-    if (this._returningFromEdit) {
-      this._returningFromEdit = false;
-      this.loadBackendReviewSession({ sessionType: this.data.currentSessionType });
-    }
+    if (!this.data.detailReturnPending) return;
+    this.returnFromDetail();
   },
 
   onUnload() {
+    this.isPageUnloaded = true;
+    this.clearAdvanceTimer();
+    this.clearWrongFeedbackTimer();
     if (this.pronunciationController) {
       this.pronunciationController.destroy();
       this.pronunciationController = null;
     }
   },
 
-  loadLexicalInfoForCard(card) {
+  loadPronunciation(current) {
     if (!this.pronunciationController) return;
-    this.pronunciationController.load(card && card.englishText ? card.englishText : '');
+    this.pronunciationController.load(current ? current.en : '');
   },
 
   onPronunciationTap() {
-    if (!this.pronunciationController || !this.data.currentCard) return;
-    this.pronunciationController.play(this.data.currentCard.englishText || '');
+    const current = this.data.current;
+    if (!this.pronunciationController || !current) return;
+    this.pronunciationController.play(current.en);
   },
 
-  onPronunciationLongPress() {
-    if (!this.pronunciationController) return;
-    this.pronunciationController.playDiagnosticTestAudio(false);
-    setTimeout(() => {
-      if (this.pronunciationController) {
-        this.pronunciationController.playDiagnosticTestAudio(true);
-      }
-    }, 2000);
-  },
-
-  onVoiceSwitchMale() {
-    if (!this.pronunciationController) return;
-    this.pronunciationController.setVoice('male');
-    this.setData({ pronunciationVoice: 'male' });
-  },
-
-  onVoiceSwitchFemale() {
-    if (!this.pronunciationController) return;
-    this.pronunciationController.setVoice('female');
-    this.setData({ pronunciationVoice: 'female' });
-  },
-
-  async loadBackendReviewSession({ restart, sessionType } = {}) {
-    const reviewBatchSize = getStoredReviewBatchSize();
-    const effectiveSessionType = sessionType || this.data.currentSessionType || 'daily_suggested';
-    this.setData({
-      pageState: 'loading',
-      reviewError: '',
-      submittingFeedback: false,
-      selectedOptionId: '',
-      optionExpanded: {},
-      reviewBatchSize
-    });
-
+  async loadSession() {
+    this.setData({ loading: true, error: '' });
     try {
-      const response = await getTodayReview({
-        limit: reviewBatchSize,
-        restart: restart === true,
-        session_type: effectiveSessionType
-      });
-      const items = Array.isArray(response && response.items) ? response.items : [];
-      const currentItem = items[0] || null;
-      const currentCard = normalizeReviewItem(currentItem, {});
-      const progress = normalizeProgress(response && response.progress);
-      const isDone = !currentCard;
-      this.setData({
-        sessionId: response && response.session_id ? response.session_id : this.data.sessionId,
-        currentSessionType: effectiveSessionType,
-        progress,
-        currentItem,
-        currentCard,
-        pageState: isDone ? 'completed' : 'active',
-        allDone: isDone,
-        displayCurrentNo: currentCard ? progress.reviewed + 1 : 0,
-        displayTotal: progress.total || items.length,
-        questionStartedAt: currentCard ? Date.now() : 0
-      });
-      this.loadLexicalInfoForCard(currentCard);
-    } catch (error) {
-      this.setData({
-        pageState: 'error',
-        reviewError: getErrorMessage(error, '暂时无法加载复习题，请稍后重试'),
-        currentItem: null,
-        currentCard: null,
-        allDone: false
-      });
-    }
-  },
-
-  async onOptionTap(event) {
-    if (this.data.submittingFeedback) return;
-    const optionId = event.currentTarget.dataset.optionId || '';
-    const currentCard = this.data.currentCard;
-    const currentItem = this.data.currentItem;
-    const sessionId = this.data.sessionId;
-    if (!optionId || !currentCard || !currentItem || !sessionId || !currentCard.questionId) return;
-
-    const responseTimeMs = Math.max(Date.now() - Number(this.data.questionStartedAt || Date.now()), 0);
-    this.setData({
-      submittingFeedback: true,
-      selectedOptionId: optionId,
-      pageState: 'submitting'
-    });
-
-    try {
-      const response = await submitReviewFeedback({
-        client_action_id: generateClientActionId(),
-        session_id: sessionId,
-        session_item_id: currentItem.session_item_id,
-        card_id: currentItem.card_id,
-        question_id: currentCard.questionId,
-        selected_option_id: optionId,
-        response_time_ms: responseTimeMs
-      });
-
-      if (typeof response.is_correct === 'boolean') {
-        wx.showToast({
-          title: response.is_correct ? 'Correct' : 'Wrong',
-          icon: 'none',
-          duration: 700
+      let session;
+      if (this.sessionId) {
+        session = await api.reviews.getSession(this.sessionId);
+      } else {
+        session = await api.reviews.createSession({
+          session_type: 'free_review',
+          limit: this.requestedSize,
+          restart: false
         });
+        this.sessionId = session.sessionId;
       }
-      this.applyFeedbackResponse(response);
-    } catch (error) {
-      let message = getErrorMessage(error, '提交失败，请重试');
-      if (message === 'stale_question') {
-        wx.showToast({ title: '卡片已更新，正在重新加载', icon: 'none', duration: 1800 });
-        this.loadBackendReviewSession({ sessionType: this.data.currentSessionType });
+      const current = toReviewView(session.currentItem || session.items[0]);
+      if (!session.sessionId || !current) {
+        this.setData({ loading: false });
+        wx.showModal({
+          title: '还没有可复习的英语',
+          content: '先添加一条英语内容，或者从公开素材加入我的英语。',
+          confirmText: '去添加',
+          success: (result) => {
+            if (result.confirm) wx.navigateTo({ url: '/pages/add/add' });
+            else wx.navigateBack({ delta: 1 });
+          }
+        });
         return;
       }
       this.setData({
-        submittingFeedback: false,
-        selectedOptionId: '',
-        pageState: 'active'
-      });
-      wx.showToast({ title: message, icon: 'none', duration: 2200 });
+        sessionId: session.sessionId,
+        resumeToken: session.resumeToken || '',
+        current,
+        total: Number(session.progress.total || 0),
+        currentNo: Math.min(Number(session.progress.reviewed || 0), Number(session.progress.total || 0)) + 1,
+        loading: false
+      }, () => this.loadPronunciation(current));
+    } catch (error) {
+      this.setData({ loading: false, error: errorMessage(error, '复习加载失败') });
     }
   },
 
-  applyFeedbackResponse(response) {
-    const progress = normalizeProgress(response && response.progress);
-    if (response && response.done) {
+  retryLoad() { this.loadSession(); },
+
+  choose(e) {
+    if (this.data.answered || this.data.submitting) return;
+    this.submitAnswer(String(e.currentTarget.dataset.optionId || ''));
+  },
+
+  unknown() {
+    if (this.data.answered || this.data.submitting) return;
+    this.submitAnswer('unknown');
+  },
+
+  async submitAnswer(optionId) {
+    const current = this.data.current;
+    if (!current || !optionId) return;
+    const payload = this.pendingSubmission || {
+      client_action_id: newClientActionId('personal-review'),
+      session_id: this.data.sessionId,
+      session_item_id: current.sessionItemId,
+      card_id: current.id,
+      question_id: current.questionId,
+      selected_option_id: optionId
+    };
+    this.pendingSubmission = payload;
+    this.setData({ submitting: true, selectedOptionId: optionId, error: '' });
+    try {
+      const result = await api.reviews.submitFeedback(payload);
+      this.pendingSubmission = null;
+      const nextItem = toReviewView(result.next_item);
+      const isCorrect = result.is_correct === true;
+      if (isCorrect) {
+        const recapItem = Object.assign({}, current, {
+          resultType: current.sawDetail || current.wrongCount > 1
+            ? 'detail'
+            : (current.wrongCount === 1 ? 'hint' : 'direct')
+        });
+        this.triggerFeedbackHaptic();
+        this.setData({
+          answered: true,
+          isCorrect: true,
+          showExample: false,
+          awaitingNext: true,
+          pendingNext: nextItem,
+          done: !!result.done || result.transition === 'completed',
+          recapItems: this.data.recapItems.concat(recapItem)
+        }, () => this.scheduleAdvance());
+        return;
+      }
+      if (result.transition === 'wrong_detail' || result.navigation === 'detail') {
+        this.triggerFeedbackHaptic();
+        this.setData({
+          current: nextItem || current,
+          answered: true,
+          isCorrect: false,
+          showExample: false,
+          awaitingNext: false
+        });
+        setTimeout(() => this.openDetail(), Number(result.detail_delay_ms || 150));
+        return;
+      }
+      const wrongCurrent = nextItem || current;
+      this.triggerFeedbackHaptic();
       this.setData({
-        submittingFeedback: false,
-        selectedOptionId: '',
-        currentItem: null,
-        currentCard: null,
-        progress,
-        pageState: 'completed',
-        allDone: true,
-        displayCurrentNo: 0,
-        displayTotal: progress.total
+        answered: true,
+        isCorrect: false,
+        showExample: !!current.example,
+        awaitingNext: false
       });
-      this.loadLexicalInfoForCard(null);
+      wx.showToast({ title: '答错了，再想想', icon: 'none', duration: WRONG_FEEDBACK_DURATION_MS });
+      this.clearWrongFeedbackTimer();
+      this.wrongFeedbackTimer = setTimeout(() => {
+        this.wrongFeedbackTimer = null;
+        if (this.isPageUnloaded) return;
+        this.setData({
+          current: wrongCurrent,
+          selectedOptionId: '',
+          answered: false,
+          showExample: !!wrongCurrent.example
+        });
+      }, WRONG_FEEDBACK_DURATION_MS);
+    } catch (error) {
+      wx.showToast({ title: errorMessage(error, '提交失败，请重试'), icon: 'none' });
+    } finally {
+      this.setData({ submitting: false });
+    }
+  },
+
+  clearAdvanceTimer() {
+    if (!this.advanceTimer) return;
+    clearTimeout(this.advanceTimer);
+    this.advanceTimer = null;
+  },
+
+  clearWrongFeedbackTimer() {
+    if (!this.wrongFeedbackTimer) return;
+    clearTimeout(this.wrongFeedbackTimer);
+    this.wrongFeedbackTimer = null;
+  },
+
+  triggerFeedbackHaptic() {
+    if (typeof wx.vibrateShort !== 'function') return;
+    try {
+      wx.vibrateShort({ type: 'light' });
+    } catch (_) {
+      // Some simulator and older-device environments do not support haptics.
+    }
+  },
+
+  scheduleAdvance() {
+    this.clearAdvanceTimer();
+    this.advanceTimer = setTimeout(() => {
+      this.advanceTimer = null;
+      if (this.data.answered && this.data.isCorrect) this.next();
+    }, CORRECT_ADVANCE_DELAY_MS);
+  },
+
+  next() {
+    if (!this.data.answered) return;
+    if (this.data.done || !this.data.pendingNext) {
+      this.finishReview();
       return;
     }
-
-    const nextItem = response && response.next_item ? response.next_item : null;
-    const nextCard = normalizeReviewItem(nextItem, {});
+    const nextCurrent = this.data.pendingNext;
     this.setData({
-      submittingFeedback: false,
+      current: nextCurrent,
+      currentNo: Math.min(this.data.currentNo + 1, this.data.total),
       selectedOptionId: '',
-      optionExpanded: {},
-      currentItem: nextItem,
-      currentCard: nextCard,
-      progress,
-      pageState: nextCard ? 'active' : 'completed',
-      allDone: !nextCard,
-      displayCurrentNo: nextCard ? progress.reviewed + 1 : 0,
-      displayTotal: progress.total,
-      questionStartedAt: nextCard ? Date.now() : 0
-    });
-    this.loadLexicalInfoForCard(nextCard);
+      answered: false,
+      isCorrect: false,
+      showExample: false,
+      awaitingNext: false,
+      pendingNext: null
+    }, () => this.loadPronunciation(nextCurrent));
   },
 
-  toggleOptionExpand(event) {
-    const optionId = event.currentTarget.dataset.optionId || '';
-    const currentCard = this.data.currentCard;
-    if (!optionId || !currentCard) return;
-    const expanded = Object.assign({}, this.data.optionExpanded || {});
-    expanded[optionId] = !expanded[optionId];
-    const nextCard = Object.assign({}, currentCard, {
-      options: normalizeOptions(currentCard.options || [], expanded)
-    });
+  openDetail() {
+    const current = this.data.current;
+    if (!current) return;
     this.setData({
-      optionExpanded: expanded,
-      currentCard: nextCard
+      detailReturnPending: true
     });
-  },
-
-  retryLoadReview() {
-    this.loadBackendReviewSession({ sessionType: this.data.currentSessionType });
-  },
-
-  restartReviewSession() {
-    this.loadBackendReviewSession({ restart: true, sessionType: this.data.currentSessionType });
-  },
-
-  editCurrentCard() {
-    if (!this.data.currentCard || !this.data.currentCard.cardId) return;
-    this._returningFromEdit = true;
     wx.navigateTo({
-      url: `/pages/add/add?id=${this.data.currentCard.cardId}&from=review`
+      url: '/pages/library/detail?id=' + current.id + '&source=personal&fromReview=1'
     });
   },
 
-  goToAddPage() {
-    wx.navigateTo({ url: '/pages/add/add' });
+  async returnFromDetail() {
+    const current = this.data.current;
+    if (!current || !this.data.resumeToken || this.data.submitting) return;
+    this.setData({ submitting: true });
+    try {
+      const session = await api.reviews.returnFromDetail(this.data.sessionId, {
+        client_action_id: newClientActionId('review-detail-return'),
+        session_item_id: current.sessionItemId,
+        resume_token: this.data.resumeToken
+      });
+      const returnedCurrent = toReviewView(session.currentItem);
+      this.setData({
+        current: returnedCurrent,
+        resumeToken: session.resumeToken || this.data.resumeToken,
+        detailReturnPending: false,
+        answered: false,
+        selectedOptionId: '',
+        showExample: false,
+        awaitingNext: false
+      }, () => this.loadPronunciation(returnedCurrent));
+    } catch (error) {
+      wx.showToast({ title: errorMessage(error, '返回当前题失败，请重试'), icon: 'none' });
+    } finally {
+      this.setData({ submitting: false });
+    }
   },
 
-  goToHomePage() {
-    try { wx.setStorageSync('homeNeedsRefresh', true); } catch (e) { /* ignore */ }
+  finishReview() {
+    wx.setStorageSync('coreReviewRecap', {
+      items: this.data.recapItems,
+      total: this.data.recapItems.length,
+      size: this.requestedSize
+    });
+    wx.redirectTo({ url: '/pages/review/recap' });
+  },
+
+  exit() {
+    this.clearAdvanceTimer();
     wx.navigateBack({ delta: 1 });
-  },
-
-  navigateToTodayReviewed() {
-    wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed?from=review_complete' });
   }
 });

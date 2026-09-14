@@ -15,9 +15,9 @@ function saveDiscoveryPrefill(item, sourceLabel) {
   const source = item || {};
   const payload = {
     englishText: clean(source.content),
-    myUnderstanding: clean(source.chinese),
-    category: CATEGORY_MAP[clean(source.card_type).toLowerCase()] || '句子',
-    whereEncountered: clean(sourceLabel || source.source_label),
+    myUnderstanding: clean(source.translation || source.chinese),
+    category: CATEGORY_MAP[clean(source.cardType || source.card_type).toLowerCase()] || '句子',
+    whereEncountered: clean(sourceLabel || source.sourceLabel || source.source_label),
     materialItemId: clean(source.id),
     createdAt: Date.now()
   };

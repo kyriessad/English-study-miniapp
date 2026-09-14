@@ -1,1 +1,27 @@
-<view class="page review-page" wx:if="{{current}}"><view class="review-top"><button class="top-text-button" bindtap="exit">退出</button><view class="review-progress"><text>{{index + 1}}</text> / {{cards.length}}</view></view><view class="review-card"><view class="review-label">选择正确的中文理解</view><view class="review-en">{{current.en}}</view><view class="review-context">{{current.context}}</view><view class="options"><button wx:for="{{current.options}}" wx:key="*this" class="option {{selected === index ? (index === 0 ? 'option-correct' : 'option-wrong') : ''}}" data-index="{{index}}" bindtap="choose"><text class="option-letter">{{index === 0 ? 'A' : index === 1 ? 'B' : index === 2 ? 'C' : 'D'}}</text><text class="option-text">{{item}}</text><text wx:if="{{selected === index && index === 0}}" class="option-check">✓</text><text wx:if="{{selected === index && index !== 0}}" class="option-check option-cross">×</text></button></view><button class="unknown-button" bindtap="unknown">不知道</button><view wx:if="{{reveal}}" class="answer-reveal">正确答案：{{current.answer}}</view><view wx:if="{{answered}}" class="feedback">{{reveal ? '第二次仍答错，答案已揭晓' : (attempt === 1 ? '第一次答错，本轮稍后再来一次' : '答对了')}}</view></view><button wx:if="{{answered}}" class="action action-primary" bindtap="next">下一题</button></view>
+<view wx:if="{{loading}}" class="page review-page core-status" style="padding-top: {{safeTop}}px;">正在准备本轮复习…</view>
+<view wx:elif="{{error}}" class="page review-page core-status core-status-error" style="padding-top: {{safeTop}}px;"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+<view class="page review-page" style="padding-top: {{safeTop}}px;" wx:elif="{{current}}">
+  <view class="review-top">
+    <button class="close-button" bindtap="exit">×</button>
+    <view class="review-progress">{{currentNo}} / {{total}}</view>
+  </view>
+  <view class="review-progress-track"><view class="review-progress-fill" style="width:{{total > 0 ? currentNo / total * 100 : 0}}%"></view></view>
+  <view class="review-focus">
+    <view class="review-en">{{current.en}}</view>
+    <view class="review-phonetic">{{current.phonetic}}</view>
+    <view class="review-divider"></view>
+    <view class="review-label">选择最合适的中文理解</view>
+  </view>
+  <view wx:if="{{showDetailNotice}}" class="review-detail-notice">ⓘ　已查看详情，请再试一次</view>
+  <view class="options">
+    <button wx:for="{{current.options}}" wx:key="optionId" class="option {{answered && selectedOptionId === item.optionId ? (isCorrect ? 'option-correct' : 'option-wrong') : ''}}" data-option-id="{{item.optionId}}" bindtap="choose" disabled="{{submitting || answered}}">
+      <text wx:if="{{answered && selectedOptionId === item.optionId && !isCorrect}}" class="option-status option-cross">×</text>
+      <text class="option-text">{{item.text}}</text>
+      <text wx:if="{{answered && selectedOptionId === item.optionId && isCorrect}}" class="option-status option-check">✓</text>
+      <text wx:if="{{!answered || selectedOptionId !== item.optionId}}" class="option-arrow">›</text>
+    </button>
+  </view>
+  <button class="unknown-button" bindtap="unknown" disabled="{{submitting || answered}}">—　不知道　—</button>
+  <view wx:if="{{showExample}}" class="review-example"><view class="review-example-label">例句</view><view class="review-example-en">{{current.example || '再看一眼这条英语，然后重新选择。'}}</view></view>
+  <button wx:if="{{showExample || awaitingNext}}" class="action action-primary review-continue" bindtap="next">{{awaitingNext ? '继续复习' : '再试一次'}}</button>
+</view>

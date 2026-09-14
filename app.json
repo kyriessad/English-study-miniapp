@@ -1,21 +1,15 @@
 {
   "pages": [
-    "pages/demo/home",
-    "pages/demo/discover",
-    "pages/demo/review",
-    "pages/demo/library",
-    "pages/demo/add",
-    "pages/demo/scene",
-    "pages/demo/books",
-    "pages/demo/book-detail",
-    "pages/demo/book-review",
-    "pages/demo/detail",
-    "pages/demo/review-session",
-    "pages/demo/review-recap",
     "pages/index/index",
+    "pages/review/index",
+    "pages/library/index",
     "pages/add/add",
     "pages/discover/index",
     "pages/review/review",
+    "pages/review/recap",
+    "pages/library/detail",
+    "pages/wordbooks/index",
+    "pages/wordbooks/detail",
     "pages/history_reviewed/history_index",
     "pages/history_detail/history_detail",
     "pages/today_reviewed/today_reviewed",
@@ -28,15 +22,31 @@
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f7f8fa"
   },
+  "lazyCodeLoading": "requiredComponents",
   "tabBar": {
     "color": "#8a968b",
     "selectedColor": "#5eaa64",
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/demo/home", "text": "首页" },
-      { "pagePath": "pages/demo/review", "text": "复习" },
-      { "pagePath": "pages/demo/library", "text": "我的英语" }
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/tabbar/home.png",
+        "selectedIconPath": "assets/tabbar/home.selected.png"
+      },
+      {
+        "pagePath": "pages/review/index",
+        "text": "复习",
+        "iconPath": "assets/tabbar/review.png",
+        "selectedIconPath": "assets/tabbar/review.selected.png"
+      },
+      {
+        "pagePath": "pages/library/index",
+        "text": "我的英语",
+        "iconPath": "assets/tabbar/library.png",
+        "selectedIconPath": "assets/tabbar/library.selected.png"
+      }
     ]
   }
 }

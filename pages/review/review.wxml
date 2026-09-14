@@ -1,110 +1,38 @@
-<view class="page {{(!currentCard && !allDone) || pageState === 'completed' ? 'page-empty' : ''}}">
-  <view class="header">
-    <view class="title">
-      <block wx:if="{{allDone || pageState === 'completed'}}">本轮完成</block>
-      <block wx:else>四选一复习</block>
-    </view>
-    <view wx:if="{{!allDone && pageState !== 'completed' && currentCard}}" class="subtitle">看英文，选择你的中文理解。</view>
+<view wx:if="{{loading}}" class="page review-page core-status" style="padding-top: {{safeTop}}px;">正在准备本轮复习…</view>
+<view wx:elif="{{error}}" class="page review-page core-status core-status-error" style="padding-top: {{safeTop}}px;"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+<view class="page review-page" style="padding-top: {{safeTop}}px;" wx:elif="{{current}}">
+  <view class="review-top">
+    <button class="close-button" bindtap="exit">×</button>
+    <view class="review-progress">{{currentNo}} / {{total}}</view>
   </view>
-
-  <view wx:if="{{currentCard && !allDone && displayTotal > 0}}" class="review-progress-section">
-    <view class="review-progress-text">第 {{displayCurrentNo}} / {{displayTotal}} 题</view>
-    <view class="review-progress-bar">
-      <view class="review-progress-fill" style="width: {{displayTotal > 0 ? progress.reviewed / displayTotal * 100 : 0}}%;"></view>
+  <view class="review-progress-track"><view class="review-progress-fill" style="width:{{total > 0 ? currentNo / total * 100 : 0}}%"></view></view>
+  <view class="review-focus">
+    <view class="review-en">{{current.en}}</view>
+    <view wx:if="{{current.where}}" class="review-context"><text class="review-context-label">在哪里遇到</text><text>{{current.where}}</text></view>
+    <view wx:if="{{current.context}}" class="review-source-context">{{current.context}}</view>
+    <view class="review-lexical-row">
+      <view wx:if="{{phoneticDisplay || current.phonetic}}" class="review-phonetic">{{phoneticDisplay || current.phonetic}}</view>
+      <view wx:elif="{{lexicalInfoLoading}}" class="review-phonetic review-phonetic-muted">音标加载中…</view>
+      <button class="review-pronunciation {{pronunciationPlaying ? 'review-pronunciation-playing' : ''}}" bindtap="onPronunciationTap" disabled="{{pronunciationLoading || !pronunciationAvailable}}">{{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}</button>
     </view>
+    <view class="review-divider"></view>
+    <view class="review-label">选择最合适的中文理解</view>
   </view>
-
-  <view wx:if="{{pageState === 'loading'}}" class="empty-state">正在加载复习题...</view>
-
-  <view wx:elif="{{pageState === 'error' || reviewError}}" class="done-panel">
-    <view class="done-title done-title--plain review-error-title">加载失败</view>
-    <view class="done-text">{{reviewError}}</view>
-    <view class="done-actions">
-      <button class="done-action-btn done-primary-btn" bindtap="retryLoadReview">重新加载</button>
-    </view>
+  <view class="options">
+    <button wx:for="{{current.options}}" wx:key="optionId" class="option {{answered && selectedOptionId === item.optionId ? (isCorrect ? 'option-correct' : 'option-wrong') : ''}}" data-option-id="{{item.optionId}}" bindtap="choose" disabled="{{submitting || answered}}">
+      <text wx:if="{{answered && selectedOptionId === item.optionId && !isCorrect}}" class="option-status option-cross">×</text>
+      <text class="option-text">{{item.text}}</text>
+      <text wx:if="{{answered && selectedOptionId === item.optionId && isCorrect}}" class="option-status option-check">✓</text>
+      <text wx:if="{{!answered || selectedOptionId !== item.optionId}}" class="option-arrow">›</text>
+    </button>
   </view>
-
-  <view wx:elif="{{!allDone && !currentCard}}" class="empty-state">
-    <view class="empty-title">现在没有可复习的卡片</view>
-    <view class="empty-subtitle">需要英文不超过 80 个字符，并且已填写“我的理解”。</view>
-    <view class="empty-actions">
-      <button class="empty-primary-btn" bindtap="goToAddPage">添加卡片</button>
-    </view>
+  <button class="unknown-button {{answered && selectedOptionId === 'unknown' && !isCorrect ? 'unknown-button-wrong' : ''}}" bindtap="unknown" disabled="{{submitting || answered}}">—　不知道　—</button>
+  <view wx:if="{{showExample}}" class="review-example">
+    <view class="review-example-label">例句</view>
+    <block wx:if="{{current.example}}">
+      <view class="review-example-en">{{current.example}}</view>
+      <view wx:if="{{current.exampleZh}}" class="review-example-zh">{{current.exampleZh}}</view>
+    </block>
   </view>
-
-  <block wx:elif="{{currentCard && !allDone}}">
-    <view class="task-card task-card-open">
-      <view class="task-meta-row">
-        <view class="task-category">{{currentCard.category}}</view>
-        <view wx:if="{{currentCard.isRepeat}}" class="task-repeat-hint">再来一次</view>
-      </view>
-
-      <view wx:if="{{currentCard.whereEncountered}}" class="task-front-source">
-        场景：{{currentCard.whereEncountered}}
-      </view>
-
-      <view class="task-main {{currentCard.category === '句子' ? 'task-main-sentence' : ''}}">
-        <scroll-view wx:if="{{currentCard.category === '句子'}}" scroll-y class="task-english-scroll">
-          <view class="task-english task-english-sentence">{{currentCard.englishText}}</view>
-        </scroll-view>
-        <view wx:else class="task-english">{{currentCard.englishText}}</view>
-      </view>
-
-      <view class="task-lexical-row">
-        <view class="task-lexical-main">
-          <text wx:if="{{phoneticDisplay}}" class="task-phonetic">{{phoneticDisplay}}</text>
-          <text wx:elif="{{lexicalInfoLoaded}}" class="task-phonetic-empty">暂无音标</text>
-          <text wx:else class="task-phonetic-empty">音标加载中...</text>
-        </view>
-        <view class="task-voice-row">
-          <view class="task-voice-toggle">
-            <text class="task-voice-option {{pronunciationVoice === 'male' ? 'task-voice-active' : ''}}" bindtap="onVoiceSwitchMale">男声</text>
-            <text class="task-voice-sep">|</text>
-            <text class="task-voice-option {{pronunciationVoice === 'female' ? 'task-voice-active' : ''}}" bindtap="onVoiceSwitchFemale">女声</text>
-          </view>
-          <button
-            class="task-pronunciation-btn {{pronunciationPlaying ? 'task-pronunciation-btn-active' : ''}}"
-            disabled="{{pronunciationLoading || !pronunciationAvailable}}"
-            bindtap="onPronunciationTap"
-            bindlongpress="onPronunciationLongPress"
-          >
-            {{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}
-          </button>
-        </view>
-      </view>
-    </view>
-
-    <view class="mcq-options">
-      <button
-        wx:for="{{currentCard.options}}"
-        wx:key="optionId"
-        class="mcq-option {{selectedOptionId === item.optionId ? 'mcq-option-selected' : ''}}"
-        bindtap="onOptionTap"
-        data-option-id="{{item.optionId}}"
-        disabled="{{submittingFeedback}}"
-      >
-        <view class="mcq-option-text">{{item.displayText}}</view>
-        <view
-          wx:if="{{item.isLong}}"
-          class="mcq-option-expand"
-          catchtap="toggleOptionExpand"
-          data-option-id="{{item.optionId}}"
-        >
-          {{item.expanded ? '收起' : '展开'}}
-        </view>
-      </button>
-    </view>
-
-    <view class="review-footer-actions">
-      <button class="review-edit-pill" bindtap="editCurrentCard">编辑卡片</button>
-    </view>
-  </block>
-
-  <view wx:elif="{{allDone || pageState === 'completed'}}" class="done-panel">
-    <view class="done-title done-title--plain">本轮完成</view>
-    <view class="done-text">这轮题目已经答完。</view>
-    <view class="done-actions">
-      <button class="done-action-btn done-primary-btn" bindtap="goToHomePage">返回首页</button>
-    </view>
-  </view>
+  <view wx:if="{{awaitingNext}}" class="review-auto-next">回答正确，正在进入下一题…</view>
 </view>

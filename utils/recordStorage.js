@@ -577,6 +577,13 @@ function buildBackendCardCreatePayload(form = {}) {
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
     where_encountered: trimValue(fields.whereEncountered) || null,
+    example_sentence: trimValue(fields.exampleSentence) || null,
+    example_translation: trimValue(fields.exampleTranslation) || null,
+    participates_in_review: fields.participatesInReview !== false,
+    add_channel: trimValue(fields.addChannel || fields.sourceChannel || '') || 'manual',
+    public_material_item_id: fields.publicMaterialItemId || null,
+    source_wordbook_id: fields.sourceWordbookId || null,
+    encounters: Array.isArray(fields.encounters) ? fields.encounters : [],
     translation: trimValue(fields.translation) || null,
     analysis_status: trimValue(fields.analysisStatus) || 'pending',
     analysis_level: getBackendAnalysisLevelFromLocal(fields),
@@ -598,6 +605,13 @@ function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
     understanding: trimValue(fields.myUnderstanding) || null,
     note: trimValue(fields.notes) || null,
     where_encountered: trimValue(fields.whereEncountered) || null,
+    example_sentence: trimValue(fields.exampleSentence) || null,
+    example_translation: trimValue(fields.exampleTranslation) || null,
+    participates_in_review: fields.participatesInReview !== false,
+    add_channel: trimValue(fields.addChannel || fields.sourceChannel || '') || 'manual',
+    public_material_item_id: fields.publicMaterialItemId || null,
+    source_wordbook_id: fields.sourceWordbookId || null,
+    encounters: Array.isArray(fields.encounters) ? fields.encounters : [],
     translation: trimValue(fields.translation) || null
   };
 }
@@ -620,6 +634,7 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
     id: trimValue(backendCard.id || fallbackCard.id),
     local_temp_id: trimValue(backendCard.local_temp_id || fallbackCard.local_temp_id || ''),
     backend_card_id: trimValue(backendCard.id || fallbackCard.backend_card_id || ''),
+    version: Math.max(Number(backendCard.version || fallbackCard.version || 1), 1),
     backend_sync_status: BACKEND_SYNC_STATUS_SYNCED,
     backend_synced_at: new Date().toISOString(),
     backend_sync_error: '',
@@ -630,6 +645,18 @@ function normalizeBackendCardToLocal(backendCard = {}, fallbackCard = {}) {
     myUnderstanding: trimValue(backendCard.understanding || ''),
     notes: trimValue(backendCard.note || ''),
     whereEncountered: trimValue(backendCard.where_encountered || ''),
+    exampleSentence: trimValue(backendCard.example_sentence || ''),
+    exampleTranslation: trimValue(backendCard.example_translation || ''),
+    participatesInReview: backendCard.participates_in_review !== false,
+    addChannel: trimValue(backendCard.add_channel || 'manual'),
+    publicMaterialItemId: trimValue(backendCard.public_material_item_id || ''),
+    sourceWordbookId: trimValue(backendCard.source_wordbook_id || ''),
+    encounters: Array.isArray(backendCard.encounters) ? backendCard.encounters.map((item) => ({
+      id: trimValue(item.id),
+      whereEncountered: trimValue(item.where_encountered || item.whereEncountered || ''),
+      context: trimValue(item.context || ''),
+      encounteredAt: toIsoString(item.encountered_at || item.encounteredAt)
+    })) : [],
     reviewState: reviewCount > 0
       ? (lastReviewResult || fallbackCard.reviewState || BACKEND_INITIAL_REVIEW_STATE)
       : BACKEND_INITIAL_REVIEW_STATE,
@@ -717,6 +744,8 @@ function cardsNeedUpdate(backendCard, form, currentCard) {
   var formExamScene = pickFirstDefinedValue(form.examScene, currentCard && currentCard.examScene, '');
   var formExamModule = pickFirstDefinedValue(form.examModule, currentCard && currentCard.examModule, '');
   var formWhereEncountered = pickFirstDefinedValue(form.whereEncountered, currentCard && currentCard.whereEncountered, '');
+  var formExampleSentence = pickFirstDefinedValue(form.exampleSentence, currentCard && currentCard.exampleSentence, '');
+  var formExampleTranslation = pickFirstDefinedValue(form.exampleTranslation, currentCard && currentCard.exampleTranslation, '');
 
   if (safeNormalize(backendCard.content) !== safeNormalize(formEnglishText)) return true;
   if (safeNormalize(backendCard.understanding) !== safeNormalize(formUnderstanding)) return true;
@@ -726,6 +755,8 @@ function cardsNeedUpdate(backendCard, form, currentCard) {
   if (safeNormalize(backendCard.exam_scene) !== safeNormalize(formExamScene)) return true;
   if (safeNormalize(backendCard.exam_module) !== safeNormalize(formExamModule)) return true;
   if (safeNormalize(backendCard.where_encountered) !== safeNormalize(formWhereEncountered)) return true;
+  if (safeNormalize(backendCard.example_sentence) !== safeNormalize(formExampleSentence)) return true;
+  if (safeNormalize(backendCard.example_translation) !== safeNormalize(formExampleTranslation)) return true;
 
   return false;
 }
@@ -1144,6 +1175,13 @@ function normalizeCard(card) {
     myUnderstanding: trimValue(source.myUnderstanding),
     notes: trimValue(source.notes),
     whereEncountered: trimValue(source.whereEncountered || ''),
+    exampleSentence: trimValue(source.exampleSentence || source.example_sentence || ''),
+    exampleTranslation: trimValue(source.exampleTranslation || source.example_translation || ''),
+    participatesInReview: source.participatesInReview !== false,
+    addChannel: trimValue(source.addChannel || source.add_channel || 'manual'),
+    publicMaterialItemId: trimValue(source.publicMaterialItemId || source.public_material_item_id || ''),
+    sourceWordbookId: trimValue(source.sourceWordbookId || source.source_wordbook_id || ''),
+    encounters: Array.isArray(source.encounters) ? source.encounters : [],
     local_temp_id: trimValue(source.local_temp_id || source.localTempId || ''),
     reviewState: normalizedReviewState,
     reviewCount: normalizedReviewCount,
@@ -1292,6 +1330,15 @@ function buildCardFields(form, fallbackCard) {
     myUnderstanding: trimValue(getFieldValue(source, fallback, 'myUnderstanding', '')),
     notes: trimValue(getFieldValue(source, fallback, 'notes', '')),
     whereEncountered: trimValue(getFieldValue(source, fallback, 'whereEncountered', '')),
+    exampleSentence: trimValue(getFieldValue(source, fallback, 'exampleSentence', '')),
+    exampleTranslation: trimValue(getFieldValue(source, fallback, 'exampleTranslation', '')),
+    participatesInReview: getFieldValue(source, fallback, 'participatesInReview', true) !== false,
+    addChannel: trimValue(getFieldValue(source, fallback, 'addChannel', 'manual') || 'manual'),
+    publicMaterialItemId: trimValue(getFieldValue(source, fallback, 'publicMaterialItemId', '')),
+    sourceWordbookId: trimValue(getFieldValue(source, fallback, 'sourceWordbookId', '')),
+    encounters: Array.isArray(getFieldValue(source, fallback, 'encounters', []))
+      ? getFieldValue(source, fallback, 'encounters', [])
+      : [],
     reviewState: normalizeReviewState(getFieldValue(source, fallback, 'reviewState', '未复习')),
     reviewCount: Math.max(Number(
       Object.prototype.hasOwnProperty.call(source, 'reviewCount')
@@ -1557,6 +1604,7 @@ async function syncPendingCardsToBackend() {
       if (pendingCard.backend_card_id) {
         try {
           var updatePayload = buildBackendCardPatchPayload(pendingCard, pendingCard);
+          updatePayload.base_version = pendingCard.version;
           var updatedBackendCard = await updateBackendCard(pendingCard.backend_card_id, updatePayload);
           var updateFallbackFields = buildCardFields(pendingCard, {});
           var updatedLocalCard = normalizeBackendCardToLocal(updatedBackendCard, {
@@ -1605,6 +1653,7 @@ async function syncPendingCardsToBackend() {
           var patchPayload = buildBackendCardPatchPayload(pendingCard, pendingCard);
 
           try {
+            patchPayload.base_version = backendCard.version;
             var patchedBackendCard = await updateBackendCard(backendCard.id, patchPayload);
             var localFallbackFields = {
               ...buildCardFields(pendingCard, {}),
@@ -1759,6 +1808,7 @@ async function updateCard(cardId, form) {
         const patchPayload = buildBackendCardPatchPayload(form, currentCard);
 
         try {
+          patchPayload.base_version = backendCard.version;
           const patchedBackendCard = await updateBackendCard(backendCard.id, patchPayload);
           const localCard = normalizeBackendCardToLocal(patchedBackendCard, {
             ...currentCard,
@@ -1806,6 +1856,7 @@ async function updateCard(cardId, form) {
 
   const payload = buildBackendCardPatchPayload(form, currentCard);
   try {
+    payload.base_version = currentCard.version;
     const backendCard = await updateBackendCard(cardId, payload);
     const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
     return upsertCachedCard(localCard);
@@ -1980,7 +2031,7 @@ async function deleteCard(cardId) {
 
   if (!isPendingLocal) {
     try {
-      await deleteBackendCard(normalizedId);
+      await deleteBackendCard(normalizedId, { baseVersion: card && card.version });
     } catch (error) {
       // 404: card already gone on backend — proceed with local removal
       if (!(error && error.statusCode === 404)) {
@@ -2018,7 +2069,7 @@ async function deleteCards(cardIds) {
 
       if (!isPendingLocal) {
         try {
-          await deleteBackendCard(cardId);
+          await deleteBackendCard(cardId, { baseVersion: card && card.version });
         } catch (error) {
           // 404: card already gone on backend — proceed with local removal
           if (!(error && error.statusCode === 404)) {

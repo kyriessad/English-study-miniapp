@@ -1,2 +1,50 @@
 @import "./demo.wxss";
 .page-subtitle{margin-top:10rpx;color:#7b887e;font-size:25rpx;line-height:1.6}.book-list{margin-top:24rpx}.book-card{display:flex;align-items:center;position:relative;margin-bottom:16rpx;padding:22rpx;border:1rpx solid #e6ece4;border-radius:26rpx;background:#fff;box-shadow:0 10rpx 24rpx rgba(86,126,82,.05)}.book-cover{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:112rpx;height:142rpx;border-radius:18rpx}.book-cover-mark{color:#5d8062;font-size:46rpx;font-weight:800}.book-copy{min-width:0;flex:1;margin-left:20rpx}.book-title{color:#2c3d31;font-size:30rpx;font-weight:700}.book-exam{margin-top:5rpx;color:#6f8273;font-size:22rpx}.book-desc{margin-top:11rpx;color:#869287;font-size:23rpx;line-height:1.45}.book-meta{margin-top:10rpx;color:#9ba69d;font-size:22rpx}.book-arrow{color:#8db395;font-size:46rpx;font-weight:300}
+
+.book-list { margin-top:20rpx; }
+.book-card {
+  min-height:164rpx;
+  margin-bottom:16rpx;
+  padding:20rpx 54rpx 20rpx 20rpx;
+  border:1rpx solid #d8e3d5;
+  border-radius:16rpx;
+  background:rgba(255,253,248,.9);
+  box-shadow:none;
+}
+.book-cover {
+  width:104rpx;
+  height:132rpx;
+  overflow:hidden;
+  border-radius:8rpx;
+}
+.book-cover-mark {
+  max-width:94rpx;
+  padding:0 5rpx;
+  color:#315737;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:27rpx;
+  font-weight:700;
+  line-height:1;
+  text-align:center;
+  white-space:nowrap;
+}
+.book-copy { margin-left:22rpx; }
+.book-title { color:#203e27; font-size:27rpx; }
+.book-exam { color:#49634b; }
+.book-desc { margin-top:7rpx; color:#607462; font-size:21rpx; }
+.book-meta { margin-top:8rpx; color:#7a897b; font-size:20rpx; }
+.book-arrow { position:absolute; right:20rpx; color:#496b45; font-size:38rpx; }
+
+.books-page { padding-right:24rpx; padding-left:24rpx; padding-bottom:132rpx; overflow:visible; }
+.books-page .subpage-top { margin:0 8rpx; }
+.books-page .subpage-heading .page-title { font-size:46rpx; }
+.book-search { margin:30rpx 4rpx 0; }
+.book-list { margin:28rpx 0 0; }
+.book-card { min-height:176rpx; margin-bottom:16rpx; padding:22rpx 42rpx 22rpx 48rpx; border-radius:16rpx; }
+.book-cover { width:104rpx; height:136rpx; border-radius:8rpx; }
+.book-cover-mark { font-size:28rpx; }
+.book-copy { margin-left:38rpx; }
+.book-title { font-size:31rpx; }
+.book-meta { margin-top:10rpx; font-size:25rpx; }
+.book-arrow { right:28rpx; font-size:44rpx; }
+.book-footer-note,.book-footer { margin:22rpx 14rpx 0; padding-top:20rpx; border-top:1rpx solid #cbdac7; color:#607564; font-size:23rpx; }

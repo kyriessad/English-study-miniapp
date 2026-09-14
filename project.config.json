@@ -28,8 +28,32 @@
   "packOptions": {
     "ignore": [
       {
-        "type": "folder",
-        "value": "/minitest"
+        "value": "/minitest",
+        "type": "folder"
+      },
+      {
+        "value": "/design",
+        "type": "folder"
+      },
+      {
+        "value": "/docs",
+        "type": "folder"
+      },
+      {
+        "value": "/tests",
+        "type": "folder"
+      },
+      {
+        "value": "/pages/demo",
+        "type": "folder"
+      },
+      {
+        "value": "/.claude",
+        "type": "folder"
+      },
+      {
+        "value": "/.cursor",
+        "type": "folder"
       }
     ],
     "include": []

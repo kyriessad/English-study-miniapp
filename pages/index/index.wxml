@@ -1,219 +1,76 @@
-<view class="page home-page">
-  <!-- ===== Header ===== -->
-  <view class="header">
-    <view class="title">英语知识卡片本</view>
-    <view class="subtitle-home">{{dailyStatusMessage}}</view>
-    <view wx:if="{{totalCardCount > 0 && actualCompletedToday > 0}}" class="today-review-entry" bindtap="onTodayReviewedTap" hover-class="today-review-entry--hover">今天看过 {{actualCompletedToday}} 张 · 查看 ›</view>
-    <view wx:if="{{totalCardCount > 0 && actualCompletedToday === 0}}" class="today-review-entry today-review-entry--zero">今天还没看过卡片</view>
-    <view class="header-settings" bindtap="goToSettings" hover-class="header-settings--hover">设置</view>
+<view class="page home-page" style="padding-top: {{safeTop}}px;">
+  <view class="home-glow home-glow-top" aria-hidden="true"></view>
+  <view class="home-glow home-glow-side" aria-hidden="true"></view>
+
+  <view class="home-header">
+    <view class="home-greeting">Hello, Learner!</view>
+    <view class="home-notification" aria-label="通知" role="img"></view>
   </view>
 
-  <!-- ===== Today Quote ===== -->
-  <view id="today-quote-section" class="today-quote-section">
-    <view class="today-quote-heading">今日一句</view>
-    <view wx:if="{{todayQuote}}" class="today-quote-card">
-      <view class="today-quote-english">{{todayQuote.content}}</view>
-      <view class="today-quote-chinese">{{todayQuote.chinese}}</view>
-      <button
-        id="today-quote-remember"
-        class="today-quote-action {{todayQuote.in_library ? 'today-quote-action-done' : ''}}"
-        bindtap="onTodayQuoteRemember"
-      >{{todayQuote.in_library ? '已在卡片库' : '想记住'}}</button>
-    </view>
-    <view wx:elif="{{todayQuoteLoading}}" class="today-quote-placeholder">正在取来今天的句子...</view>
-    <view wx:else class="today-quote-placeholder">今天的句子稍后再来</view>
+  <view wx:if="{{loading && featured.length === 0}}" class="core-status">正在加载今日推荐…</view>
+  <view wx:elif="{{error && featured.length === 0}}" class="core-status core-status-error">
+    <view>{{error}}</view>
+    <button class="text-link" bindtap="retryLoad">重新加载</button>
   </view>
-
-  <!-- ===== Discovery Entry ===== -->
-  <view id="discover-entry" class="discover-entry" bindtap="goToDiscover" hover-class="discover-entry-hover">
-    <view>
-      <view class="discover-entry-title">发现素材</view>
-      <view class="discover-entry-subtitle">从词书和真实表达里，挑你真正想记住的</view>
-    </view>
-    <view class="discover-entry-arrow">›</view>
-  </view>
-
-
-  <!-- ===== Main Buttons ===== -->
-  <!-- goal_blocked && not goal_met: 复习一下 35% (secondary) + 添加卡片继续 65% (primary) -->
-  <view wx:if="{{totalCardCount > 0 && isGoalBlocked && !isGoalMet}}" class="main-actions">
-    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
-    <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
-  </view>
-  <!-- normal / goal-met / goal-overachieved: 添加卡片 65% (primary) + 进入复习页 35% (secondary) -->
-  <view wx:if="{{totalCardCount > 0 && !(isGoalBlocked && !isGoalMet)}}" class="main-actions">
-    <button class="main-btn add-main-btn" bindtap="goToAddPage">添加卡片</button>
-    <button class="main-btn review-main-btn" bindtap="goToReview" disabled="{{reviewEntryLoading}}">{{reviewButtonLabel}}</button>
-  </view>
-
-  <!-- ===== Weak Sync Hint ===== -->
-  <view wx:if="{{pendingActionCount > 0}}" class="weak-sync-bar">
-    <text class="weak-sync-text">网络恢复后会更新学习记录</text>
-  </view>
-
-  <!-- ===== 0-Card Quick Start ===== -->
-  <view wx:if="{{totalCardCount === 0}}" class="quick-start-section">
-    <view class="quick-start-guide">看到喜欢的英文随手记下来。点下面的示例试试 ↓</view>
-
-    <button class="first-card-btn" bindtap="goToAddPage">添加第一张卡片</button>
-
-    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="word" bindtap="handleCreateExampleCard">
-      <view class="preset-card-top">
-        <view class="preset-card-type">单词</view>
-        <view class="preset-card-plus">＋</view>
+  <view wx:if="{{featured.length > 0}}" class="recommendation-card">
+    <view class="recommendation-hero" data-id="{{featured[0].id}}" bindtap="openFeatured">
+      <view class="recommendation-kicker">今日推荐</view>
+      <view class="recommendation-rule"></view>
+      <view class="recommendation-english {{featured[0].heroTextClass}}">{{featured[0].en}}</view>
+      <view class="feature-quick-actions">
+        <button class="feature-quick-button" catchtap="playFeature">播放</button>
+        <button class="feature-quick-button {{featured[0].saved ? 'feature-quick-button-saved' : ''}}" catchtap="remember" data-id="{{featured[0].id}}">{{featured[0].saved ? '已加入' : '想记住'}}</button>
       </view>
-      <view class="preset-card-content">clutch</view>
-      <view class="preset-card-meaning">关键时刻顶得住</view>
     </view>
 
-    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="phrase" bindtap="handleCreateExampleCard">
-      <view class="preset-card-top">
-        <view class="preset-card-type">短语</view>
-        <view class="preset-card-plus">＋</view>
-      </view>
-      <view class="preset-card-content">break a leg</view>
-      <view class="preset-card-meaning">祝你好运，尤其常用于演出或上台前</view>
-    </view>
-
-    <view class="preset-card {{creatingExampleCard ? 'preset-card-disabled' : ''}}" data-type="sentence" bindtap="handleCreateExampleCard">
-      <view class="preset-card-top">
-        <view class="preset-card-type">句子</view>
-        <view class="preset-card-plus">＋</view>
-      </view>
-      <view class="preset-card-content">I'll keep you posted.</view>
-      <view class="preset-card-meaning">有进展我会告诉你</view>
-    </view>
-  </view>
-
-  <!-- ===== Card Library (only when cards exist) ===== -->
-  <view wx:if="{{totalCardCount > 0}}" class="library-section">
-    <view class="section-header">
-      <text class="section-title">卡片库</text>
-    </view>
-
-    <!-- Library Tabs / Filter Pills -->
-    <view class="library-tabs-wrap">
-      <scroll-view class="library-tabs-scroll" scroll-x="{{true}}">
-        <view class="library-tabs">
-          <view
-            wx:for="{{libraryTabs}}"
-            wx:key="key"
-            class="library-tab library-tab--{{item.key}} {{currentLibraryTab === item.key ? 'library-tab-active' : ''}}"
-            data-key="{{item.key}}"
-            bindtap="onLibraryTabTap"
-          >
-            <text wx:if="{{item.icon}}" class="library-tab-icon">{{item.icon}}</text>
-            <text>{{item.label}}</text>
-            <text wx:if="{{item.count > 0}}" class="library-tab-count">{{item.count}}</text>
+    <view class="recommendation-list">
+      <block wx:for="{{featured}}" wx:for-index="cardIndex" wx:key="id">
+        <view wx:if="{{cardIndex > 0}}" class="recommendation-row" data-id="{{item.id}}" bindtap="openFeatured">
+          <view class="recommendation-copy">
+            <view class="recommendation-row-en">{{item.en}}</view>
+            <view class="recommendation-row-zh">{{item.zh}}</view>
           </view>
+          <button class="row-remember {{item.saved ? 'row-remember-saved' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.saved ? '已加入' : '想记住'}}</button>
+          <view class="chevron" aria-hidden="true"></view>
         </view>
-      </scroll-view>
-      <view class="library-tabs-fade" />
-    </view>
-
-    <!-- Category Type Filter Pills -->
-    <view class="category-filter-pills">
-      <view
-        wx:for="{{categoryFilterOptions}}"
-        wx:key="*this"
-        class="category-pill {{selectedCategoryFilter === item ? 'category-pill-active' : ''}}"
-        data-index="{{index}}"
-        bindtap="onCategoryPillTap"
-      >{{item}}</view>
-    </view>
-
-    <!-- Search (only when > 10 cards) -->
-    <view wx:if="{{totalCardCount > 10}}" class="search-row {{showFixedSearch ? 'search-row-fixed' : ''}}">
-      <view class="search-box">
-        <text class="search-icon">⌕</text>
-        <input
-          class="search-input"
-          type="text"
-          placeholder="搜索英文、理解、备注或来源"
-          value="{{searchKeyword}}"
-          bindinput="onSearchInput"
-        />
-        <view wx:if="{{searchKeyword}}" class="search-clear" bindtap="clearSearch">清空</view>
-      </view>
-    </view>
-
-    <view wx:if="{{totalCardCount > 10 && showFixedSearch}}" class="search-row-spacer"></view>
-
-    <!-- Manage Mode Toolbar -->
-    <view wx:if="{{isManageMode}}" class="manage-toolbar manage-toolbar-fixed">
-      <view class="manage-toolbar-title">已选 {{selectedCardIds.length}} 张卡片</view>
-      <view class="manage-toolbar-actions">
-        <button class="manage-btn" bindtap="selectAllCards">全选/取消</button>
-        <button class="manage-btn danger-btn" bindtap="handleBatchDelete">批量删除</button>
-        <button class="manage-btn" bindtap="exitManageMode">退出管理</button>
-      </view>
-    </view>
-
-    <view wx:if="{{isManageMode}}" class="manage-toolbar-spacer"></view>
-
-    <!-- Card List -->
-    <view class="list-section">
-      <view wx:if="{{filteredCards.length === 0 && displayCurrentCount === 0 && totalCardCount > 0}}" class="empty-state">
-        没有找到匹配的卡片，换个关键词或筛选条件试试。
-      </view>
-
-      <block wx:else>
-        <block wx:for="{{filteredCards}}" wx:key="id">
-          <view
-            class="card-item home-card-item {{item.selected ? 'card-item-selected' : ''}}"
-            data-id="{{item.id}}"
-            bindtap="openCard"
-            bindlongpress="onCardLongPress"
-          >
-            <view class="card-top-row">
-              <view class="card-tags">
-                <view class="card-tag card-tag-home">{{item.category || '单词'}}</view>
-              </view>
-              <view wx:if="{{currentLibraryTab === 'all'}}" class="card-status-pill {{item.displayStatusClass || item.stateClass}}">
-                {{item.displayStatusLabel || item.stateLabel}}
-              </view>
-            </view>
-
-            <view class="card-title">
-              {{item.englishPreview}}
-            </view>
-
-            <view wx:if="{{item.understandingPreview}}" class="card-desc">
-              {{item.understandingPreview}}
-            </view>
-            <view wx:else class="card-desc card-desc-placeholder">
-              还没有写下你的理解，可以现在补充
-            </view>
-
-            <view wx:if="{{item.reviewCountText || item.whereEncountered}}" class="card-meta">
-              <view class="card-meta-text">{{item.reviewCountText}}</view>
-              <view wx:if="{{item.whereEncountered}}" class="card-source-pill">来自：{{item.whereEncountered}}</view>
-            </view>
-          </view>
-        </block>
       </block>
-    </view>
 
-    <!-- Back to Top -->
-    <view
-      wx:if="{{showBackToTop && !isManageMode && !searchKeyword}}"
-      class="back-to-top-btn"
-      bindtap="scrollToHomeTop"
-    >
-      ↑ 顶部
-    </view>
-
-    <!-- Batch Panel -->
-    <view wx:if="{{isBatchPanelVisible}}" class="batch-mask" bindtap="closeBatchPanel">
-      <view class="batch-panel" catchtap="noop">
-        <view class="batch-panel-title">{{batchPanelTitle}}</view>
-        <block wx:for="{{batchPanelOptions}}" wx:key="*this">
-          <view class="batch-option" data-value="{{item}}" bindtap="onBatchPanelOptionTap">
-            {{item}}
-          </view>
-        </block>
-        <view class="batch-cancel" bindtap="closeBatchPanel">取消</view>
+      <view class="home-add-action" bindtap="goAdd" hover-class="home-action-pressed">
+        <text class="home-add-plus">＋</text>
+        <text>添加英文内容</text>
       </view>
     </view>
+  </view>
+
+  <view class="discover-section">
+    <view class="discover-heading" bindtap="goDiscover">发现更多英语</view>
+
+    <view class="discover-row" data-key="life" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-cup" aria-hidden="true"></view>
+      <view class="discover-copy">
+        <view class="discover-title">生活英语</view>
+        <view class="discover-subtitle">日常口语实用场景</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
+    <view class="discover-row" data-key="reading" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-book" aria-hidden="true"></view>
+      <view class="discover-copy">
+        <view class="discover-title">阅读英语</view>
+        <view class="discover-subtitle">精选短文和故事</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
+    <view class="discover-row" data-key="books" bindtap="openDiscoverOption">
+      <view class="discover-icon discover-icon-words" aria-hidden="true">A-Z</view>
+      <view class="discover-copy">
+        <view class="discover-title">词汇书</view>
+        <view class="discover-subtitle">高频词汇轻松积累</view>
+      </view>
+      <view class="chevron" aria-hidden="true"></view>
+    </view>
+
   </view>
 </view>
