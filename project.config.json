@@ -54,6 +54,30 @@
       {
         "value": "/.cursor",
         "type": "folder"
+      },
+      {
+        "value": "/assets/home/home-ambient-v2.png",
+        "type": "file"
+      },
+      {
+        "value": "/assets/home/home-ambient-v2.webp",
+        "type": "file"
+      },
+      {
+        "value": "/assets/home/home-ambient-v3.png",
+        "type": "file"
+      },
+      {
+        "value": "/assets/home/home-ambient-v4.png",
+        "type": "file"
+      },
+      {
+        "value": "/assets/home/home-ambient-v5.png",
+        "type": "file"
+      },
+      {
+        "value": "/assets/home/home-ambient-v6.png",
+        "type": "file"
       }
     ],
     "include": []

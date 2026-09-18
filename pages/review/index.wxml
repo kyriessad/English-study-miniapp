@@ -1,39 +1,26 @@
-<view class="page review-home-page" style="padding-top: {{safeTop}}px;">
+<view class="review-ambient" aria-hidden="true">
+  <image class="review-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill"></image>
+</view>
+<view class="page review-home-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <view class="tab-enter {{tabEnter ? 'is-in' : ''}}">
   <view class="review-home-hero">
-    <view class="review-leaf-background" aria-hidden="true"></view>
-    <view class="review-leaf-branch" aria-hidden="true">
-      <view class="review-branch-main"></view>
-      <view class="review-branch-side review-branch-side-one"></view>
-      <view class="review-branch-side review-branch-side-two"></view>
-    </view>
-    <view class="review-leaf-canopy" aria-hidden="true">
-      <view class="review-leaf review-leaf-one"></view>
-      <view class="review-leaf review-leaf-two"></view>
-      <view class="review-leaf review-leaf-three"></view>
-      <view class="review-leaf review-leaf-four"></view>
-      <view class="review-leaf review-leaf-five"></view>
-      <view class="review-leaf review-leaf-six"></view>
-    </view>
     <view class="page-title">复习</view>
-    <view class="review-today">今天已复习 {{today}} 条</view>
-    <view class="review-quote">
-      <view class="review-quote-line">Small steps</view>
-      <view class="review-quote-line">make a big difference.</view>
+    <view class="review-lead">
+      <view class="review-quote">
+        <view class="review-quote-line">Small steps</view>
+        <view class="review-quote-line">make a big difference.</view>
+      </view>
+      <view class="review-caption">每天复习，让英语成为更好的自己。</view>
     </view>
-    <view class="review-rule"></view>
-    <view class="review-caption">每天复习，让英语成为更好的自己。</view>
   </view>
   <view class="review-home-card">
-    <view class="section-title size-title">本轮复习数量</view>
-    <view class="page-subtitle">选择适合的数量，开始今天的复习。</view>
-    <view class="size-row">
-      <view wx:for="{{sizes}}" wx:key="*this" class="size-option {{size === item ? 'size-option-active' : ''}}" data-size="{{item}}" bindtap="chooseSize">
-        <view class="size-number">{{item}}</view>
-      </view>
-    </view>
-    <button class="action action-primary review-start" bindtap="start" loading="{{loading}}" disabled="{{loading}}">{{loading ? '正在准备…' : (activeSessionId ? '继续上次复习　→' : '开始复习　→')}}</button>
+    <view class="review-stat">{{today}}</view>
+    <view class="review-stat-label">今日已复习</view>
+    <view class="review-card-rule"></view>
+    <view wx:if="{{activeSessionId}}" class="review-resume-note">还有一轮没有完成，可以从上次停下的地方继续。</view>
+    <button class="action action-primary review-start" bindtap="start" loading="{{loading}}" disabled="{{loading}}">{{loading ? '正在准备…' : (activeSessionId ? '继续上次复习' : '开始复习')}}</button>
     <view wx:if="{{error}}" class="core-inline-error">{{error}}</view>
-    <view class="review-tip">从 {{size}} 条开始，轻量进入状态。</view>
+    <view class="review-tip" bindtap="openToday">查看今日已复习</view>
+  </view>
   </view>
 </view>
-

@@ -117,3 +117,135 @@
 .public-example { position:relative; padding-right:64rpx; }
 .public-example .example-sound-btn { position:absolute; top:8rpx; right:0; }
 .sound-btn-playing { background:#e2efe0; }
+
+/* Liquid theme final layer */
+.detail-page {
+  min-height: 100vh;
+  padding: 30rpx 28rpx calc(80rpx + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.detail-page .subpage-top { margin: 0; }
+.detail-page .eyebrow { color: #687c71; font-size: 23rpx; }
+.detail-page .back { color: #315d48; background: rgba(255, 255, 255, .32); }
+.detail-page .top-text-button { color: #315d48; background: rgba(255, 255, 255, .28); border-color: rgba(255, 255, 255, .8); }
+
+.detail-hero {
+  margin: 44rpx 0 0;
+  padding: 30rpx 4rpx 36rpx;
+  border-bottom-color: rgba(62, 94, 73, .16);
+  background: transparent;
+}
+
+.detail-category { color: #60756a; }
+.detail-word-row { margin-top: 24rpx; }
+.detail-word-row .detail-en { color: #153729; font-family: Baskerville, "Palatino Linotype", Georgia, serif; font-size: 68rpx; font-weight: 400; }
+.detail-zh { color: #315543; font-size: 29rpx; }
+.phonetic-row { color: #60756a; font-family: Baskerville, "Palatino Linotype", Georgia, serif; }
+
+.detail-sections { margin-top: 26rpx; }
+.detail-section {
+  margin-bottom: 16rpx;
+  padding: 28rpx;
+  border-radius: 34rpx;
+  background: rgba(255, 255, 255, .34);
+  border-color: rgba(255, 255, 255, .82);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.detail-section .section-title { color: #214936; font-size: 28rpx; }
+.section-toggle-text { color: #687c71; }
+.section-value { color: #315543; }
+.section-detail-row { color: #315543; }
+.section-detail-label { color: #87978e; }
+.analysis-panel { background: rgba(236, 246, 239, .42); }
+.analysis-row { color: #315543; }
+.analysis-label { color: #87978e; }
+.detail-bottom { margin-top: 22rpx; }
+.detail-bottom .remember-detail { background: rgba(55, 105, 78, .86); color: #fff; border: 1rpx solid rgba(255, 255, 255, .74); }
+.detail-bottom .remember-detail.remembered { color: #315d48; background: rgba(255, 255, 255, .42); }
+
+.detail-top {
+  display: flex;
+  align-items: center;
+  min-height: 72rpx;
+  padding-top: 70rpx;
+}
+.detail-top-space { flex: 1; }
+.detail-edit {
+  height: 56rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  line-height: 56rpx;
+  border: 1rpx solid rgba(255, 255, 255, .8);
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, .28);
+  color: #315d48;
+  font-size: 24rpx;
+}
+.detail-edit::after { border: 0; }
+.detail-source {
+  display: inline-flex;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, .34);
+  color: #47765d;
+  font-size: 22rpx;
+}
+.detail-word-row .detail-en-compact { font-size: 48rpx; line-height: 1.25; }
+.detail-word-row .detail-en-small { font-size: 36rpx; line-height: 1.35; }
+.detail-zh-empty { color: #87978e; }
+.detail-meta,
+.detail-explain {
+  margin-top: 22rpx;
+  padding: 28rpx;
+  border-radius: 34rpx;
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  background: rgba(255, 255, 255, .34);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+}
+.detail-meta-row {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 14rpx;
+  color: #315543;
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+.detail-meta-row:first-child { margin-top: 0; }
+.detail-meta-label { flex: 0 0 72rpx; color: #87978e; }
+.detail-explain-kicker {
+  margin-bottom: 18rpx;
+  color: #47765d;
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+.detail-explain-block { margin-top: 18rpx; }
+.detail-explain-block:first-of-type { margin-top: 0; }
+.detail-explain-label { color: #87978e; font-size: 22rpx; }
+.detail-explain-copy,
+.detail-explain-en {
+  margin-top: 8rpx;
+  color: #315543;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+.detail-explain-en { color: #153729; font-family: Baskerville, "Palatino Linotype", Georgia, serif; }
+.detail-explain-zh { margin-top: 6rpx; color: #687c71; font-size: 24rpx; }
+.detail-explain-action { margin-top: 18rpx; }
+.detail-explain-link {
+  height: 64rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  line-height: 64rpx;
+  border: 1rpx solid rgba(255, 255, 255, .78);
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, .28);
+  color: #315d48;
+  font-size: 24rpx;
+}
+.detail-explain-link::after { border: 0; }

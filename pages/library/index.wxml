@@ -1,5 +1,14 @@
-<view class="page library-page" style="padding-top: {{safeTop}}px;">
-  <view class="library-heading" style="padding-right: {{menuRightInset}}px;"><view class="page-title">我的英语</view><button wx:if="{{viewMode === 'personal' && (filtered.length > 0 || managing)}}" class="manage-button" bindtap="toggleManage">{{managing ? '完成' : '管理'}}</button></view>
+<wxs src="./swipe.wxs" module="swipe" />
+<view class="page library-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="tab-enter {{tabEnter ? 'is-in' : ''}}">
+  <view class="library-heading" style="padding-right: {{menuRightInset}}px;">
+    <view class="page-title">我的英语</view>
+    <view class="library-heading-actions">
+      <button class="manage-button" bindtap="goSettings">设置</button>
+      <button wx:if="{{viewMode === 'personal' && (filtered.length > 0 || managing)}}" class="manage-button" bindtap="toggleManage">{{managing ? '完成' : '管理'}}</button>
+    </view>
+  </view>
   <view class="page-subtitle">积累点滴，遇见更好的自己。</view>
   <view class="library-view-tabs">
     <button class="library-view-tab {{viewMode === 'personal' ? 'library-view-tab-active' : ''}}" data-view="personal" bindtap="switchView">我的英语</button>
@@ -23,22 +32,30 @@
   <block wx:if="{{viewMode === 'personal'}}">
     <view wx:if="{{loading && cards.length === 0}}" class="core-status">正在加载我的英语…</view>
     <view wx:elif="{{error && cards.length === 0}}" class="core-status core-status-error"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
-    <view wx:if="{{keyword && filtered.length === 0}}" class="library-count">没有找到匹配内容</view>
-    <view class="library-list {{filtered.length === 0 ? 'library-list-empty' : ''}}">
-    <view wx:for="{{filtered}}" wx:key="id" class="library-swipe-row">
-      <view wx:if="{{!managing}}" class="library-swipe-actions"><button class="library-swipe-action library-swipe-edit" data-id="{{item.id}}" catchtap="editCard">编辑</button><button class="library-swipe-action library-swipe-delete" data-id="{{item.id}}" catchtap="deleteCard">删除</button></view>
-      <view class="library-item library-item-front {{managing ? 'library-item-managing' : ''}} {{swipedCardId === item.id ? 'library-item-swiped' : ''}}" data-id="{{item.id}}" bindtouchstart="onCardTouchStart" bindtouchmove="onCardTouchMove" bindtouchend="onCardTouchEnd" bindtouchcancel="onCardTouchCancel" bindlongpress="onCardLongPress" bindtap="handleItemTap">
-        <view wx:if="{{managing}}" class="selection-check {{selectedMap[item.id] ? 'selection-check-active' : ''}}" data-id="{{item.id}}" catchtap="toggleSelect">{{selectedMap[item.id] ? '✓' : ''}}</view>
-        <view class="library-item-copy"><view class="library-en-row"><view class="library-en">{{item.en}}</view></view><view class="library-zh">{{item.my || item.zh || '暂未填写理解'}}</view><view wx:if="{{item.where || item.note}}" class="library-note">在哪里遇到：{{item.where || item.note}}</view><view class="library-source">{{item.source}} · {{item.category}}</view></view>
+    <view wx:if="{{filtered.length > 0}}" class="library-list">
+    <view wx:for="{{filtered}}" wx:key="id" class="library-swipe-row {{swipedCardId === item.id ? 'is-open' : ''}}">
+      <view wx:if="{{managing}}" class="library-item library-item-front library-item-managing" data-id="{{item.id}}" bindtap="handleItemTap">
+        <view class="selection-check {{selectedMap[item.id] ? 'selection-check-active' : ''}}">{{selectedMap[item.id] ? '✓' : ''}}</view>
+        <view class="library-item-copy"><view class="library-en-row"><view class="library-en">{{item.en}}</view></view><view class="library-zh">{{item.my || item.zh || '暂未填写理解'}}</view><view wx:if="{{item.where}}" class="library-note">在哪里遇到：{{item.where}}</view></view>
+      </view>
+      <view wx:else class="library-item library-item-front {{swipedCardId === item.id ? 'library-item-swiped' : ''}}" data-id="{{item.id}}" data-max="{{swipeMaxPx}}" catchtouchstart="{{swipe.touchStart}}" catchtouchmove="{{swipe.touchMove}}" catchtouchend="{{swipe.touchEnd}}" catchtouchcancel="{{swipe.touchCancel}}" bindlongpress="onCardLongPress">
+        <view class="library-item-copy"><view class="library-en-row"><view class="library-en">{{item.en}}</view></view><view class="library-zh">{{item.my || item.zh || '暂未填写理解'}}</view><view wx:if="{{item.where}}" class="library-note">在哪里遇到：{{item.where}}</view></view>
+        <view class="library-swipe-actions">
+          <button class="library-swipe-action library-swipe-edit" data-id="{{item.id}}" catchtap="editCard" aria-label="编辑">
+            <image class="swipe-action-icon" src="/assets/home/edit-pencil.svg" mode="aspectFit" />
+          </button>
+          <button class="library-swipe-action library-swipe-delete" data-id="{{item.id}}" catchtap="deleteCard" aria-label="删除">
+            <image class="swipe-action-icon" src="/assets/home/delete-trash.svg" mode="aspectFit" />
+          </button>
+        </view>
       </view>
     </view>
-    <view wx:if="{{filtered.length === 0}}" class="library-empty">
-      <view class="library-empty-art {{keyword ? 'library-empty-search-art' : ''}}"><view class="empty-book"><view wx:if="{{keyword}}" class="empty-search-lens"></view></view><view class="empty-leaf"></view></view>
-      <view class="library-empty-title">{{keyword ? '没有找到匹配内容' : '还没有可复习的英语'}}</view>
+    </view>
+    <view wx:elif="{{!loading && !error}}" class="library-empty">
+      <view class="library-empty-title">{{keyword ? '没有找到匹配内容' : '还没有保存的英语'}}</view>
       <view class="library-empty-copy">{{keyword ? '试试更短的关键词，或清除搜索后查看全部内容。' : '把你想记住的单词、短语或句子加入这里。'}}</view>
       <button wx:if="{{keyword}}" class="action library-clear-action" bindtap="clearSearch">清除搜索</button>
       <button class="action action-primary library-empty-action" bindtap="add">＋ 添加英文内容</button>
-    </view>
     </view>
   </block>
 
@@ -60,7 +77,8 @@
       </view>
     </view>
   </block>
+  </view>
   <button wx:if="{{showBackToTop && !managing}}" class="back-to-top" style="top: {{floatingTop}}px;" aria-label="回到顶部" bindtap="backToTop"><text class="back-to-top-arrow">↑</text><text>回到顶部</text></button>
-  <button wx:if="{{!managing}}" class="floating-add" aria-label="添加英文内容" bindtap="add">＋ 添加英文内容</button>
+  <button wx:if="{{!managing && (viewMode !== 'personal' || filtered.length > 0)}}" class="floating-add" aria-label="添加英文内容" bindtap="add">＋ 添加英文内容</button>
   <view wx:if="{{viewMode === 'personal' && managing}}" class="manage-bar"><button class="manage-select-all" bindtap="selectAll">全选</button><text>已选 {{selectedIds.length}} 条</text><button class="manage-delete {{selectedIds.length ? 'manage-delete-active' : ''}}" bindtap="deleteSelected">删除</button></view>
 </view>

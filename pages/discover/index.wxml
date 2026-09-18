@@ -1,6 +1,12 @@
-<view class="page discover-page">
+<view class="page discover-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="discover-heading">
+    <view class="discover-back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <view class="discover-heading-title">发现</view>
+    <view class="discover-heading-space"></view>
+  </view>
   <view class="discover-intro">
-    <view class="discover-title">{{domainTitle}} · 找到真正想记住的英文</view>
+    <view class="discover-title">{{domainTitle}}</view>
     <view class="discover-subtitle">认识的轻轻划过，喜欢的再放进自己的卡片库。</view>
   </view>
 
@@ -10,12 +16,13 @@
         wx:for="{{categories}}"
         wx:key="code"
         id="discover-category-{{item.code}}"
-        class="pack-pill {{selectedCategoryCode === item.code ? 'pack-pill-active' : ''}}"
+        class="pack-pill pressable press-pill {{selectedCategoryCode === item.code ? 'pack-pill-active' : ''}}"
         data-code="{{item.code}}"
+        hover-class="press-on"
+        hover-stay-time="80"
         bindtap="onCategoryTap"
       >
         <text>{{item.title}}</text>
-        <text class="pack-count">{{item.itemCount}}</text>
       </view>
     </view>
   </scroll-view>
@@ -31,19 +38,40 @@
 
   <view class="material-list">
     <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card">
-      <view class="material-card-top">
-        <view class="material-type">{{item.cardType === 'word' ? '单词' : (item.cardType === 'phrase' ? '短语' : '句子')}}</view>
-        <view class="sound-btn" data-id="{{item.id}}" catchtap="onPronounceTap">{{playingItemId === item.id ? '...' : '🔊'}}</view>
+      <view
+        class="material-card-body pressable press-card"
+        data-id="{{item.id}}"
+        hover-class="press-on"
+        hover-stay-time="160"
+        bindtap="onItemTap"
+      >
+        <view class="material-card-top">
+          <view class="material-type">{{item.cardType === 'word' ? '单词' : (item.cardType === 'phrase' ? '短语' : '句子')}}</view>
+          <view class="sound-btn pressable press-glass" data-id="{{item.id}}" hover-class="press-on" hover-stay-time="90" hover-stop-propagation="true" catchtap="onPronounceTap"><text wx:if="{{playingItemId === item.id}}">···</text><image wx:else class="inline-sound-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></view>
+        </view>
+        <view class="material-copy">
+          <view class="material-english">{{item.content}}</view>
+          <view class="material-chinese">{{item.translation || item.chinese}}</view>
+        </view>
+        <view class="material-open-hint" aria-hidden="true"></view>
       </view>
-      <view class="material-english">{{item.content}}</view>
-      <view class="material-chinese">{{item.translation || item.chinese}}</view>
       <view class="material-actions">
-        <button class="known-btn" data-id="{{item.id}}" bindtap="onKnownTap">认识</button>
         <button
-          class="remember-btn {{item.inLibrary ? 'remember-btn-done' : ''}}"
+          class="known-btn pressable press-glass"
           data-id="{{item.id}}"
-          bindtap="onRememberTap"
-        >{{item.inLibrary ? '已在卡片库' : '想记住'}}</button>
+          hover-class="press-on"
+          hover-stay-time="90"
+          hover-stop-propagation="true"
+          catchtap="onKnownTap"
+        >认识</button>
+        <button
+          class="remember-btn pressable {{item.inLibrary ? 'remember-btn-done press-glass' : 'press-primary'}}"
+          data-id="{{item.id}}"
+          hover-class="press-on"
+          hover-stay-time="90"
+          hover-stop-propagation="true"
+          catchtap="onRememberTap"
+        >{{item.inLibrary ? '已加入' : '想记住'}}</button>
       </view>
     </view>
   </view>

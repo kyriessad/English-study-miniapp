@@ -46,6 +46,7 @@ function computeResultFilterCounts(items) {
 
 Page({
   data: {
+    safeTop: 20,
     items: [],
     filteredItems: [],
     loading: true,
@@ -53,21 +54,30 @@ Page({
     offline: false,
     loadFailed: false,
     resultFilter: 'all',
-    resultFilterOptions: RESULT_FILTERS.map(function (f) { return { key: f.key, label: f.label, count: 0 }; })
+    resultFilterOptions: RESULT_FILTERS.map(function (f) { return { key: f.key, label: f.label, count: 0 }; }),
+    menuRightInset: 96
   },
 
   onLoad() {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    let menuRightInset = 96;
+    try {
+      const menu = wx.getMenuButtonBoundingClientRect && wx.getMenuButtonBoundingClientRect();
+      if (menu && menu.left) menuRightInset = Math.max(info.windowWidth - menu.left + 10, 0);
+    } catch (_) {}
+    this.setData({
+      safeTop: info.statusBarHeight || 20,
+      menuRightInset
+    });
     this._fetch();
   },
 
-  onShow() {
-    if (!this._initialLoadDone) return;
+  goBack() {
+    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/review/index' }); } });
+  },
 
-    const needsRefresh = wx.getStorageSync('todayReviewedNeedsRefresh');
-    if (needsRefresh) {
-      wx.removeStorageSync('todayReviewedNeedsRefresh');
-      this._fetch();
-    }
+  onShow() {
+    this._fetch();
   },
 
   _applyResultFilter() {
@@ -96,17 +106,17 @@ Page({
 
     try {
       const res = await getTodayReviewed();
-      const items = (res && res.items) ? res.items : [];
+      const items = (res && (res.items || (res.data && res.data.items))) || [];
 
       const mapped = items.map(item => ({
-        cardId: String(item.card_id),
+        cardId: String(item.card_id || item.cardId || ''),
         content: item.content || '',
         understanding: item.understanding || '',
-        whereEncountered: item.where_encountered || '',
-        cardType: CARD_TYPE_MAP[item.card_type] || '单词',
-        todayReviewCount: item.today_review_count || 1,
-        lastResultLabel: RESULT_LABELS[item.last_result] || item.last_result_label || '',
-        lastResult: item.last_result || ''
+        whereEncountered: item.where_encountered || item.whereEncountered || '',
+        cardType: CARD_TYPE_MAP[item.card_type || item.cardType] || '单词',
+        todayReviewCount: item.today_review_count || item.todayReviewCount || 1,
+        lastResultLabel: RESULT_LABELS[item.last_result || item.lastResult] || item.last_result_label || item.lastResultLabel || '',
+        lastResult: item.last_result || item.lastResult || ''
       }));
 
       this.setData({
@@ -120,7 +130,8 @@ Page({
       this._applyResultFilter();
       wx.setStorageSync(TODAY_REVIEWED_CACHE_KEY, mapped);
       this._initialLoadDone = true;
-    } catch (_) {
+    } catch (error) {
+      console.warn('[today-reviewed] fetch failed', error);
       const cached = wx.getStorageSync(TODAY_REVIEWED_CACHE_KEY) || [];
       const hasCache = Array.isArray(cached) && cached.length > 0;
 

@@ -1,5 +1,4 @@
 {
-  "navigationBarTitleText": "",
-  "navigationBarBackgroundColor": "#f1f8ee",
-  "navigationBarTextStyle": "black"
+  "navigationStyle": "custom",
+  "navigationBarTitleText": "添加卡片"
 }

@@ -1,6 +1,7 @@
-<view wx:if="{{loading}}" class="page review-page core-status" style="padding-top: {{safeTop}}px;">正在准备本轮复习…</view>
-<view wx:elif="{{error}}" class="page review-page core-status core-status-error" style="padding-top: {{safeTop}}px;"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
-<view class="page review-page" style="padding-top: {{safeTop}}px;" wx:elif="{{current}}">
+<view wx:if="{{loading}}" class="page review-page core-status liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><text>正在准备本轮复习…</text></view>
+<view wx:elif="{{error}}" class="page review-page core-status core-status-error liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+<view class="page review-page liquid-theme-page" style="padding-top: {{safeTop}}px;" wx:elif="{{current}}">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="review-top">
     <button class="close-button" bindtap="exit">×</button>
     <view class="review-progress">{{currentNo}} / {{total}}</view>

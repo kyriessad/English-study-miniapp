@@ -1,42 +1,35 @@
 @import "../../styles/core.wxss";
 
 .review-home-page { height:100vh; min-height:0; padding:0; padding-bottom:0; overflow:hidden; }
-.review-home-hero { position:relative; isolation:isolate; flex:1 1 0; min-height:0; padding:58rpx 56rpx 30rpx; box-sizing:border-box; overflow:hidden; }
+.review-ambient {
+  position: fixed;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.review-ambient-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.review-home-hero { position:relative; isolation:isolate; flex:0 0 auto; min-height:0; padding:58rpx 56rpx 30rpx; box-sizing:border-box; overflow:hidden; }
 .review-home-hero > .page-title,
 .review-home-hero > .review-today,
-.review-home-hero > .review-quote,
-.review-home-hero > .review-rule,
-.review-home-hero > .review-caption { position:relative; z-index:2; }
-.review-home-hero > .review-leaf-background,
-.review-home-hero > .review-leaf-branch,
-.review-home-hero > .review-leaf-canopy { position:absolute; z-index:0; pointer-events:none; }
-.review-leaf-background { top:-80rpx; right:-170rpx; width:690rpx; height:760rpx; opacity:.7; filter:blur(30rpx); background:
-  radial-gradient(ellipse at 48% 30%, rgba(170,194,164,.32) 0 16%, transparent 17%),
-  radial-gradient(ellipse at 74% 42%, rgba(144,173,139,.26) 0 20%, transparent 21%),
-  radial-gradient(ellipse at 42% 62%, rgba(184,204,180,.36) 0 18%, transparent 19%); }
-.review-leaf-branch { top:106rpx; right:-52rpx; width:390rpx; height:450rpx; opacity:.55; }
-.review-branch-main,
-.review-branch-side { position:absolute; height:4rpx; border-radius:999rpx; background:#91a98e; transform-origin:right center; }
-.review-branch-main { top:82rpx; right:0; width:350rpx; transform:rotate(-29deg); }
-.review-branch-side { display:none; }
-.review-branch-side-one { display:block; top:218rpx; right:88rpx; width:125rpx; height:3rpx; transform:rotate(-66deg); }
-.review-branch-side-one { top:180rpx; right:190rpx; transform:rotate(-72deg); }
-.review-branch-side-two { top:245rpx; right:56rpx; transform:rotate(-112deg); }
-.review-leaf-canopy { top:72rpx; right:-72rpx; width:530rpx; height:450rpx; opacity:.58; }
-.review-leaf-canopy > .review-leaf { position:absolute; width:148rpx; height:84rpx; border:0; border-radius:100% 0 100% 0; background:linear-gradient(135deg,rgba(137,164,133,.42),rgba(177,198,171,.22)); box-shadow:inset -2rpx -2rpx 0 rgba(106,139,103,.1); }
-.review-leaf-canopy > .review-leaf::after { content:''; position:absolute; left:12%; top:50%; width:80%; height:2rpx; background:rgba(97,129,95,.21); transform:rotate(-18deg); transform-origin:left center; }
-.review-leaf-one { top:66rpx; right:190rpx; transform:rotate(28deg); }
-.review-leaf-two { top:54rpx; right:20rpx; transform:scaleX(-1) rotate(18deg); }
-.review-leaf-three { top:165rpx; right:206rpx; transform:scaleX(-1) rotate(15deg); }
-.review-leaf-four { top:192rpx; right:24rpx; transform:rotate(42deg); }
-.review-leaf-five { top:288rpx; right:132rpx; width:118rpx !important; height:166rpx !important; transform:scaleX(-1) rotate(12deg); }
-.review-leaf-six { top:272rpx; right:-25rpx; transform:rotate(56deg); }
+.review-home-hero > .review-lead { position:relative; z-index:2; }
 .review-home-hero .page-title { font-size:58rpx; }
 .review-today { margin-top:12rpx; font-size:27rpx; color:#607564; }
-.review-quote { margin-top:179rpx; padding-top:0; }
+.review-lead { margin-top: 48rpx; }
+.review-quote { margin-top:0; padding-top:0; }
 .review-quote-line { color:#607564; font-family:Georgia,"Times New Roman",serif; font-size:42rpx; font-style:italic; line-height:1.3; }
-.review-rule { width:74rpx; height:3rpx; margin-top:49rpx; background:#a8baa4; }
-.review-caption { margin-top:34rpx; color:#607564; font-size:27rpx; }
+.review-caption { margin-top:18rpx; color:#607564; font-size:27rpx; }
 .review-home-card { display:block; flex:0 0 712rpx; min-height:0; margin:0; padding:60rpx 58rpx 28rpx; border-radius:22rpx 22rpx 0 0; background:#fffdf9; box-sizing:border-box; }
 .review-home-card .section-title { font-size:31rpx; }
 .review-home-card .page-subtitle { margin-top:12rpx; font-size:25rpx; }
@@ -46,3 +39,156 @@
 .review-start { width:87%; height:120rpx; line-height:120rpx; margin:66rpx auto 0; }
 .review-tip { margin-top:36rpx; color:#607564; font-size:23rpx; text-align:center; }
 
+/* Liquid theme final layer */
+.review-home-page {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: auto;
+  padding: 0 28rpx calc(140rpx + var(--custom-tab-bar-space));
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: transparent;
+}
+
+.review-home-page > .tab-enter {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.review-home-hero {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 70rpx 8rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.review-home-hero .page-title {
+  color: #153729;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 66rpx;
+  font-weight: 400;
+}
+
+.review-today,
+.review-caption {
+  color: #687c71;
+  font-size: 26rpx;
+}
+
+.review-lead {
+  margin-top: 52rpx;
+}
+
+.review-quote {
+  margin-top: 0;
+}
+
+.review-quote-line {
+  color: #5d7666;
+  font-family: Baskerville, "Palatino Linotype", Georgia, serif;
+  font-size: 44rpx;
+  line-height: 1.27;
+}
+
+.review-home-card {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 42rpx 30rpx 34rpx;
+  border: 2rpx solid rgba(255, 255, 255, .84);
+  border-radius: 46rpx;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .38), rgba(248, 252, 249, .18) 58%, rgba(230, 246, 239, .26));
+  box-shadow: inset 0 3rpx 0 rgba(255, 255, 255, .9), 0 18rpx 44rpx rgba(49, 84, 62, .08);
+  -webkit-backdrop-filter: blur(3px) saturate(1.04);
+  backdrop-filter: blur(3px) saturate(1.04);
+}
+
+.review-stat {
+  color: #153729;
+  font-family: Baskerville, "Palatino Linotype", Georgia, serif;
+  font-size: 88rpx;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+}
+
+.review-stat-label {
+  margin-top: 10rpx;
+  color: #687c71;
+  font-size: 24rpx;
+  letter-spacing: 4rpx;
+  text-align: center;
+}
+
+.review-card-rule {
+  width: 72rpx;
+  height: 3rpx;
+  margin: 28rpx auto 8rpx;
+  border-radius: 999rpx;
+  background: rgba(71, 118, 93, .35);
+}
+
+.review-resume-note {
+  margin-top: 12rpx;
+  color: #687c71;
+  font-size: 24rpx;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.size-row {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 34rpx;
+}
+
+.size-option {
+  flex: 1;
+  height: 112rpx;
+  border-radius: 30rpx;
+}
+
+.size-number {
+  color: #214936;
+  font-family: Baskerville, "Palatino Linotype", Georgia, serif;
+  font-size: 48rpx;
+  font-weight: 400;
+}
+
+.size-option-active .size-number {
+  color: #fff;
+}
+
+.review-start {
+  width: 100%;
+  height: 86rpx;
+  margin-top: 36rpx;
+  line-height: 86rpx;
+  font-size: 28rpx;
+}
+
+.review-links {
+  display: flex;
+  justify-content: center;
+  gap: 36rpx;
+  margin-top: 22rpx;
+}
+
+.review-tip {
+  margin-top: 22rpx;
+  color: #47765d;
+  font-size: 23rpx;
+  text-align: center;
+}
+
+@media (max-width: 350px) {
+  .review-home-page { padding-right: 20rpx; padding-left: 20rpx; }
+  .review-home-hero { padding-right: 20rpx; padding-left: 20rpx; }
+  .review-lead { margin-top: 36rpx; }
+  .review-quote-line { font-size: 39rpx; }
+}

@@ -1,26 +1,12 @@
 const api = require('../../utils/api/index');
 const {
-  newClientActionId,
   toCardView,
   toMaterialView,
   errorMessage
 } = require('../../utils/coreViewModels');
 const { createPronunciationController } = require('../../utils/pronunciation');
-
-function analysisView(reference) {
-  if (!reference) return null;
-  const related = (reference.similar_phrases || reference.synonyms || [])
-    .map((item) => item.text || item.content || item.word || '')
-    .filter(Boolean);
-  const result = {
-    meaning: reference.understanding || reference.translation || '',
-    usage: reference.usage_scenario || '',
-    exampleEn: reference.example_sentence || '',
-    exampleZh: reference.example_translation || '',
-    relatedText: related.join('、')
-  };
-  return Object.keys(result).some((key) => Boolean(result[key])) ? result : null;
-}
+const { addMaterialToLibrary, removeMaterialFromLibrary } = require('../../utils/materialLibrary');
+const { englishSizeClass, extraExplanation, sourceLabel } = require('../../utils/detailExplanation');
 
 Page({
   data: {
@@ -28,28 +14,27 @@ Page({
     item: null,
     mode: 'public',
     fromReview: false,
-    analysis: null,
+    explanation: null,
+    sourceChip: '',
     saved: false,
     saving: false,
+    analyzing: false,
     loading: true,
     error: '',
     english: '',
-    my: '',
+    englishClass: '',
+    chinese: '',
     whereEncountered: '',
     notes: '',
-    lexicalInfoLoaded: false,
-    lexicalInfoLoading: false,
+    libraryCardId: '',
+    libraryCardVersion: 0,
     phoneticDisplay: '',
     phoneticSource: '',
     pronunciationAvailable: false,
     pronunciationText: '',
     pronunciationLoading: false,
     pronunciationPlaying: false,
-    menuRightInset: 88,
-    detailsExpanded: true,
-    usageExpanded: true,
-    exampleExpanded: true,
-    referenceExpanded: true
+    menuRightInset: 88
   },
 
   onLoad(options) {
@@ -63,7 +48,6 @@ Page({
     this.mode = options.source === 'personal' ? 'personal' : 'public';
     this.fromReview = options.fromReview === '1';
     this.hasShown = false;
-    this.addActionId = newClientActionId('material-detail');
     this.pronunciationController = createPronunciationController(this);
     this.setData({
       safeTop: info.statusBarHeight || 20,
@@ -95,14 +79,18 @@ Page({
         this.setData({
           item,
           english: item.en,
-          my: item.my,
+          englishClass: englishSizeClass(item.en),
+          chinese: item.my || item.zh,
+          sourceChip: sourceLabel(item, 'personal'),
           whereEncountered: item.where,
           notes: item.note,
-          analysis: analysisView({
+          explanation: extraExplanation({
             usage_scenario: card.sourceContext,
             example_sentence: card.exampleSentence,
             example_translation: card.exampleTranslation
-          })
+          }, item.en, item.my || item.zh),
+          libraryCardId: item.id,
+          libraryCardVersion: item.version
         });
       } else {
         const detail = await api.discovery.getItem(this.id);
@@ -110,11 +98,15 @@ Page({
         this.setData({
           item,
           english: item.en,
-          my: '',
+          englishClass: englishSizeClass(item.en),
+          chinese: item.zh,
+          sourceChip: sourceLabel(item, 'public'),
           whereEncountered: '',
           notes: '',
           saved: item.joined,
-          analysis: analysisView(detail.reference)
+          explanation: extraExplanation(detail.reference, item.en, item.zh),
+          libraryCardId: '',
+          libraryCardVersion: 0
         });
       }
       if (this.pronunciationController) this.pronunciationController.load(this.data.english);
@@ -133,14 +125,35 @@ Page({
   },
 
   async remember() {
-    if (this.data.saved || this.data.saving) return;
+    if (this.mode !== 'public' || this.data.saving) return;
     this.setData({ saving: true });
     try {
-      await api.discovery.addToLibrary(this.id, this.addActionId, true);
-      this.setData({ saved: true, item: Object.assign({}, this.data.item, { joined: true }) });
-      wx.showToast({ title: '已加入我的英语', icon: 'success' });
+      if (this.data.saved) {
+        await removeMaterialFromLibrary({
+          id: this.id,
+          en: this.data.english,
+          libraryCardId: this.data.libraryCardId,
+          libraryCardVersion: this.data.libraryCardVersion
+        });
+        this.setData({
+          saved: false,
+          libraryCardId: '',
+          libraryCardVersion: 0,
+          item: Object.assign({}, this.data.item, { joined: false })
+        });
+        wx.showToast({ title: '已从卡片中移除', icon: 'none' });
+        return;
+      }
+      const card = await addMaterialToLibrary(this.id);
+      this.setData({
+        saved: true,
+        libraryCardId: card.id,
+        libraryCardVersion: card.version,
+        item: Object.assign({}, this.data.item, { joined: true })
+      });
+      wx.showToast({ title: '已加入卡片', icon: 'success' });
     } catch (error) {
-      wx.showToast({ title: errorMessage(error, '加入失败，请重试'), icon: 'none' });
+      wx.showToast({ title: errorMessage(error, this.data.saved ? '移除失败，请重试' : '加入失败，请重试'), icon: 'none' });
     } finally {
       this.setData({ saving: false });
     }
@@ -150,12 +163,21 @@ Page({
     if (this.mode !== 'public' || this.data.analyzing) return;
     this.setData({ analyzing: true });
     try {
-      const detail = await api.discovery.analyzeItem(this.id, !!this.data.analysis);
+      const detail = await api.discovery.analyzeItem(this.id, !!this.data.explanation);
       const item = toMaterialView(detail.item, detail.reference);
-      this.setData({ item, english: item.en, analysis: analysisView(detail.reference) });
+      const explanation = extraExplanation(detail.reference, item.en, item.zh);
+      this.setData({
+        item,
+        english: item.en,
+        englishClass: englishSizeClass(item.en),
+        chinese: item.zh,
+        sourceChip: sourceLabel(item, 'public'),
+        explanation
+      });
+      if (!explanation) wx.showToast({ title: '暂时没有更多讲解', icon: 'none' });
       if (this.pronunciationController) this.pronunciationController.load(item.en);
     } catch (error) {
-      wx.showToast({ title: errorMessage(error, '分析失败，请重试'), icon: 'none' });
+      wx.showToast({ title: errorMessage(error, '讲解暂时不可用'), icon: 'none' });
     } finally {
       this.setData({ analyzing: false });
     }
@@ -165,18 +187,5 @@ Page({
     if (this.pronunciationController) this.pronunciationController.playText(this.data.english);
   },
 
-  playExample() {
-    const text = (this.data.analysis && this.data.analysis.exampleEn)
-      || (this.data.item && (this.data.item.sentence || this.data.item.context))
-      || this.data.english;
-    if (text && this.pronunciationController) this.pronunciationController.playText(text);
-  },
-
-  toggleSection(e) {
-    const key = e.currentTarget.dataset.section + 'Expanded';
-    this.setData({ [key]: !this.data[key] });
-  },
-
-  goLibrary() { wx.switchTab({ url: '/pages/library/index' }); },
   goBack() { wx.navigateBack({ delta: 1 }); }
 });

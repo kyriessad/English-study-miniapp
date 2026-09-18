@@ -1,7 +1,18 @@
 const DEVELOPER_EMAIL = '1790624614@qq.com';
 
 Page({
-  data: {},
+  data: {
+    safeTop: 20
+  },
+
+  onLoad() {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.setData({ safeTop: info.statusBarHeight || 20 });
+  },
+
+  goBack() {
+    wx.navigateBack({ fail() { wx.navigateTo({ url: '/pages/settings/index' }); } });
+  },
 
   onContactDeveloper() {
     wx.showModal({

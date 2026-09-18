@@ -1,6 +1,7 @@
-<view class="today-page">
-  <view class="today-hero">
-    <view class="today-hero__icon">●</view>
+<view class="today-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="today-hero" style="padding-right: {{menuRightInset}}px;">
+    <view class="today-back" bindtap="goBack">‹</view>
     <view class="today-hero__title">今天看过</view>
     <view class="today-hero__history-link" bindtap="onHistoryLinkTap">历史记录 ›</view>
   </view>

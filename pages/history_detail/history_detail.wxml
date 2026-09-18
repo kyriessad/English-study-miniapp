@@ -1,4 +1,10 @@
-<view class="history-detail-page">
+<view class="history-detail-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="history-detail-heading">
+    <view class="history-detail-back" bindtap="goBack">‹</view>
+    <view class="history-detail-title">历史详情</view>
+    <view class="history-detail-space"></view>
+  </view>
   <view wx:if="{{loading}}" class="state-card">
     <text>加载中...</text>
   </view>

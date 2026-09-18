@@ -1305,3 +1305,85 @@ page {
     font-size: 34rpx;
   }
 }
+
+/* Liquid theme final layer */
+.add-page {
+  min-height: 100vh;
+  padding: 0 28rpx calc(72rpx + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: transparent;
+  color: #153729;
+  box-sizing: border-box;
+}
+
+.add-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72rpx;
+  padding-top: 70rpx;
+  margin-bottom: 24rpx;
+}
+
+.add-back,
+.add-heading-space {
+  width: 56rpx;
+  height: 56rpx;
+}
+
+.add-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 18rpx;
+  color: #214936;
+  background: rgba(255, 255, 255, .34);
+  font-size: 44rpx;
+  line-height: 1;
+}
+
+.add-title {
+  flex: 1;
+  color: #153729;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 40rpx;
+  font-weight: 400;
+  text-align: center;
+}
+
+.add-page .form-card {
+  min-height: 0;
+  margin: 0;
+  padding: 32rpx 30rpx calc(42rpx + env(safe-area-inset-bottom));
+  border: 2rpx solid rgba(255, 255, 255, .84);
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .34), rgba(249, 253, 250, .16) 55%, rgba(232, 247, 240, .26));
+  box-shadow: inset 0 3rpx 0 rgba(255, 255, 255, .9), 0 18rpx 44rpx rgba(49, 84, 62, .07);
+  -webkit-backdrop-filter: blur(3px) saturate(1.04);
+  backdrop-filter: blur(3px) saturate(1.04);
+}
+
+.add-page .meta-pill { border-color: rgba(255, 255, 255, .78); background: rgba(255, 255, 255, .3); }
+.add-page .meta-pill-text { color: #315543; }
+.add-page .form-item { border-bottom-color: rgba(56, 89, 69, .13); }
+.add-page .label { color: #315543; }
+.add-page .label-subtitle { color: #87978e; }
+.add-page .picker-field,
+.add-page .textarea { border-bottom-color: rgba(62, 94, 73, .24); color: #153729; }
+.add-page .textarea { background: rgba(255, 255, 255, .16); border-radius: 24rpx; padding: 16rpx 18rpx; }
+.add-page .textarea-english { color: #153729; font-family: Baskerville, "Palatino Linotype", Georgia, serif; }
+.add-page .original-pronunciation-btn,
+.add-page .example-pronunciation-btn { background: rgba(255, 255, 255, .36); border-color: rgba(255, 255, 255, .78); }
+.add-page .validation-checking,
+.add-page .validation-format-hint,
+.add-page .validation-unavailable,
+.add-page .ai-service-message { color: #687c71; }
+.add-page .reference-box { border-left-color: rgba(71, 118, 93, .48); background: rgba(236, 246, 239, .38); }
+.add-page .reference-title,
+.add-page .reference-value { color: #315543; }
+.add-page .source-pill { background: rgba(228, 242, 231, .6); color: #47765d; }
+.add-page .primary-btn { background: rgba(55, 105, 78, .86); box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .2), 0 14rpx 28rpx rgba(48, 83, 61, .12); }
+.add-page .secondary-btn { color: #315d48; background: rgba(255, 255, 255, .28); border-color: rgba(255, 255, 255, .8); }
+.add-page .danger-btn { color: #9d5f58; border-color: rgba(189, 111, 101, .48); background: rgba(255, 235, 232, .3); }

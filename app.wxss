@@ -4,6 +4,8 @@ page {
      全部显式接入 --bg-color-page token 后，方可移除此行。
      在此之前，各页面通过 .page / page {} 局部覆盖背景。 */
   background: #ffffff;
+  --custom-tab-bar-height: 112rpx;
+  --custom-tab-bar-space: calc(112rpx + env(safe-area-inset-bottom));
 
   /* ===== Mini Visual Token Dictionary (Phase 5-6B) ===== */
   --bg-color-page: #fbfcf7;
@@ -18,4 +20,735 @@ page {
   --radius-pill: 999rpx;
   --shadow-card: 0 10rpx 26rpx rgba(86, 126, 82, 0.07);
   --space-card: 24rpx;
+}
+
+/* ===== Liquid glass visual language shared by real miniapp pages ===== */
+page .liquid-theme-page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  color: #153729;
+  background-color: #e7f1ea;
+  background-image: url('assets/home/home-ambient-v6.jpg');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+page .liquid-theme-page > .theme-ambient-image {
+  position: fixed;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  opacity: 1;
+  pointer-events: none;
+}
+
+page .liquid-theme-page::before,
+page .liquid-theme-page::after {
+  display: none;
+}
+
+page .liquid-theme-page > view,
+page .liquid-theme-page > scroll-view,
+page .liquid-theme-page > button,
+page .liquid-theme-page > picker,
+page .liquid-theme-page > block,
+page .liquid-theme-page > text {
+  position: relative;
+  z-index: 1;
+}
+
+page .liquid-theme-page button,
+page .liquid-theme-page [bindtap] {
+  transition: opacity .3s ease, transform .3s ease, background-color .3s ease, border-color .3s ease, box-shadow .3s ease;
+}
+
+page .liquid-theme-page button:active,
+page .liquid-theme-page [bindtap]:active {
+  opacity: .86;
+  transform: scale(.986);
+}
+
+page .liquid-theme-page .pressable {
+  transition: transform .16s cubic-bezier(.2, .72, .2, 1), background-color .16s ease, border-color .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+
+page .liquid-theme-page .pressable:active {
+  opacity: 1;
+}
+
+page .liquid-theme-page .pressable.press-on {
+  transform: scale(.97);
+}
+
+page .liquid-theme-page .pressable.press-card.press-on {
+  transform: scale(.985);
+  background: rgba(255, 255, 255, .48);
+  box-shadow: inset 0 4rpx 10rpx rgba(49, 84, 62, .08), 0 6rpx 16rpx rgba(49, 84, 62, .04);
+}
+
+page .liquid-theme-page .pressable.press-pill.press-on {
+  transform: scale(.96);
+  background: rgba(255, 255, 255, .5);
+  box-shadow: inset 0 3rpx 8rpx rgba(49, 84, 62, .1);
+}
+
+page .liquid-theme-page .pressable.press-pill.pack-pill-active.press-on {
+  transform: scale(.96);
+  background: rgba(49, 95, 70, .92);
+  box-shadow: inset 0 3rpx 8rpx rgba(21, 55, 41, .18);
+}
+
+page .liquid-theme-page .pressable.press-glass.press-on {
+  transform: scale(.97);
+  background: rgba(255, 255, 255, .52);
+  box-shadow: inset 0 3rpx 8rpx rgba(49, 84, 62, .1);
+}
+
+page .liquid-theme-page .pressable.press-primary.press-on {
+  transform: scale(.97);
+  background: rgba(40, 84, 60, .94);
+  box-shadow: inset 0 4rpx 8rpx rgba(21, 55, 41, .16);
+}
+
+page .liquid-theme-page button.pressable::after {
+  border: 0;
+}
+
+page .liquid-theme-page .page-title,
+page .liquid-theme-page .detail-en,
+page .liquid-theme-page .library-en,
+page .liquid-theme-page .library-wordbook-en,
+page .liquid-theme-page .material-english,
+page .liquid-theme-page .entry-en,
+page .liquid-theme-page .review-en,
+page .liquid-theme-page .review-quote-line,
+page .liquid-theme-page .recap-en,
+page .liquid-theme-page .history-card__title,
+page .liquid-theme-page .today-card__content,
+page .liquid-theme-page .about-app-name {
+  color: #153729;
+  font-family: Baskerville, "Palatino Linotype", Georgia, "Songti SC", serif;
+  font-weight: 400;
+}
+
+page .liquid-theme-page .page-title,
+page .liquid-theme-page .about-app-name {
+  font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+page .liquid-theme-page .page-subtitle,
+page .liquid-theme-page .section-muted,
+page .liquid-theme-page .state-copy,
+page .liquid-theme-page .library-note,
+page .liquid-theme-page .library-source,
+page .liquid-theme-page .history-stats-line,
+page .liquid-theme-page .today-card__understanding {
+  color: #687c71;
+}
+
+page .liquid-theme-page .action-primary,
+page .liquid-theme-page .primary-btn,
+page .liquid-theme-page .remember-btn:not(.remember-btn-done) {
+  border: 1rpx solid rgba(255, 255, 255, .74);
+  border-radius: 999rpx;
+  color: #f8fffa;
+  background: rgba(55, 105, 78, .84);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .25), 0 14rpx 28rpx rgba(48, 83, 61, .12);
+}
+
+page .liquid-theme-page .action-secondary,
+page .liquid-theme-page .secondary-btn,
+page .liquid-theme-page .outline-button,
+page .liquid-theme-page .manage-button {
+  border: 1rpx solid rgba(255, 255, 255, .8);
+  border-radius: 999rpx;
+  color: #315d48;
+  background: rgba(255, 255, 255, .38);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .core-status,
+page .liquid-theme-page .state-card,
+page .liquid-theme-page .history-empty,
+page .liquid-theme-page .today-empty {
+  color: #60756a;
+}
+
+page .liquid-theme-page .core-status-error,
+page .liquid-theme-page .state-error {
+  color: #9d5f58;
+}
+
+page .liquid-theme-page .inline-sound-image {
+  display: block;
+  width: 34rpx;
+  height: 34rpx;
+  margin: auto;
+}
+
+/* Review home */
+page .liquid-theme-page.review-home-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .review-home-hero {
+  background: transparent;
+}
+
+page .liquid-theme-page .review-leaf-background,
+page .liquid-theme-page .review-leaf-branch,
+page .liquid-theme-page .review-leaf-canopy {
+  display: none;
+}
+
+page .liquid-theme-page .review-home-card {
+  margin: 0 28rpx 28rpx;
+  padding: 46rpx 38rpx 34rpx;
+  border: 2rpx solid rgba(255, 255, 255, .86);
+  border-radius: 46rpx;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .34), rgba(248, 252, 249, .16) 55%, rgba(230, 246, 239, .24));
+  box-shadow: inset 0 3rpx 0 rgba(255, 255, 255, .95), 0 18rpx 44rpx rgba(49, 84, 62, .08);
+  -webkit-backdrop-filter: blur(3px) saturate(1.06);
+  backdrop-filter: blur(3px) saturate(1.06);
+}
+
+page .liquid-theme-page .size-option {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 28rpx;
+  color: #315846;
+  background: rgba(255, 255, 255, .32);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .size-option-active {
+  border-color: rgba(255, 255, 255, .7);
+  color: #fff;
+  background: rgba(70, 112, 87, .78);
+}
+
+/* Review question and recap */
+page .liquid-theme-page.review-page,
+page .liquid-theme-page.recap-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .review-progress-track {
+  background: rgba(255, 255, 255, .52);
+  box-shadow: inset 0 1rpx 2rpx rgba(37, 76, 54, .1);
+}
+
+page .liquid-theme-page .review-progress-fill {
+  background: linear-gradient(90deg, #71957d, #47765d);
+}
+
+page .liquid-theme-page .review-context-label,
+page .liquid-theme-page .review-pronunciation,
+page .liquid-theme-page .unknown-button-wrong,
+page .liquid-theme-page .review-example,
+page .liquid-theme-page .recap-card {
+  border: 1rpx solid rgba(255, 255, 255, .8);
+  background: rgba(255, 255, 255, .36);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .66), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+}
+
+page .liquid-theme-page .option {
+  border: 1rpx solid rgba(255, 255, 255, .86);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, .42);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 10rpx 24rpx rgba(49, 84, 62, .045);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+page .liquid-theme-page .option-correct {
+  border-color: rgba(95, 151, 112, .78);
+  background: rgba(221, 241, 226, .68);
+}
+
+page .liquid-theme-page .option-wrong {
+  border-color: rgba(199, 103, 93, .62);
+  background: rgba(255, 235, 232, .7);
+}
+
+page .liquid-theme-page .recap-check {
+  border: 2rpx solid rgba(255, 255, 255, .82);
+  color: #47765d;
+  background: rgba(224, 241, 228, .58);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .8), 0 16rpx 36rpx rgba(49, 84, 62, .08);
+}
+
+/* Library */
+page .liquid-theme-page.library-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .library-view-tabs,
+page .liquid-theme-page .search-wrap,
+page .liquid-theme-page .library-sort-trigger,
+page .liquid-theme-page .library-wordbook-card {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  background: rgba(255, 255, 255, .34);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .74), 0 10rpx 28rpx rgba(49, 84, 62, .045);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+page .liquid-theme-page .library-view-tabs {
+  border-radius: 999rpx;
+}
+
+page .liquid-theme-page .library-view-tab-active,
+page .liquid-theme-page .filter-tab-active {
+  border-color: rgba(255, 255, 255, .6);
+  color: #fff;
+  background: rgba(69, 111, 86, .8);
+}
+
+page .liquid-theme-page .filter-tab {
+  border-color: rgba(255, 255, 255, .75);
+  background: rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .filter-tab.filter-tab-active {
+  border-color: rgba(255, 255, 255, .64);
+  color: #fff;
+  background: rgba(69, 111, 86, .82);
+}
+
+page .liquid-theme-page .library-list {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+page .liquid-theme-page .library-item-front {
+  background: rgba(255, 255, 255, .28);
+}
+
+page .liquid-theme-page .library-item {
+  border-bottom-color: rgba(67, 100, 80, .12);
+}
+
+page .liquid-theme-page .library-source,
+page .liquid-theme-page .library-wordbook-source {
+  color: #4f705d;
+  background: rgba(228, 241, 230, .58);
+}
+
+page .liquid-theme-page .floating-add,
+page .liquid-theme-page .back-to-top {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  color: #fff;
+  background: rgba(55, 105, 78, .86);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .28), 0 14rpx 32rpx rgba(36, 75, 52, .18);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+page .liquid-theme-page .manage-bar {
+  border-top: 1rpx solid rgba(255, 255, 255, .8);
+  background: rgba(246, 252, 248, .82);
+  box-shadow: 0 -12rpx 34rpx rgba(47, 79, 58, .09);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* Detail */
+page .liquid-theme-page.detail-page,
+page .liquid-theme-page.book-detail-page,
+page .liquid-theme-page.books-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .back {
+  border: 1rpx solid rgba(255, 255, 255, .84);
+  color: #214836;
+  background: rgba(255, 255, 255, .34);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .detail-hero {
+  border: 0;
+  border-bottom: 1rpx solid rgba(59, 91, 71, .14);
+  background: transparent;
+}
+
+page .liquid-theme-page .detail-section,
+page .liquid-theme-page .book-hero,
+page .liquid-theme-page .entry-list,
+page .liquid-theme-page .book-card {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 34rpx;
+  background: rgba(255, 255, 255, .35);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+page .liquid-theme-page .detail-section {
+  padding: 28rpx;
+}
+
+page .liquid-theme-page .analysis-panel {
+  border-top-color: rgba(62, 94, 73, .12);
+  background: rgba(236, 246, 239, .42);
+}
+
+page .liquid-theme-page .sound-btn,
+page .liquid-theme-page .original-pronunciation-btn,
+page .liquid-theme-page .example-pronunciation-btn {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .38);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .68);
+}
+
+page .liquid-theme-page .book-cover {
+  border: 1rpx solid rgba(255, 255, 255, .64);
+  background: linear-gradient(145deg, rgba(118, 153, 128, .82), rgba(65, 109, 82, .86)) !important;
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .32), 8rpx 10rpx 22rpx rgba(50, 84, 61, .12);
+}
+
+page .liquid-theme-page .entry-card {
+  border-bottom-color: rgba(62, 94, 73, .12);
+  background: transparent;
+}
+
+/* Add / edit */
+page .liquid-theme-page.add-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .form-card {
+  border: 2rpx solid rgba(255, 255, 255, .84);
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .34), rgba(249, 253, 250, .16) 55%, rgba(232, 247, 240, .24));
+  box-shadow: inset 0 3rpx 0 rgba(255, 255, 255, .9), 0 18rpx 44rpx rgba(49, 84, 62, .07);
+  -webkit-backdrop-filter: blur(3px) saturate(1.04);
+  backdrop-filter: blur(3px) saturate(1.04);
+}
+
+page .liquid-theme-page .form-item {
+  border-color: rgba(56, 89, 69, .11);
+  background: transparent;
+  box-shadow: none;
+}
+
+page .liquid-theme-page .textarea,
+page .liquid-theme-page .add-textarea {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, .28);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .66);
+}
+
+page .liquid-theme-page .textarea:focus,
+page .liquid-theme-page .add-textarea:focus {
+  border-color: rgba(79, 126, 96, .6);
+  box-shadow: 0 0 0 5rpx rgba(83, 132, 101, .08), inset 0 2rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .meta-pill,
+page .liquid-theme-page .source-pill,
+page .liquid-theme-page .reference-box {
+  border-color: rgba(255, 255, 255, .76);
+  background: rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .68);
+}
+
+page .liquid-theme-page .ai-analyze-btn {
+  border-radius: 999rpx;
+  color: #fff;
+  background: rgba(55, 105, 78, .84);
+}
+
+/* Discover */
+page .liquid-theme-page.discover-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .pack-pill,
+page .liquid-theme-page .search-box,
+page .liquid-theme-page .material-card {
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  background: rgba(255, 255, 255, .35);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+page .liquid-theme-page .pack-pill-active {
+  border-color: rgba(255, 255, 255, .68);
+  color: #fff;
+  background: rgba(69, 111, 86, .8);
+}
+
+page .liquid-theme-page .material-card {
+  border-radius: 38rpx;
+}
+
+page .liquid-theme-page .known-btn {
+  border-color: rgba(255, 255, 255, .76);
+  background: rgba(255, 255, 255, .32);
+}
+
+/* History and today */
+page .liquid-theme-page.history-page,
+page .liquid-theme-page.history-detail-page,
+page .liquid-theme-page.today-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .history-hero__icon,
+page .liquid-theme-page .today-hero__icon {
+  border: 1rpx solid rgba(255, 255, 255, .8);
+  color: #47765d;
+  background: rgba(255, 255, 255, .32);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .7);
+}
+
+page .liquid-theme-page .history-range-select-card,
+page .liquid-theme-page .history-search-card,
+page .liquid-theme-page .history-card,
+page .liquid-theme-page .today-card {
+  border: 1rpx solid rgba(255, 255, 255, .8);
+  border-radius: 34rpx;
+  background: rgba(255, 255, 255, .34);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .7), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+page .liquid-theme-page .history-quick-filter,
+page .liquid-theme-page .today-filter-pill {
+  border-color: rgba(255, 255, 255, .76);
+  background: rgba(255, 255, 255, .3);
+}
+
+page .liquid-theme-page .history-quick-filter--active,
+page .liquid-theme-page .today-filter-pill--active {
+  border-color: rgba(255, 255, 255, .62);
+  color: #fff;
+  background: rgba(69, 111, 86, .8);
+}
+
+page .liquid-theme-page .detail-section .section-title,
+page .liquid-theme-page .history-hero__title,
+page .liquid-theme-page .today-hero__title {
+  color: #214936;
+}
+
+/* Settings and about */
+page .liquid-theme-page.settings-page,
+page .liquid-theme-page.about-page {
+  background: transparent;
+}
+
+page .liquid-theme-page .settings-section,
+page .liquid-theme-page .about-card {
+  overflow: hidden;
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 38rpx;
+  background: rgba(255, 255, 255, .34);
+  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 14rpx 34rpx rgba(49, 84, 62, .055);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+page .liquid-theme-page .settings-item {
+  border-bottom-color: rgba(59, 91, 71, .12);
+  background: transparent;
+}
+
+page .liquid-theme-page .voice-preference-option {
+  min-width: 68rpx;
+  padding: 8rpx 16rpx;
+  border: 0;
+  border-radius: 999rpx;
+  box-sizing: border-box;
+  text-align: center;
+  background: transparent;
+}
+
+page .liquid-theme-page .voice-preference-options {
+  gap: 4rpx;
+  padding: 4rpx;
+  border: 1rpx solid rgba(255, 255, 255, .76);
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, .28);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .72);
+}
+
+page .liquid-theme-page .voice-preference-option--active {
+  color: #fff;
+  background: rgba(69, 111, 86, .8);
+}
+
+page .liquid-theme-page .about-divider {
+  background: rgba(62, 94, 73, .13);
+}
+
+page .liquid-theme-page .step-num,
+page .liquid-theme-page .about-contact-btn {
+  border-color: rgba(255, 255, 255, .68);
+  color: #fff;
+  background: rgba(69, 111, 86, .8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  page .liquid-theme-page button,
+  page .liquid-theme-page [bindtap] {
+    transition: none;
+  }
+}
+
+/* Final shared safeguards: keep foreground controls readable over the ambient layer. */
+page .liquid-theme-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background-color: transparent;
+  background-image: url('assets/home/home-ambient-v6.jpg');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+  color: #153729;
+}
+
+page .liquid-theme-page > .theme-ambient-image {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  opacity: 1;
+}
+
+page .liquid-theme-page .core-status,
+page .liquid-theme-page .state-card,
+page .liquid-theme-page .empty {
+  min-height: 34vh;
+  box-sizing: border-box;
+  padding: 110rpx 32rpx;
+  color: #687c71;
+  background: transparent;
+  text-align: center;
+}
+
+page .liquid-theme-page .core-status-error,
+page .liquid-theme-page .state-error {
+  color: #9d5f58;
+}
+
+/* Swipe actions stay completely behind an opaque-enough front surface until moved. */
+page .liquid-theme-page .library-swipe-actions {
+  z-index: 0;
+}
+
+page .liquid-theme-page .library-list {
+  background: transparent !important;
+}
+
+page .liquid-theme-page .library-item-front {
+  z-index: 2;
+  background: rgba(255, 255, 255, .28) !important;
+}
+
+page .liquid-theme-page .manage-bar {
+  bottom: var(--custom-tab-bar-space);
+  padding-bottom: 0;
+}
+
+page .liquid-theme-page .floating-add,
+page .liquid-theme-page .back-to-top {
+  bottom: calc(24rpx + var(--custom-tab-bar-space));
+}
+
+.tab-enter {
+  opacity: .001;
+}
+
+.tab-enter.is-in {
+  animation: tab-enter-in .4s cubic-bezier(.2, .72, .2, 1) both;
+}
+
+@keyframes tab-enter-in {
+  from {
+    opacity: 0;
+    transform: translateY(16rpx);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-enter.is-in {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+page .liquid-theme-page .text-link {
+  color: #47765d;
+}
+
+/* Content cards stay fully transparent on iOS and Android so the ambient image shows through. */
+page .liquid-theme-page .review-home-card,
+page .liquid-theme-page .size-option:not(.size-option-active),
+page .liquid-theme-page .review-context-label,
+page .liquid-theme-page .review-pronunciation,
+page .liquid-theme-page .unknown-button-wrong,
+page .liquid-theme-page .review-example,
+page .liquid-theme-page .recap-card,
+page .liquid-theme-page .option:not(.option-correct):not(.option-wrong),
+page .liquid-theme-page .library-view-tabs,
+page .liquid-theme-page .search-wrap,
+page .liquid-theme-page .library-sort-trigger,
+page .liquid-theme-page .library-wordbook-card,
+page .liquid-theme-page .filter-tab:not(.filter-tab-active),
+page .liquid-theme-page .back,
+page .liquid-theme-page .detail-section,
+page .liquid-theme-page .book-hero,
+page .liquid-theme-page .entry-list,
+page .liquid-theme-page .book-card,
+page .liquid-theme-page .analysis-panel,
+page .liquid-theme-page .form-card,
+page .liquid-theme-page .form-item,
+page .liquid-theme-page .textarea,
+page .liquid-theme-page .add-textarea,
+page .liquid-theme-page .meta-pill,
+page .liquid-theme-page .source-pill,
+page .liquid-theme-page .reference-box,
+page .liquid-theme-page .pack-pill:not(.pack-pill-active),
+page .liquid-theme-page .search-box,
+page .liquid-theme-page .material-card,
+page .liquid-theme-page .known-btn,
+page .liquid-theme-page .history-range-select-card,
+page .liquid-theme-page .history-search-card,
+page .liquid-theme-page .history-card,
+page .liquid-theme-page .today-card,
+page .liquid-theme-page .history-quick-filter:not(.history-quick-filter--active),
+page .liquid-theme-page .today-filter-pill:not(.today-filter-pill--active),
+page .liquid-theme-page .settings-section,
+page .liquid-theme-page .about-card,
+page .liquid-theme-page .action-secondary,
+page .liquid-theme-page .secondary-btn,
+page .liquid-theme-page .outline-button,
+page .liquid-theme-page .manage-button {
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }

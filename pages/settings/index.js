@@ -28,12 +28,22 @@ function saveDailyGoal(value) {
 
 Page({
   data: {
+    safeTop: 20,
     dailyGoal: DAILY_GOAL_DEFAULT,
     dailyGoalIndex: 1,
     dailyGoalLabel: '5 张',
     dailyGoalLabels: DAILY_GOAL_LABELS,
     pronunciationVoice: getStoredVoice(),
     pronunciationVoiceLabel: getStoredVoice() === 'female' ? '\u5973\u58f0' : '\u7537\u58f0'
+  },
+
+  onLoad() {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.setData({ safeTop: info.statusBarHeight || 20 });
+  },
+
+  goBack() {
+    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/library/index' }); } });
   },
 
   onShow() {

@@ -1,5 +1,10 @@
-<view class="settings-page">
-  <!-- 设置 -->
+<view class="page settings-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="settings-heading">
+    <view class="settings-back" bindtap="goBack">‹</view>
+    <view class="page-title">设置</view>
+  </view>
+
   <view class="settings-section">
     <view class="settings-item">
       <view class="settings-item-label">每次看几张</view>
@@ -26,10 +31,8 @@
     </view>
   </view>
 
-  <!-- 其他 -->
   <view class="settings-section">
     <view class="settings-section-title">其他</view>
-
     <view class="settings-item" bindtap="goToAbout" hover-class="settings-item--hover">
       <view class="settings-item-label">关于</view>
       <view class="settings-item-value">
@@ -37,7 +40,6 @@
         <text class="settings-item-arrow">›</text>
       </view>
     </view>
-
     <view class="settings-item" bindtap="logoutBackend" hover-class="settings-item--hover">
       <view class="settings-item-label">退出登录</view>
       <view class="settings-item-value">

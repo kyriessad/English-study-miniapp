@@ -70,6 +70,7 @@ function normalizeHistoryDetail(raw) {
 
 Page({
   data: {
+    safeTop: 20,
     logId: '',
     detail: null,
     loading: false,
@@ -88,12 +89,16 @@ Page({
     pronunciationVoice: DEFAULT_VOICE
   },
 
+  goBack: function () {
+    wx.navigateBack({ fail() { wx.navigateTo({ url: '/pages/history_reviewed/history_index' }); } });
+  },
+
   onLoad: function (options) {
     this._isUnmounted = false;
     this.pronunciationController = createPronunciationController(this);
-
+    var info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     var logId = options.id || options.log_id || '';
-    this.setData({ pronunciationVoice: getStoredVoice() });
+    this.setData({ pronunciationVoice: getStoredVoice(), safeTop: info.statusBarHeight || 20 });
 
     if (!logId) {
       this.setData({

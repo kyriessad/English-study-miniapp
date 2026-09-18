@@ -1,4 +1,10 @@
-<view class="about-page">
+<view class="about-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="about-heading">
+    <view class="about-back" bindtap="goBack">‹</view>
+    <view class="about-heading-title">关于</view>
+    <view class="about-heading-space"></view>
+  </view>
   <view class="about-card">
     <view class="about-app-name">英语知识卡片本</view>
     <view class="about-tagline">随手记下你遇到的英文，轻松回顾。</view>

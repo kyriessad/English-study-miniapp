@@ -1,6 +1,7 @@
-<view class="page books-page" style="padding-top: {{safeTop}}px;">
+<view class="page books-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="subpage-top">
-    <view class="back" bindtap="goBack">‹</view>
+    <view class="back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
     <view class="subpage-heading">
       <view class="page-title">词汇书</view>
       <view class="page-subtitle">高频词汇轻松积累</view>
@@ -10,7 +11,7 @@
   <view wx:if="{{loading && books.length === 0}}" class="core-status">正在加载词汇书…</view>
   <view wx:elif="{{error && books.length === 0}}" class="core-status core-status-error"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
   <view class="book-list">
-    <view wx:for="{{books}}" wx:key="id" class="book-card" data-code="{{item.code}}" bindtap="openBook">
+    <view wx:for="{{books}}" wx:key="id" class="book-card pressable press-card" data-code="{{item.code}}" hover-class="press-on" hover-stay-time="160" bindtap="openBook">
       <view class="book-cover" style="background:{{item.color}}"><view class="book-cover-mark">{{item.coverMark}}</view></view>
       <view class="book-copy">
         <view class="book-title">{{item.title}}</view>
@@ -21,4 +22,3 @@
   </view>
   <view class="book-footer-note">从词汇书开始，开启高效积累之旅。</view>
 </view>
-

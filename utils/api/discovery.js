@@ -6,7 +6,8 @@ const {
   mapDiscoveryPack,
   mapDiscoveryItem,
   mapDiscoveryListResponse,
-  mapPublicMaterialDetail
+  mapPublicMaterialDetail,
+  mapCard
 } = require('./mappers');
 
 module.exports = {
@@ -55,7 +56,10 @@ module.exports = {
         client_action_id: clientActionId,
         participates_in_review: Boolean(participatesInReview)
       }
-    });
+    }).then((response) => ({
+      status: response && response.status,
+      card: mapCard((response && response.card) || response || {})
+    }));
   },
   setKnown(itemId, known) {
     return transport.request({

@@ -190,7 +190,7 @@ const CARD_TYPE_MAP = {
 };
 
 function mapBackendHistoryItem(item) {
-  const reviewedAt = new Date(item.last_reviewed_at);
+  const reviewedAt = new Date(item.last_reviewed_at || item.lastReviewedAt);
   const year = reviewedAt.getFullYear();
   const month = String(reviewedAt.getMonth() + 1).padStart(2, '0');
   const day = String(reviewedAt.getDate()).padStart(2, '0');
@@ -198,8 +198,8 @@ function mapBackendHistoryItem(item) {
   const minutes = String(reviewedAt.getMinutes()).padStart(2, '0');
 
   return {
-    logId: item.review_log_id ? String(item.review_log_id) : '',
-    cardId: String(item.card_id),
+    logId: item.review_log_id || item.reviewLogId ? String(item.review_log_id || item.reviewLogId) : '',
+    cardId: String(item.card_id || item.cardId || ''),
     englishText: item.content || '',
     myUnderstanding: item.understanding || '',
     notes: item.note || '',
@@ -301,6 +301,7 @@ function normalizeBackendHistorySummary(summary) {
 
 Page({
   data: {
+    safeTop: 20,
     rangeOptions: RANGE_OPTIONS,
     quickFilterOptions: QUICK_FILTER_OPTIONS,
 
@@ -333,6 +334,15 @@ Page({
     usingBackendHistory: false,
     summaryLoadFailed: false,
     offlineEmpty: false
+  },
+
+  onLoad() {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.setData({ safeTop: info.statusBarHeight || 20 });
+  },
+
+  goBack() {
+    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/review/index' }); } });
   },
 
   onShow() {

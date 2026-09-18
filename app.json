@@ -20,13 +20,14 @@
     "navigationBarTitleText": "英语知识卡片本",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f7f8fa"
+    "backgroundColor": "#e7f1ea"
   },
   "lazyCodeLoading": "requiredComponents",
   "tabBar": {
+    "custom": true,
     "color": "#8a968b",
     "selectedColor": "#5eaa64",
-    "backgroundColor": "#ffffff",
+    "backgroundColor": "#eef6f1",
     "borderStyle": "white",
     "list": [
       {
@@ -43,7 +44,7 @@
       },
       {
         "pagePath": "pages/library/index",
-        "text": "我的英语",
+        "text": "卡片",
         "iconPath": "assets/tabbar/library.png",
         "selectedIconPath": "assets/tabbar/library.selected.png"
       }

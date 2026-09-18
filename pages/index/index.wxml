@@ -1,76 +1,105 @@
-<view class="page home-page" style="padding-top: {{safeTop}}px;">
-  <view class="home-glow home-glow-top" aria-hidden="true"></view>
-  <view class="home-glow home-glow-side" aria-hidden="true"></view>
+<page-meta background-color="#e7f1ea"></page-meta>
+<view class="home-ambient" aria-hidden="true">
+  <image class="home-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill"></image>
+</view>
+<view class="page home-page {{isAndroid ? 'is-android' : 'is-ios'}}" style="padding-top: {{safeTop}}px;">
+  <view class="home-content tab-enter {{tabEnter ? 'is-in' : ''}}">
+    <view class="home-masthead">
+      <view class="home-meta" style="padding-right: {{menuRightInset}}px;">
+        <text class="home-meta-label">TODAY</text>
+        <text class="home-date">{{dateLabel}}</text>
+      </view>
+      <view class="home-greeting">{{greeting}}</view>
+      <view class="home-tagline">用英语，遇见更好的自己。</view>
+    </view>
 
-  <view class="home-header">
-    <view class="home-greeting">Hello, Learner!</view>
-    <view class="home-notification" aria-label="通知" role="img"></view>
-  </view>
+    <view wx:if="{{loading && featured.length === 0}}" class="core-status home-status">正在加载今日推荐…</view>
+    <view wx:elif="{{error && featured.length === 0}}" class="core-status core-status-error home-status">
+      <view>{{error}}</view>
+      <button class="text-link liquid-pressable" bindtap="retryLoad" hover-class="liquid-pressed" hover-stay-time="300"><text>重新加载</text></button>
+    </view>
 
-  <view wx:if="{{loading && featured.length === 0}}" class="core-status">正在加载今日推荐…</view>
-  <view wx:elif="{{error && featured.length === 0}}" class="core-status core-status-error">
-    <view>{{error}}</view>
-    <button class="text-link" bindtap="retryLoad">重新加载</button>
-  </view>
-  <view wx:if="{{featured.length > 0}}" class="recommendation-card">
-    <view class="recommendation-hero" data-id="{{featured[0].id}}" bindtap="openFeatured">
-      <view class="recommendation-kicker">今日推荐</view>
-      <view class="recommendation-rule"></view>
+    <view wx:if="{{featured.length > 0}}" class="recommendation-hero liquid-panel" data-id="{{featured[0].id}}" bindtap="openFeatured" hover-class="hero-card-pressed" hover-stay-time="180">
+      <view class="recommendation-heading-row">
+        <view class="recommendation-kicker">DAILY SENTENCE</view>
+        <button class="hero-sound liquid-pressable" catchtap="playFeature" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="300" aria-label="播放今日一句">
+          <image class="sound-icon-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image>
+        </button>
+      </view>
       <view class="recommendation-english {{featured[0].heroTextClass}}">{{featured[0].en}}</view>
-      <view class="feature-quick-actions">
-        <button class="feature-quick-button" catchtap="playFeature">播放</button>
-        <button class="feature-quick-button {{featured[0].saved ? 'feature-quick-button-saved' : ''}}" catchtap="remember" data-id="{{featured[0].id}}">{{featured[0].saved ? '已加入' : '想记住'}}</button>
+      <view class="recommendation-zh">{{featured[0].zh}}</view>
+      <view class="hero-footer" catchtap="stopHeroFooterTap">
+        <view class="hero-footer-space"></view>
+        <button class="hero-remember liquid-pressable {{featured[0].saved ? 'hero-remember-saved' : ''}}" catchtap="rememberHero" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="300">
+          <text>{{featured[0].saved ? '已加入' : '想记住'}}</text>
+          <image class="bookmark-icon-image" src="{{featured[0].saved ? '/assets/home/bookmark-light.svg' : '/assets/home/bookmark.svg'}}" mode="aspectFit" aria-hidden="true"></image>
+        </button>
       </view>
     </view>
 
-    <view class="recommendation-list">
+    <view wx:if="{{featured.length > 1}}" class="today-section">
+      <view class="section-heading-row">
+        <view class="section-heading">Today for you</view>
+      </view>
+
       <block wx:for="{{featured}}" wx:for-index="cardIndex" wx:key="id">
-        <view wx:if="{{cardIndex > 0}}" class="recommendation-row" data-id="{{item.id}}" bindtap="openFeatured">
-          <view class="recommendation-copy">
-            <view class="recommendation-row-en">{{item.en}}</view>
-            <view class="recommendation-row-zh">{{item.zh}}</view>
+        <view wx:if="{{cardIndex > 0}}" class="daily-row liquid-panel liquid-pressable" data-id="{{item.id}}" bindtap="openFeatured" hover-class="liquid-pressed" hover-stay-time="300">
+          <view class="daily-icon-wrap">
+            <image class="daily-icon-image" src="{{cardIndex === 1 ? '/assets/home/sun.svg' : '/assets/home/sprout.svg'}}" mode="aspectFit" aria-hidden="true"></image>
           </view>
-          <button class="row-remember {{item.saved ? 'row-remember-saved' : ''}}" catchtap="remember" data-id="{{item.id}}">{{item.saved ? '已加入' : '想记住'}}</button>
+          <view class="daily-copy">
+            <view class="daily-en">{{item.en}}</view>
+            <view class="daily-zh">{{item.zh}}</view>
+          </view>
+          <button class="daily-remember liquid-pressable {{item.saved ? 'daily-remember-saved' : ''}}" catchtap="remember" data-id="{{item.id}}" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="300">
+            <text>{{item.saved ? '已加入' : '想记住'}}</text>
+          </button>
           <view class="chevron" aria-hidden="true"></view>
         </view>
       </block>
+    </view>
 
-      <view class="home-add-action" bindtap="goAdd" hover-class="home-action-pressed">
+    <view class="home-actions">
+      <button class="home-primary-action liquid-panel liquid-pressable" bindtap="goDiscover" hover-class="liquid-pressed" hover-stay-time="300">
+        <text>发现更多英语</text>
+        <view class="action-arrow" aria-hidden="true"></view>
+      </button>
+      <button class="home-secondary-action liquid-pressable" bindtap="goAdd" hover-class="liquid-pressed" hover-stay-time="300">
         <text class="home-add-plus">＋</text>
         <text>添加英文内容</text>
-      </view>
-    </view>
-  </view>
-
-  <view class="discover-section">
-    <view class="discover-heading" bindtap="goDiscover">发现更多英语</view>
-
-    <view class="discover-row" data-key="life" bindtap="openDiscoverOption">
-      <view class="discover-icon discover-icon-cup" aria-hidden="true"></view>
-      <view class="discover-copy">
-        <view class="discover-title">生活英语</view>
-        <view class="discover-subtitle">日常口语实用场景</view>
-      </view>
-      <view class="chevron" aria-hidden="true"></view>
+      </button>
     </view>
 
-    <view class="discover-row" data-key="reading" bindtap="openDiscoverOption">
-      <view class="discover-icon discover-icon-book" aria-hidden="true"></view>
-      <view class="discover-copy">
-        <view class="discover-title">阅读英语</view>
-        <view class="discover-subtitle">精选短文和故事</view>
-      </view>
-      <view class="chevron" aria-hidden="true"></view>
-    </view>
+    <view class="discover-section">
+      <view class="discover-caption">按场景发现</view>
+      <view class="discover-panel liquid-panel">
+        <view class="discover-row liquid-pressable" data-key="life" bindtap="openDiscoverOption" hover-class="liquid-pressed" hover-stay-time="300">
+          <image class="discover-icon-image" src="/assets/home/cup.svg" mode="aspectFit" aria-hidden="true"></image>
+          <view class="discover-copy">
+            <view class="discover-title">生活英语</view>
+            <view class="discover-subtitle">日常口语实用场景</view>
+          </view>
+          <view class="chevron" aria-hidden="true"></view>
+        </view>
 
-    <view class="discover-row" data-key="books" bindtap="openDiscoverOption">
-      <view class="discover-icon discover-icon-words" aria-hidden="true">A-Z</view>
-      <view class="discover-copy">
-        <view class="discover-title">词汇书</view>
-        <view class="discover-subtitle">高频词汇轻松积累</view>
-      </view>
-      <view class="chevron" aria-hidden="true"></view>
-    </view>
+        <view class="discover-row liquid-pressable" data-key="reading" bindtap="openDiscoverOption" hover-class="liquid-pressed" hover-stay-time="300">
+          <image class="discover-icon-image" src="/assets/home/book.svg" mode="aspectFit" aria-hidden="true"></image>
+          <view class="discover-copy">
+            <view class="discover-title">阅读英语</view>
+            <view class="discover-subtitle">精选短文和故事</view>
+          </view>
+          <view class="chevron" aria-hidden="true"></view>
+        </view>
 
+        <view class="discover-row liquid-pressable" data-key="books" bindtap="openDiscoverOption" hover-class="liquid-pressed" hover-stay-time="300">
+          <image class="discover-icon-image" src="/assets/home/wordbook.svg" mode="aspectFit" aria-hidden="true"></image>
+          <view class="discover-copy">
+            <view class="discover-title">词汇书</view>
+            <view class="discover-subtitle">高频词汇轻松积累</view>
+          </view>
+          <view class="chevron" aria-hidden="true"></view>
+        </view>
+      </view>
+    </view>
   </view>
 </view>

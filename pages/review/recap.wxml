@@ -1,4 +1,5 @@
-<view class="page recap-page" style="padding-top: {{safeTop}}px;">
+<view class="page recap-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="recap-top"><view class="close-button" bindtap="home">×</view><view class="recap-kicker">本轮完成</view></view>
   <view class="recap-celebration"><view class="recap-check">✓</view></view>
   <view class="page-title">{{total}} 条英语已复习完成</view>
@@ -18,4 +19,3 @@
     <button class="text-link" bindtap="home">回到复习首页</button>
   </view>
 </view>
-

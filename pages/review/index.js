@@ -1,15 +1,15 @@
 const api = require('../../utils/api/index');
 const { errorMessage } = require('../../utils/coreViewModels');
+const { attachTabPage } = require('../../utils/tabChrome');
 
 Page({
   data: {
     safeTop: 20,
-    size: 5,
     today: 0,
-    sizes: [5, 10, 15],
     activeSessionId: '',
     loading: false,
-    error: ''
+    error: '',
+    tabEnter: false
   },
 
   onLoad() {
@@ -17,7 +17,10 @@ Page({
     this.setData({ safeTop: info.statusBarHeight || 20 });
   },
 
-  onShow() { this.loadOverview(); },
+  onShow() {
+    attachTabPage(this, 1);
+    this.loadOverview();
+  },
 
   async loadOverview() {
     try {
@@ -35,13 +38,20 @@ Page({
     }
   },
 
-  chooseSize(e) { this.setData({ size: Number(e.currentTarget.dataset.size) }); },
+  reviewLimit() {
+    try {
+      const n = Number(wx.getStorageSync('dailyGoal'));
+      if ([3, 5, 10, 15].indexOf(n) !== -1) return n;
+    } catch (_) {}
+    return 5;
+  },
 
   async start() {
     if (this.data.loading) return;
+    const size = this.reviewLimit();
     if (this.data.activeSessionId) {
       wx.navigateTo({
-        url: '/pages/review/review?session_id=' + this.data.activeSessionId + '&size=' + this.data.size
+        url: '/pages/review/review?session_id=' + this.data.activeSessionId + '&size=' + size
       });
       return;
     }
@@ -49,7 +59,7 @@ Page({
     try {
       const session = await api.reviews.createSession({
         session_type: 'free_review',
-        limit: this.data.size,
+        limit: size,
         restart: false
       });
       if (!session.sessionId || (!session.items.length && !session.currentItem)) {
@@ -66,7 +76,7 @@ Page({
         return;
       }
       wx.navigateTo({
-        url: '/pages/review/review?session_id=' + session.sessionId + '&size=' + this.data.size
+        url: '/pages/review/review?session_id=' + session.sessionId + '&size=' + size
       });
     } catch (error) {
       const message = errorMessage(error, '开始复习失败，请重试');
@@ -81,6 +91,8 @@ Page({
   },
 
   openLibrary() { wx.switchTab({ url: '/pages/library/index' }); },
-  openDiscover() { wx.navigateTo({ url: '/pages/discover/index' }); }
+  openDiscover() { wx.navigateTo({ url: '/pages/discover/index' }); },
+  openToday() { wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' }); },
+  openHistory() { wx.navigateTo({ url: '/pages/history_reviewed/history_index' }); }
 });
 

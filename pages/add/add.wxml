@@ -1,4 +1,9 @@
-<view class="page add-page">
+<view class="page add-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="add-heading">
+    <view class="add-back" bindtap="goBack">‹</view>
+    <view class="add-heading-space"></view>
+  </view>
   <view class="form-card">
 
     <view class="meta-pills">
@@ -35,7 +40,7 @@
             class="original-pronunciation-btn {{pronunciationPlaying ? 'original-pronunciation-btn-active' : ''}}"
             disabled="{{isReadonlyDetailMode || pronunciationLoading || !form.englishText || validationCanPronounce === false}}"
             bindtap="onOriginalPronunciationTap"
-          >🔊</button>
+          ><image class="inline-sound-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></button>
         </view>
       </view>
       <textarea
@@ -155,7 +160,7 @@
         <view class="reference-label">例句</view>
         <view class="reference-example-line">
           <view class="reference-value reference-example">{{aiExampleSentence}}</view>
-          <button class="example-pronunciation-btn {{pronunciationPlaying ? 'example-pronunciation-btn-active' : ''}}" disabled="{{pronunciationLoading}}" bindtap="onNotesExamplePronunciationTap">🔊</button>
+          <button class="example-pronunciation-btn {{pronunciationPlaying ? 'example-pronunciation-btn-active' : ''}}" disabled="{{pronunciationLoading}}" bindtap="onNotesExamplePronunciationTap"><image class="inline-sound-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></button>
         </view>
       </view>
 

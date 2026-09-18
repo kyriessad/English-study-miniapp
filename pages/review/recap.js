@@ -3,6 +3,7 @@ Page({
   onLoad() {
     const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     const recap = wx.getStorageSync('coreReviewRecap') || {};
+    try { wx.setStorageSync('todayReviewedNeedsRefresh', true); } catch (_) {}
     this.setData({
       safeTop: info.statusBarHeight || 20,
       items: Array.isArray(recap.items) ? recap.items : [],

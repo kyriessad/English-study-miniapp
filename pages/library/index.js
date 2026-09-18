@@ -1,5 +1,6 @@
 const api = require('../../utils/api/index');
 const { toCardView, errorMessage } = require('../../utils/coreViewModels');
+const { attachTabPage } = require('../../utils/tabChrome');
 
 const BOOK_MARKS = { cet4: 'CET4', cet6: 'CET6', postgraduate: '考研', ielts: 'IELTS', toefl: 'TOEFL' };
 const SORT_STORAGE_KEY = 'library.sortOrder.v1';
@@ -53,7 +54,9 @@ Page({
     showBackToTop: false,
     swipedCardId: '',
     menuRightInset: 88,
-    floatingTop: 76
+    floatingTop: 76,
+    tabEnter: false,
+    swipeMaxPx: 110
   },
 
   onLoad() {
@@ -81,11 +84,13 @@ Page({
     this.setData({
       safeTop: info.statusBarHeight || 20,
       menuRightInset,
-      floatingTop
+      floatingTop,
+      swipeMaxPx: Math.round((info.windowWidth || 375) * 220 / 750)
     });
   },
 
   onShow() {
+    attachTabPage(this, 2);
     if (this.data.viewMode === 'wordbooks') this.refreshWordbooks();
     else this.refresh();
   },
@@ -228,52 +233,32 @@ Page({
   },
   handleItemTap(e) {
     if (Date.now() < (this.ignoreCardTapUntil || 0)) return;
+    const id = e && e.currentTarget && e.currentTarget.dataset ? e.currentTarget.dataset.id : '';
+    this.openCardById(id);
+  },
+  onCardTap(payload) {
+    if (Date.now() < (this.ignoreCardTapUntil || 0)) return;
+    this.openCardById(payload && payload.id);
+  },
+  openCardById(id) {
+    const cardId = String(id || '');
+    if (!cardId) return;
     if (this.data.managing) {
-      this.toggleSelect(e);
+      this.toggleSelect({ currentTarget: { dataset: { id: cardId } } });
       return;
     }
     if (this.data.swipedCardId) {
       this.setData({ swipedCardId: '' });
       return;
     }
-    this.open(e);
+    this.open({ currentTarget: { dataset: { id: cardId } } });
   },
-  onCardTouchStart(e) {
-    if (this.data.managing) return;
-    const touch = e.touches && e.touches[0];
-    if (!touch) return;
-    this.cardTouch = {
-      id: e.currentTarget.dataset.id,
-      startX: touch.clientX,
-      startY: touch.clientY,
-      x: touch.clientX,
-      y: touch.clientY
-    };
-  },
-  onCardTouchMove(e) {
-    if (!this.cardTouch || this.data.managing) return;
-    const touch = e.touches && e.touches[0];
-    if (!touch) return;
-    this.cardTouch.x = touch.clientX;
-    this.cardTouch.y = touch.clientY;
-  },
-  onCardTouchEnd(e) {
-    if (!this.cardTouch || this.data.managing) return;
-    const gesture = this.cardTouch;
-    this.cardTouch = null;
-    const touch = e.changedTouches && e.changedTouches[0];
-    if (touch) {
-      gesture.x = touch.clientX;
-      gesture.y = touch.clientY;
-    }
-    const deltaX = gesture.x - gesture.startX;
-    const deltaY = gesture.y - gesture.startY;
-    if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-    this.ignoreCardTapUntil = Date.now() + 300;
-    this.setData({ swipedCardId: deltaX < 0 ? gesture.id : '' });
-  },
-  onCardTouchCancel() {
-    this.cardTouch = null;
+  onSwipeSettle(payload) {
+    const open = Boolean(payload && payload.open);
+    const id = open ? String(payload.id || '') : '';
+    this.ignoreCardTapUntil = Date.now() + 280;
+    if (id === this.data.swipedCardId) return;
+    this.setData({ swipedCardId: id });
   },
   onCardLongPress(e) {
     const id = e.currentTarget.dataset.id;
@@ -321,6 +306,7 @@ Page({
     });
   },
   toggleManage() {
+    this.ignoreCardTapUntil = 0;
     this.setData({ managing: !this.data.managing, selectedIds: [], selectedMap: {}, swipedCardId: '' });
   },
   toggleSelect(e) {
@@ -381,5 +367,6 @@ Page({
     this.setData({ showBackToTop: false, swipedCardId: '' });
     wx.pageScrollTo({ scrollTop: 0, duration: 300 });
   },
+  goSettings() { wx.navigateTo({ url: '/pages/settings/index' }); },
   add() { wx.navigateTo({ url: '/pages/add/add' }); }
 });

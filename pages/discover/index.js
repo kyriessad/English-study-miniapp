@@ -1,7 +1,8 @@
 const api = require('../../utils/api/index');
 const { downloadPronunciationAudio } = require('../../utils/apiClient');
 const { getStoredVoice } = require('../../utils/pronunciation');
-const { saveDiscoveryPrefill } = require('../../utils/discoveryPrefill');
+const { errorMessage } = require('../../utils/coreViewModels');
+const { addMaterialToLibrary, removeMaterialFromLibrary } = require('../../utils/materialLibrary');
 
 const PAGE_SIZE = 20;
 const DOMAIN_TITLES = { life: '生活英语', reading: '阅读英语' };
@@ -23,15 +24,25 @@ Page({
     errorMessage: '',
     searchText: '',
     markingItemId: '',
-    playingItemId: ''
+    playingItemId: '',
+    safeTop: 20
   },
 
   onLoad(options) {
     const requestedDomain = String(options && options.domain || '').toLowerCase();
     const domain = DOMAIN_TITLES[requestedDomain] ? requestedDomain : 'life';
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
     this.audioContext = null;
-    this.setData({ domain, domainTitle: DOMAIN_TITLES[domain] });
+    this.setData({
+      domain,
+      domainTitle: DOMAIN_TITLES[domain],
+      safeTop: info.statusBarHeight || 20
+    });
     this.loadCategories();
+  },
+
+  goBack() {
+    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/index/index' }); } });
   },
 
   onUnload() {
@@ -101,11 +112,29 @@ Page({
 
   filterItems(items) {
     const keyword = this.data.searchText.trim().toLowerCase();
-    if (!keyword) return items;
-    return items.filter((item) => [item.content, item.translation, item.chinese]
-      .join(' ')
-      .toLowerCase()
-      .includes(keyword));
+    const filtered = keyword
+      ? items.filter((item) => [item.content, item.translation, item.chinese]
+        .join(' ')
+        .toLowerCase()
+        .includes(keyword))
+      : items.slice();
+    return filtered.sort((a, b) => {
+      const aRank = a.known ? 2 : (a.inLibrary ? 1 : 0);
+      const bRank = b.known ? 2 : (b.inLibrary ? 1 : 0);
+      return aRank - bRank;
+    });
+  },
+
+  onItemTap(event) {
+    const itemId = String(event.currentTarget.dataset.id || '');
+    if (!itemId) return;
+    const url = `/pages/library/detail?id=${itemId}&source=public`;
+    wx.navigateTo({
+      url,
+      fail(error) {
+        console.warn('[discover] open detail failed', error);
+      }
+    });
   },
 
   onCategoryTap(event) {
@@ -157,23 +186,52 @@ Page({
     }
   },
 
-  onRememberTap(event) {
+  async onRememberTap(event) {
     const itemId = String(event.currentTarget.dataset.id || '');
     const item = this.data.sourceItems.find((candidate) => String(candidate.id) === itemId);
-    if (!item) return;
-    if (item.inLibrary) {
-      wx.showToast({ title: '已经在卡片库里了', icon: 'none' });
-      return;
-    }
-    saveDiscoveryPrefill(item, `发现素材 · ${item.categoryTitle || this.data.selectedCategoryTitle}`);
-    const url = '/pages/add/add?from=discovery';
-    wx.navigateTo({
-      url,
-      fail(error) {
-        console.warn('[discover] navigate to add failed; using redirect', error);
-        wx.redirectTo({ url });
+    if (!item || this.data.markingItemId) return;
+    this.setData({ markingItemId: itemId });
+    try {
+      if (item.inLibrary) {
+        await removeMaterialFromLibrary({
+          id: item.id,
+          en: item.content,
+          libraryCardId: item.libraryCardId,
+          libraryCardVersion: item.libraryCardVersion
+        });
+        const sourceItems = this.data.sourceItems.map((candidate) => (
+          String(candidate.id) === itemId
+            ? Object.assign({}, candidate, { inLibrary: false, libraryCardId: '', libraryCardVersion: 0 })
+            : candidate
+        ));
+        this.setData({
+          sourceItems,
+          items: this.filterItems(sourceItems),
+          markingItemId: ''
+        });
+        wx.showToast({ title: '已从卡片中移除', icon: 'none' });
+        return;
       }
-    });
+      const card = await addMaterialToLibrary(itemId);
+      const sourceItems = this.data.sourceItems.map((candidate) => (
+        String(candidate.id) === itemId
+          ? Object.assign({}, candidate, {
+            inLibrary: true,
+            libraryCardId: card.id,
+            libraryCardVersion: card.version
+          })
+          : candidate
+      ));
+      this.setData({
+        sourceItems,
+        items: this.filterItems(sourceItems),
+        markingItemId: ''
+      });
+      wx.showToast({ title: '已加入卡片', icon: 'success' });
+    } catch (error) {
+      this.setData({ markingItemId: '' });
+      wx.showToast({ title: errorMessage(error, item.inLibrary ? '移除失败，请重试' : '加入失败，请重试'), icon: 'none' });
+    }
   },
 
   async onPronounceTap(event) {

@@ -610,7 +610,8 @@ function getLocalValidationResult(text, category) {
 
 Page({
   data: {
-    pageTitle: '',
+    safeTop: 20,
+    pageTitle: '添加卡片',
     isEdit: false,
     isFromReviewMode: false,
     isFromTodayReviewedMode: false,
@@ -1564,7 +1565,13 @@ Page({
     };
   },
 
+  goBack() {
+    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/index/index' }); } });
+  },
+
   onLoad(options) {
+    const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.setData({ safeTop: info.statusBarHeight || 20 });
     logAiStreamDiagnostic('frontend_code_identity', {
       diagnosticVersion: STREAM_DIAGNOSTIC_VERSION
     });
@@ -1701,9 +1708,7 @@ Page({
       isFromHistoryMode: this.data.isFromHistoryMode
     });
 
-    wx.setNavigationBarTitle({
-      title
-    });
+    this.setData({ pageTitle: '' });
   },
 
   scrollToEnglishSection() {

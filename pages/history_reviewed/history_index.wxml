@@ -1,10 +1,7 @@
-<view class="history-page">
-  <!-- 顶部标题区 -->
+<view class="history-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="history-hero">
-    <view class="history-hero__icon">
-      <text class="history-hero__icon-text">◷</text>
-    </view>
-
+    <view class="history-back" bindtap="goBack">‹</view>
     <view class="history-hero__main">
       <view class="history-hero__title">历史记录</view>
     </view>

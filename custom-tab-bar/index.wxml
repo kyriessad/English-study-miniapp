@@ -1,0 +1,19 @@
+<view class="tab-bar">
+  <view class="tab-bar-inner">
+    <view class="tab-indicator" style="transform: translateX({{selected * 100}}%);">
+      <view class="tab-indicator-fill"></view>
+    </view>
+    <view
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="tab-item {{selected === index ? 'is-active' : ''}}"
+      hover-class="tab-item-pressed"
+      hover-stay-time="280"
+      data-index="{{index}}"
+      bindtap="onTap"
+    >
+      <image class="tab-icon" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit" />
+      <text class="tab-text">{{item.text}}</text>
+    </view>
+  </view>
+</view>
