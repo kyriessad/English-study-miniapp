@@ -152,6 +152,9 @@ function issueFromWarning(message, detectedCategory) {
   const spelling = parseSpellingWarning(text);
   if (spelling) return spelling;
   if (text.includes('更像') || text.includes('鐪嬭捣鏉ユ洿鍍')) return categoryMismatchIssue(detectedCategory);
+  if (text.includes('将作为长文本') || text.includes('不进入复习')) {
+    return issue('long_content', 'light', '这段会作为长文本保存', '不进入复习，适合阅读和以后朗读');
+  }
   if (text.includes('内容较长') || text.includes('鍐呭杈冮暱')) {
     return issue('long_content', 'light', '这段内容比较长', '拆成更短的卡片会更容易复习');
   }

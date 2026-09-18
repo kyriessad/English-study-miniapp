@@ -2,5 +2,6 @@
   "navigationStyle": "custom",
   "navigationBarTitleText": "首页",
   "backgroundColor": "#E7F1EA",
-  "backgroundTextStyle": "dark"
+  "backgroundTextStyle": "dark",
+  "disableScroll": true
 }

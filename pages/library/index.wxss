@@ -150,7 +150,8 @@ page { overflow-x:hidden; }
   background: rgba(255, 255, 255, .28) !important;
 }
 
-.library-en { color: #153729; font-family: Baskerville, "Palatino Linotype", Georgia, serif; font-size: 33rpx; }
+.library-en { color: #153729; font-family: Baskerville, "Palatino Linotype", Georgia, serif; font-size: 33rpx; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.library-kind { display: inline-block; margin-top: 10rpx; padding: 4rpx 12rpx; border-radius: 999rpx; background: #e5f0e2; color: #55725a; font-size: 20rpx; }
 .library-zh { color: #315543; font-size: 25rpx; }
 .library-note,
 .library-source { color: #687c71; }
@@ -215,8 +216,12 @@ page { overflow-x:hidden; }
   background: rgba(55, 105, 78, .84);
 }
 
-.floating-add,
 .back-to-top { background: rgba(55, 105, 78, .86); color: #fff; border-color: rgba(255, 255, 255, .82); }
+.floating-add {
+  color: #214936;
+  background: rgba(255, 255, 255, .42);
+  border-color: rgba(255, 255, 255, .86);
+}
 .manage-bar { background: rgba(246, 252, 248, .9); border-top-color: rgba(255, 255, 255, .82); }
 .manage-select-all { color: #315d48; }
 .manage-delete-active { color: #9d5f58; background: rgba(255, 235, 232, .72); }

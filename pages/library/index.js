@@ -1,5 +1,5 @@
 const api = require('../../utils/api/index');
-const { toCardView, errorMessage } = require('../../utils/coreViewModels');
+const { toCardView, toPassageView, errorMessage } = require('../../utils/coreViewModels');
 const { attachTabPage } = require('../../utils/tabChrome');
 
 const BOOK_MARKS = { cet4: 'CET4', cet6: 'CET6', postgraduate: '考研', ielts: 'IELTS', toefl: 'TOEFL' };
@@ -37,7 +37,8 @@ Page({
     tabs: [
       { key: 'all', label: '全部' },
       { key: 'public', label: '公开素材' },
-      { key: 'self', label: '自己添加' }
+      { key: 'self', label: '自己添加' },
+      { key: 'passage', label: '长文本' }
     ],
     cards: [],
     filtered: [],
@@ -113,8 +114,15 @@ Page({
     if (this.data.loading) return;
     this.setData({ loading: true, error: '' });
     try {
-      const response = await api.cards.list({ limit: 100, offset: 0 });
-      const cards = response.items.map(toCardView);
+      const cardResponse = await api.cards.list({ limit: 100, offset: 0 });
+      let passageItems = [];
+      try {
+        const passageResponse = await api.passages.list({ limit: 100, offset: 0 });
+        passageItems = passageResponse.items || [];
+      } catch (_) {
+        passageItems = [];
+      }
+      const cards = cardResponse.items.map(toCardView).concat(passageItems.map(toPassageView));
       this.setData({ cards, filtered: this.filterCards(cards), swipedCardId: '' });
     } catch (error) {
       this.setData({ error: errorMessage(error, '我的英语加载失败') });
@@ -132,7 +140,8 @@ Page({
       const matchesKeyword = !keyword || searchable.indexOf(keyword) >= 0;
       const matchesFilter = this.data.filter === 'all'
         || (this.data.filter === 'public' && card.source === '公开素材')
-        || (this.data.filter === 'self' && card.source === '自己添加');
+        || (this.data.filter === 'self' && card.source === '自己添加')
+        || (this.data.filter === 'passage' && card.kind === 'passage');
       return matchesKeyword && matchesFilter;
     });
     const direction = this.data.sortOrder === 'oldest' ? 1 : -1;
@@ -226,7 +235,13 @@ Page({
     });
   },
   open(e) {
-    wx.navigateTo({ url: '/pages/library/detail?id=' + e.currentTarget.dataset.id + '&source=personal' });
+    const id = e.currentTarget.dataset.id;
+    const item = this.data.cards.find((entry) => entry.id === id);
+    if (item && item.kind === 'passage') {
+      wx.navigateTo({ url: '/pages/library/passage?id=' + encodeURIComponent(id) });
+      return;
+    }
+    wx.navigateTo({ url: '/pages/library/detail?id=' + id + '&source=personal' });
   },
   openWordbookEntry(e) {
     wx.navigateTo({ url: '/pages/library/detail?id=' + e.currentTarget.dataset.id + '&source=public' });
@@ -279,7 +294,12 @@ Page({
   },
   editCard(e) {
     const id = e.currentTarget.dataset.id;
+    const item = this.data.cards.find((entry) => entry.id === id);
     this.setData({ swipedCardId: '' });
+    if (item && item.kind === 'passage') {
+      wx.navigateTo({ url: '/pages/add/add?passageId=' + encodeURIComponent(id) });
+      return;
+    }
     wx.navigateTo({ url: '/pages/add/add?id=' + encodeURIComponent(id) });
   },
   deleteCard(e) {
@@ -294,7 +314,11 @@ Page({
       success: async (result) => {
         if (!result.confirm) return;
         try {
-          await api.cards.remove(id, { baseVersion: card && card.version });
+          if (card && card.kind === 'passage') {
+            await api.passages.remove(id, { baseVersion: card.version });
+          } else {
+            await api.cards.remove(id, { baseVersion: card && card.version });
+          }
           const cards = this.data.cards.filter((item) => item.id !== id);
           this.setData({ cards, filtered: this.filterCards(cards) });
           wx.showToast({ title: '已删除', icon: 'success' });
@@ -340,6 +364,9 @@ Page({
         try {
           await Promise.all(selectedIds.map((id) => {
             const card = this.data.cards.find((item) => item.id === id);
+            if (card && card.kind === 'passage') {
+              return api.passages.remove(id, { baseVersion: card.version });
+            }
             return api.cards.remove(id, { baseVersion: card && card.version });
           }));
           const selectedMap = this.data.selectedMap;

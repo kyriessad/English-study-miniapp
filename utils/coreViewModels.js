@@ -19,6 +19,7 @@ function newClientActionId(prefix) {
 function cardSourceLabel(card) {
   if (card.addChannel === 'public_material') return '公开素材';
   if (card.addChannel === 'wordbook') return '词汇书';
+  if (card.addChannel === 'listening') return '听力';
   return '自己添加';
 }
 
@@ -28,6 +29,7 @@ function toCardView(card) {
   const raw = card.raw || {};
   return {
     id: clean(card.id),
+    kind: 'card',
     en: clean(card.englishText),
     zh: clean(card.translation || card.understanding),
     my: clean(card.understanding),
@@ -42,6 +44,29 @@ function toCardView(card) {
     createdAt: clean(card.createdAt || raw.created_at || raw.createdAt),
     version: Number(card.version || 0),
     raw: card
+  };
+}
+
+function toPassageView(passage) {
+  const preview = clean(passage.content || passage.englishText).replace(/\s+/g, ' ');
+  const raw = passage.raw || passage;
+  return {
+    id: clean(passage.id),
+    kind: 'passage',
+    en: preview,
+    zh: clean(passage.translation || passage.understanding),
+    my: clean(passage.understanding),
+    note: clean(passage.note),
+    where: clean(passage.whereEncountered || passage.where_encountered),
+    context: '',
+    sentence: '',
+    sentenceZh: '',
+    category: '长文本',
+    source: '自己添加',
+    participate: false,
+    createdAt: clean(passage.createdAt || raw.created_at || raw.createdAt),
+    version: Number(passage.version || 0),
+    raw: passage
   };
 }
 
@@ -98,6 +123,7 @@ module.exports = {
   clean,
   newClientActionId,
   toCardView,
+  toPassageView,
   toMaterialView,
   toReviewView,
   errorMessage

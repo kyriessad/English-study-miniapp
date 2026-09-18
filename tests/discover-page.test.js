@@ -31,6 +31,48 @@ function createPage() {
   return page;
 }
 
+test('discover without domain stays on the scene hub', () => {
+  const page = createPage();
+  page.onLoad({});
+  assert.equal(page.data.viewMode, 'hub');
+  assert.equal(page.data.domain, '');
+});
+
+test('discover hub listening option opens listening list', () => {
+  const page = createPage();
+  page.onLoad({});
+  navigationUrl = '';
+  page.openHubOption({ currentTarget: { dataset: { key: 'listening' } } });
+  assert.equal(navigationUrl, '/pages/listening/index');
+});
+
+test('discover hub books option opens wordbooks', () => {
+  const page = createPage();
+  page.onLoad({});
+  navigationUrl = '';
+  page.openHubOption({ currentTarget: { dataset: { key: 'books' } } });
+  assert.equal(navigationUrl, '/pages/wordbooks/index');
+});
+
+test('discover hub life option opens the life list on the same page', () => {
+  const page = createPage();
+  page.loadCategories = async () => {};
+  page.onLoad({});
+  page.openHubOption({ currentTarget: { dataset: { key: 'life' } } });
+  assert.equal(page.data.viewMode, 'list');
+  assert.equal(page.data.domain, 'life');
+  assert.equal(page.data.domainTitle, '生活英语');
+});
+
+test('discover back from list returns to hub when opened from hub', () => {
+  const page = createPage();
+  page.loadCategories = async () => {};
+  page.onLoad({});
+  page.openHubOption({ currentTarget: { dataset: { key: 'reading' } } });
+  page.goBack();
+  assert.equal(page.data.viewMode, 'hub');
+});
+
 test('discover content tap opens public material detail', () => {
   const page = createPage();
   navigationUrl = '';
@@ -53,8 +95,24 @@ test('discover remember tap adds locally without opening the add page', async ()
   page.data.items = page.data.sourceItems.slice();
   await page.onRememberTap({ currentTarget: { dataset: { id: 'material-42' } } });
   assert.equal(navigationUrl, '');
+  assert.equal(page.data.sourceItems[0].id, 'material-42');
+  assert.equal(page.data.items[0].id, 'material-42');
   assert.equal(page.data.sourceItems[0].inLibrary, true);
   assert.equal(page.data.sourceItems[0].libraryCardId, 'card-1');
+});
+
+test('discover remember tap keeps the card in place among neighbors', async () => {
+  const api = require('../utils/api/index');
+  api.discovery.addToLibrary = async () => ({ status: 'created', card: { id: 'card-1', version: 3 } });
+  const page = createPage();
+  page.data.sourceItems = [
+    { id: 'material-1', content: 'First.', chinese: '一', inLibrary: false },
+    { id: 'material-2', content: 'Second.', chinese: '二', inLibrary: false }
+  ];
+  page.data.items = page.data.sourceItems.slice();
+  await page.onRememberTap({ currentTarget: { dataset: { id: 'material-1' } } });
+  assert.deepEqual(page.data.items.map((item) => item.id), ['material-1', 'material-2']);
+  assert.equal(page.data.items[0].inLibrary, true);
 });
 
 test('discover remembered tap removes the card and restores the button', async () => {
@@ -71,6 +129,8 @@ test('discover remembered tap removes the card and restores the button', async (
   }];
   page.data.items = page.data.sourceItems.slice();
   await page.onRememberTap({ currentTarget: { dataset: { id: 'material-42' } } });
+  assert.equal(page.data.sourceItems[0].id, 'material-42');
+  assert.equal(page.data.items[0].id, 'material-42');
   assert.equal(page.data.sourceItems[0].inLibrary, false);
   assert.equal(page.data.sourceItems[0].libraryCardId, '');
 });

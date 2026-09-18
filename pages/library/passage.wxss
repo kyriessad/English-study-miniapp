@@ -1,0 +1,42 @@
+@import "../../styles/core.wxss";
+@import "./detail.wxss";
+
+.passage-hero {
+  margin-top: 24rpx;
+  padding: 8rpx 10rpx 36rpx;
+}
+.passage-kicker {
+  color: #607462;
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+.passage-title {
+  margin-top: 16rpx;
+  color: #17391f;
+  font-size: 36rpx;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.passage-english {
+  margin-top: 28rpx;
+  color: #17391f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 32rpx;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.passage-zh {
+  margin-top: 24rpx;
+  color: #27472d;
+  font-size: 28rpx;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.passage-zh-empty { color: #8a968b; }
+.passage-hint {
+  margin: 28rpx 10rpx 0;
+  color: #687c71;
+  font-size: 23rpx;
+  line-height: 1.5;
+}

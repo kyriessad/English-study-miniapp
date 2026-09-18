@@ -34,6 +34,14 @@ const {
   validationResponseFromCardError
 } = require('../../utils/englishValidation');
 const { consumeDiscoveryPrefill } = require('../../utils/discoveryPrefill');
+const api = require('../../utils/api/index');
+const {
+  CARD_MAX_CONTENT_CHARS,
+  PASSAGE_MAX_CONTENT_CHARS,
+  isPassageContent,
+  measureContentLength,
+  normalizePassageText
+} = require('../../utils/contentKind');
 const PAGE_ANIMATION_SAFE_DELAY = 0;
 const ENGLISH_VALIDATION_DELAY_MS = 1000;
 const LIGHT_VALIDATION_VISIBLE_MS = 5000;
@@ -613,6 +621,10 @@ Page({
     safeTop: 20,
     pageTitle: '添加卡片',
     isEdit: false,
+    isPassageMode: false,
+    isPassageEdit: false,
+    passageId: '',
+    passageVersion: 0,
     isFromReviewMode: false,
     isFromTodayReviewedMode: false,
     isFromHistoryMode: false,
@@ -1464,6 +1476,10 @@ Page({
     return {
       pageTitle: '',
       isEdit,
+      isPassageMode: false,
+      isPassageEdit: false,
+      passageId: '',
+      passageVersion: 0,
       isFromReviewMode,
       isFromTodayReviewedMode,
       isFromHistoryMode,
@@ -1595,7 +1611,8 @@ Page({
     const isFromReviewMode = isFromReviewPage(this.pageOptions);
     const isFromTodayReviewedMode = isFromTodayReviewedPage(this.pageOptions);
     const isFromHistoryMode = isFromHistoryPage(this.pageOptions);
-    const isEdit = Boolean(options.id);
+    const isPassageEdit = Boolean(options.passageId);
+    const isEdit = Boolean(options.id) || isPassageEdit;
 
     let initialData = this.getBasePageState({
       isEdit,
@@ -1603,9 +1620,16 @@ Page({
       isFromTodayReviewedMode,
       isFromHistoryMode
     });
+    initialData.isPassageEdit = isPassageEdit;
+    initialData.isPassageMode = isPassageEdit;
+    initialData.passageId = options.passageId || '';
 
     var cachedCard = null;
-    if (isEdit) {
+    if (isPassageEdit) {
+      this.delayedLoadCardTimer = setTimeout(() => {
+        this.loadPassage(options.passageId);
+      }, PAGE_ANIMATION_SAFE_DELAY);
+    } else if (isEdit) {
       const app = getApp();
       cachedCard = app.globalData && app.globalData.pendingEditCard;
 
@@ -2950,6 +2974,9 @@ Page({
       'form.englishText': nextValue,
       aiServiceMessage: ''
     };
+    if (!this.data.isEdit || this.data.isPassageEdit) {
+      nextData.isPassageMode = this.data.isPassageEdit || isPassageContent(nextValue);
+    }
 
     if (normalizedNextText !== previousText) {
       this.invalidatePendingAnalysis();
@@ -3008,8 +3035,8 @@ Page({
     if (this.data.isReadonlyDetailMode || !this.pronunciationController) return;
     var text = normalizePlainText(this.data.form.englishText);
     if (!text) return;
-    if (text.length > 300) {
-      wx.showToast({ title: '内容较长，暂不支持整段发音', icon: 'none' });
+    if (text.length > CARD_MAX_CONTENT_CHARS || this.data.isPassageMode) {
+      wx.showToast({ title: '长文本暂不支持整段发音', icon: 'none' });
       return;
     }
 
@@ -3313,7 +3340,95 @@ Page({
     });
   },
 
+  async loadPassage(passageId) {
+    let passage = null;
+    try {
+      passage = await api.passages.get(passageId);
+    } catch (error) {
+      passage = null;
+    }
+    if (!passage) {
+      wx.showToast({ title: '长文本不存在', icon: 'none' });
+      setTimeout(() => wx.navigateBack(), 500);
+      return;
+    }
+    this.setData({
+      isEdit: true,
+      isPassageEdit: true,
+      isPassageMode: true,
+      passageId: passage.id,
+      passageVersion: passage.version,
+      cardId: '',
+      showNotesField: Boolean(passage.note),
+      form: {
+        ...createEmptyForm(),
+        category: '句子',
+        englishText: passage.englishText || passage.content || '',
+        whereEncountered: passage.whereEncountered || '',
+        myUnderstanding: passage.understanding || '',
+        notes: passage.note || ''
+      }
+    }, () => {
+      this.setNavigationTitle();
+      this.scheduleEnglishValidation();
+    });
+  },
+
+  async savePassage(nextForm, saveMode) {
+    const { isPassageEdit, passageId, isEdit } = this.data;
+    const shouldContinue = saveMode === 'continue' && !isEdit;
+    const payload = {
+      content: nextForm.englishText,
+      understanding: nextForm.myUnderstanding || null,
+      note: nextForm.notes || null,
+      where_encountered: nextForm.whereEncountered || null
+    };
+    let saved = null;
+    try {
+      if (isPassageEdit && passageId) {
+        payload.base_version = this.data.passageVersion || nextForm.version;
+        saved = await api.passages.update(passageId, payload);
+      } else {
+        saved = await api.passages.create(payload);
+        saveInputContext({
+          examScene: nextForm.examScene,
+          examModule: nextForm.examModule
+        });
+      }
+      saveLastEncounterContext(nextForm.whereEncountered);
+    } catch (error) {
+      if (validationResponseFromCardError(error)) {
+        throw error;
+      }
+      wx.showToast({
+        title: isEdit ? '更新失败' : '保存失败',
+        icon: 'none'
+      });
+      return false;
+    }
+
+    if (shouldContinue) {
+      wx.showToast({ title: '已保存', icon: 'success' });
+      this.resetFormForContinuousAdd(nextForm);
+      this.setData({ isPassageMode: false, isPassageEdit: false, passageId: '' });
+      return saved;
+    }
+
+    this.clearTransientFeedbackBeforeLeave();
+    wx.showToast({
+      title: isEdit ? '已更新' : '已保存',
+      icon: 'success'
+    });
+    setTimeout(() => {
+      wx.navigateBack({ delta: 1 });
+    }, 100);
+    return saved;
+  },
+
   async saveCard(nextForm, saveMode) {
+    if (this.data.isPassageMode || this.data.isPassageEdit) {
+      return this.savePassage(nextForm, saveMode);
+    }
     const { isEdit, cardId } = this.data;
     const shouldContinue = saveMode === 'continue' && !isEdit;
 
@@ -3413,10 +3528,30 @@ Page({
         return;
       }
       const currentForm = this.data.form;
-      const normalizedForSave = String(
-        validation.normalizedText || normalizeEnglishText(currentForm.englishText)
-      );
+      const savingAsPassage = this.data.isPassageEdit || (!this.data.isEdit && isPassageContent(currentForm.englishText));
+      if (this.data.isEdit && !this.data.isPassageEdit && isPassageContent(currentForm.englishText)) {
+        wx.showToast({ title: '卡片太长了，请作为长文本重新添加', icon: 'none' });
+        return;
+      }
+      if (savingAsPassage && measureContentLength(currentForm.englishText) > PASSAGE_MAX_CONTENT_CHARS) {
+        wx.showToast({ title: '长文本超过字数上限', icon: 'none' });
+        return;
+      }
+      const normalizedForSave = savingAsPassage
+        ? normalizePassageText(currentForm.englishText)
+        : String(validation.normalizedText || normalizeEnglishText(currentForm.englishText));
       const categoryForSave = currentForm.category || CARD_CATEGORIES[0];
+
+      if (savingAsPassage) {
+        const savedPassage = await this.savePassage({
+          ...currentForm,
+          englishText: normalizedForSave
+        }, saveMode);
+        if (savedPassage && savedPassage.id) {
+          this.setData({ isPassageMode: true });
+        }
+        return;
+      }
 
       let currentCard = null;
 

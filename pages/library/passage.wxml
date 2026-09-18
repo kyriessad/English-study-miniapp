@@ -1,0 +1,38 @@
+<view wx:if="{{loading}}" class="page detail-page core-status liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <text>正在加载长文本…</text>
+</view>
+<view wx:elif="{{error}}" class="page detail-page core-status core-status-error liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view>{{error}}</view>
+  <button class="text-link pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="retryLoad">重新加载</button>
+</view>
+<view class="page detail-page liquid-theme-page" style="padding-top: {{safeTop}}px;" wx:else>
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="detail-top" style="padding-right: {{menuRightInset}}px;">
+    <view class="back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <view class="detail-top-space"></view>
+    <button class="detail-edit pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goEdit">编辑</button>
+  </view>
+
+  <view class="passage-hero">
+    <view class="passage-kicker">长文本</view>
+    <view class="passage-title">{{title}}</view>
+    <view class="passage-english">{{english}}</view>
+    <view wx:if="{{chinese}}" class="passage-zh">{{chinese}}</view>
+    <view wx:else class="passage-zh passage-zh-empty">暂未填写理解</view>
+  </view>
+
+  <view wx:if="{{whereEncountered || notes}}" class="detail-meta">
+    <view wx:if="{{whereEncountered}}" class="detail-meta-row">
+      <text class="detail-meta-label">来源</text>
+      <text>{{whereEncountered}}</text>
+    </view>
+    <view wx:if="{{notes}}" class="detail-meta-row">
+      <text class="detail-meta-label">备注</text>
+      <text>{{notes}}</text>
+    </view>
+  </view>
+
+  <view class="passage-hint">整篇朗读和选句加入卡片会在后续支持。现在可以先阅读和保存。</view>
+</view>

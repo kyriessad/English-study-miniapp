@@ -581,6 +581,36 @@ function searchFreeExample(text) {
   });
 }
 
+function buildListeningAudioUrl(sourceId) {
+  return buildUrl('/api/listening/materials/' + encodeURIComponent(sourceId) + '/audio');
+}
+
+function downloadListeningAudio(sourceId) {
+  const requestId = makeTtsRequestId();
+  lastTtsRequestId = requestId;
+  return new Promise((resolve, reject) => {
+    const headers = { 'ngrok-skip-browser-warning': '1' };
+    const accessToken = getAccessToken();
+    if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
+    headers['X-Request-ID'] = requestId;
+    wx.downloadFile({
+      url: buildListeningAudioUrl(sourceId),
+      header: headers,
+      timeout: 120000,
+      success(response) {
+        if (response.statusCode === 200) {
+          resolve(response.tempFilePath);
+          return;
+        }
+        reject(new Error('听力音频下载失败'));
+      },
+      fail(error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 function buildPronunciationAudioUrl(text, voice) {
   var params = { text: text };
   if (voice) {
@@ -1213,6 +1243,7 @@ module.exports = {
   buildPronunciationAudioUrl,
   buildTtsDiagnosticTestAudioUrl,
   downloadPronunciationAudio,
+  downloadListeningAudio,
   downloadDiagnosticTestAudio,
   getLastTtsRequestId,
   logTtsDiagnostic,

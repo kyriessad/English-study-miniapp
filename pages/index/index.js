@@ -17,7 +17,7 @@ function heroTextClass(text) {
 
 Page({
   data: {
-    featured: [],
+    featured: null,
     safeTop: 20,
     menuRightInset: 96,
     isAndroid: false,
@@ -71,11 +71,11 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const daily = await api.discovery.getTodayQuote();
-      const featured = daily.items.slice(0, 3).map((item) => {
-        const view = toMaterialView(item);
-        return Object.assign({}, view, { heroTextClass: heroTextClass(view.en) });
+      const item = (daily.items || [])[0];
+      const view = item ? toMaterialView(item) : null;
+      this.setData({
+        featured: view ? Object.assign({}, view, { heroTextClass: heroTextClass(view.en) }) : null
       });
-      this.setData({ featured });
     } catch (error) {
       this.setData({ error: errorMessage(error, '今日推荐加载失败') });
     } finally {
@@ -85,17 +85,11 @@ Page({
 
   retryLoad() { this.refresh(); },
   goDiscover() { wx.navigateTo({ url: '/pages/discover/index' }); },
-  openDiscoverOption(e) {
-    const key = e.currentTarget.dataset.key;
-    if (key === 'books') {
-      wx.navigateTo({ url: '/pages/wordbooks/index' });
-      return;
-    }
-    wx.navigateTo({ url: '/pages/discover/index?domain=' + key });
-  },
   goAdd() { wx.navigateTo({ url: '/pages/add/add' }); },
-  openFeatured(e) {
-    wx.navigateTo({ url: '/pages/library/detail?id=' + e.currentTarget.dataset.id + '&source=public' });
+  openFeatured() {
+    const featured = this.data.featured;
+    if (!featured || !featured.id) return;
+    wx.navigateTo({ url: '/pages/library/detail?id=' + featured.id + '&source=public' });
   },
   onUnload() {
     if (this.audioContext) {
@@ -105,7 +99,7 @@ Page({
   },
 
   async playFeature() {
-    const text = String((this.data.featured[0] && this.data.featured[0].en) || '').trim();
+    const text = String((this.data.featured && this.data.featured.en) || '').trim();
     if (!text || this.data.playingFeature) return;
     this.setData({ playingFeature: true });
     try {
@@ -122,7 +116,7 @@ Page({
   },
 
   rememberHero() {
-    const hero = this.data.featured[0];
+    const hero = this.data.featured;
     if (!hero) return;
     this.remember({ currentTarget: { dataset: { id: hero.id } } });
   },
@@ -131,7 +125,7 @@ Page({
 
   async remember(e) {
     const id = String((e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id) || '');
-    const current = this.data.featured.find((item) => item.id === id);
+    const current = this.data.featured && this.data.featured.id === id ? this.data.featured : null;
     if (!id || !current || this.data.savingIds[id]) return;
     this.savingLock = Object.assign({}, this.savingLock, { [id]: true });
     this.setData({ savingIds: Object.assign({}, this.data.savingIds, { [id]: true }) });
@@ -139,23 +133,19 @@ Page({
       if (current.saved) {
         await removeMaterialFromLibrary(current);
         this.setData({
-          featured: this.data.featured.map((item) => (
-            item.id === id ? Object.assign({}, item, { saved: false, joined: false, libraryCardId: '', libraryCardVersion: 0 }) : item
-          ))
+          featured: Object.assign({}, current, { saved: false, joined: false, libraryCardId: '', libraryCardVersion: 0 })
         });
         wx.showToast({ title: '已从卡片中移除', icon: 'none' });
         return;
       }
       const card = await addMaterialToLibrary(id);
       this.setData({
-        featured: this.data.featured.map((item) => (
-          item.id === id ? Object.assign({}, item, {
-            saved: true,
-            joined: true,
-            libraryCardId: card.id,
-            libraryCardVersion: card.version
-          }) : item
-        ))
+        featured: Object.assign({}, current, {
+          saved: true,
+          joined: true,
+          libraryCardId: card.id,
+          libraryCardVersion: card.version
+        })
       });
       wx.showToast({ title: '已加入卡片', icon: 'success' });
     } catch (error) {

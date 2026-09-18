@@ -5,9 +5,52 @@
     <view class="discover-heading-title">发现</view>
     <view class="discover-heading-space"></view>
   </view>
+
+  <block wx:if="{{viewMode === 'hub'}}">
+    <view class="discover-intro">
+      <view class="discover-title">按场景发现</view>
+      <view class="discover-subtitle">从生活、阅读、听力或词汇书里找一句能用的英语。</view>
+    </view>
+    <view class="discover-hub liquid-panel">
+      <view class="discover-hub-row pressable press-card" data-key="life" hover-class="press-on" hover-stay-time="160" bindtap="openHubOption">
+        <image class="discover-hub-icon" src="/assets/home/cup.svg" mode="aspectFit" aria-hidden="true"></image>
+        <view class="discover-hub-copy">
+          <view class="discover-hub-title">生活英语</view>
+          <view class="discover-hub-subtitle">日常口语实用场景</view>
+        </view>
+        <view class="discover-hub-chevron" aria-hidden="true"></view>
+      </view>
+      <view class="discover-hub-row pressable press-card" data-key="reading" hover-class="press-on" hover-stay-time="160" bindtap="openHubOption">
+        <image class="discover-hub-icon" src="/assets/home/book.svg" mode="aspectFit" aria-hidden="true"></image>
+        <view class="discover-hub-copy">
+          <view class="discover-hub-title">阅读英语</view>
+          <view class="discover-hub-subtitle">精选短文和故事</view>
+        </view>
+        <view class="discover-hub-chevron" aria-hidden="true"></view>
+      </view>
+      <view class="discover-hub-row pressable press-card" data-key="listening" hover-class="press-on" hover-stay-time="160" bindtap="openHubOption">
+        <image class="discover-hub-icon" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image>
+        <view class="discover-hub-copy">
+          <view class="discover-hub-title">听力</view>
+          <view class="discover-hub-subtitle">先听完整对话，再决定记哪一句</view>
+        </view>
+        <view class="discover-hub-chevron" aria-hidden="true"></view>
+      </view>
+      <view class="discover-hub-row pressable press-card" data-key="books" hover-class="press-on" hover-stay-time="160" bindtap="openHubOption">
+        <image class="discover-hub-icon" src="/assets/home/wordbook.svg" mode="aspectFit" aria-hidden="true"></image>
+        <view class="discover-hub-copy">
+          <view class="discover-hub-title">词汇书</view>
+          <view class="discover-hub-subtitle">高频词汇轻松积累</view>
+        </view>
+        <view class="discover-hub-chevron" aria-hidden="true"></view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
   <view class="discover-intro">
     <view class="discover-title">{{domainTitle}}</view>
-    <view class="discover-subtitle">认识的轻轻划过，喜欢的再放进自己的卡片库。</view>
+    <view class="discover-subtitle">不想看的先收起来，喜欢的加进我的英语。</view>
   </view>
 
   <scroll-view class="pack-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
@@ -37,7 +80,7 @@
   <view wx:elif="{{items.length === 0}}" class="state-copy">这一组暂时没有更多内容了</view>
 
   <view class="material-list">
-    <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card">
+    <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card {{leavingItemId == item.id ? 'is-leaving' : ''}}">
       <view
         class="material-card-body pressable press-card"
         data-id="{{item.id}}"
@@ -57,23 +100,35 @@
       </view>
       <view class="material-actions">
         <button
-          class="known-btn pressable press-glass"
+          class="action-icon known-btn pressable press-glass {{markingItemId == item.id ? 'is-busy' : ''}}"
           data-id="{{item.id}}"
           hover-class="press-on"
           hover-stay-time="90"
           hover-stop-propagation="true"
           catchtap="onKnownTap"
-        >认识</button>
+          aria-label="不想再看"
+        >
+          <image class="action-icon-image" src="/assets/home/dismiss.svg" mode="aspectFit" aria-hidden="true"></image>
+        </button>
         <button
-          class="remember-btn pressable {{item.inLibrary ? 'remember-btn-done press-glass' : 'press-primary'}}"
+          class="action-icon remember-btn pressable press-glass {{item.inLibrary ? 'remember-btn-done' : ''}} {{markingItemId == item.id ? 'is-busy' : ''}}"
           data-id="{{item.id}}"
           hover-class="press-on"
           hover-stay-time="90"
           hover-stop-propagation="true"
           catchtap="onRememberTap"
-        >{{item.inLibrary ? '已加入' : '想记住'}}</button>
+          aria-label="{{item.inLibrary ? '已加入，点按可移除' : '加入我的英语'}}"
+        >
+          <image
+            class="action-icon-image"
+            src="{{item.inLibrary ? '/assets/home/check.svg' : '/assets/home/plus.svg'}}"
+            mode="aspectFit"
+            aria-hidden="true"
+          ></image>
+        </button>
       </view>
     </view>
   </view>
   <view wx:if="{{loadingMore}}" class="state-copy">继续加载...</view>
+  </block>
 </view>

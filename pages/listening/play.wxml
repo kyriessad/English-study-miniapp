@@ -1,0 +1,79 @@
+<view wx:if="{{loading}}" class="page listening-play liquid-theme-page core-status" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <text>正在打开听力…</text>
+</view>
+<view wx:elif="{{error}}" class="page listening-play liquid-theme-page core-status core-status-error" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view>{{error}}</view>
+  <button class="text-link pressable press-glass" hover-class="press-on" bindtap="retryLoad">重新加载</button>
+</view>
+<view wx:else class="page listening-play liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="discover-heading">
+    <view class="discover-back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <view class="discover-heading-title">听力</view>
+    <view class="discover-heading-space"></view>
+  </view>
+
+  <view class="play-hero">
+    <view class="play-kicker">{{typeLabel}} · {{category}}</view>
+    <view class="play-title">{{title}}</view>
+    <view class="play-summary">{{summary}}</view>
+  </view>
+
+  <view class="player-card">
+    <button class="play-toggle pressable press-glass" hover-class="press-on" bindtap="togglePlay" aria-label="{{playing ? '暂停' : '播放'}}">
+      <text wx:if="{{audioLoading}}">…</text>
+      <text wx:else>{{playing ? '暂停' : '播放'}}</text>
+    </button>
+    <slider
+      class="play-slider"
+      min="0"
+      max="100"
+      step="1"
+      value="{{progress}}"
+      activeColor="#315d48"
+      backgroundColor="#d7e4d8"
+      block-size="12"
+      bindchange="onSeek"
+    />
+    <view class="play-time">
+      <text>{{currentLabel}}</text>
+      <text>{{durationClock}}</text>
+    </view>
+  </view>
+
+  <button class="transcript-toggle pressable press-glass" hover-class="press-on" bindtap="toggleTranscript">
+    {{transcriptOpen ? '收起原文' : '展开原文'}}
+  </button>
+
+  <view wx:if="{{transcriptOpen}}" class="transcript">
+    <view
+      wx:for="{{segments}}"
+      wx:key="position"
+      class="sentence {{activePosition == item.position ? 'is-active' : ''}}"
+      data-position="{{item.position}}"
+      bindtap="onSentenceTap"
+    >
+      <view class="sentence-top">
+        <view wx:if="{{item.speaker}}" class="sentence-speaker">{{item.speaker}}</view>
+        <button
+          class="sentence-add pressable press-glass {{item.inLibrary ? 'is-done' : ''}}"
+          data-position="{{item.position}}"
+          hover-class="press-on"
+          catchtap="onAddTap"
+          aria-label="{{item.inLibrary ? '已加入' : '加入我的英语'}}"
+        >
+          <image
+            class="sentence-add-icon"
+            src="{{item.inLibrary ? '/assets/home/check.svg' : '/assets/home/plus.svg'}}"
+            mode="aspectFit"
+          ></image>
+        </button>
+      </view>
+      <view class="sentence-en">{{item.text}}</view>
+      <view wx:if="{{item.showChinese}}" class="sentence-zh">{{item.chinese}}</view>
+      <view wx:else class="sentence-zh-hint">点按查看中文</view>
+    </view>
+  </view>
+</view>

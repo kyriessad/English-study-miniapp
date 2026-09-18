@@ -56,6 +56,39 @@ function mapCard(value) {
   };
 }
 
+function mapPassage(value) {
+  const source = asObject(value);
+  return {
+    id: String(source.id || ''),
+    title: source.title || '',
+    content: source.content || source.englishText || source.english_text || '',
+    englishText: source.content || source.englishText || source.english_text || '',
+    kind: source.kind || 'pasted',
+    source: source.source || 'manual',
+    understanding: source.understanding || '',
+    translation: source.translation || '',
+    note: source.note || '',
+    whereEncountered: source.where_encountered || source.whereEncountered || '',
+    audioStatus: source.audio_status || source.audioStatus || 'none',
+    version: Number(source.version || 0),
+    status: source.status || 'active',
+    createdAt: source.created_at || source.createdAt || '',
+    updatedAt: source.updated_at || source.updatedAt || '',
+    raw: source
+  };
+}
+
+function mapPassageListResponse(value) {
+  const source = asObject(value);
+  return {
+    items: Array.isArray(source.items) ? source.items.map(mapPassage) : [],
+    total: Number(source.total || 0),
+    limit: Number(source.limit || 0),
+    offset: Number(source.offset || 0),
+    raw: source
+  };
+}
+
 function mapCardListResponse(value) {
   const source = asObject(value);
   return {
@@ -346,11 +379,64 @@ function mapWordbookProgress(value) {
   };
 }
 
+function formatListeningDuration(item) {
+  const ms = Number(item.duration_ms || item.durationMs || 0);
+  const seconds = ms > 0 ? Math.round(ms / 1000) : Number(item.estimated_duration_seconds || item.estimatedDurationSeconds || 0);
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.max(0, seconds % 60);
+  return mins + ':' + String(secs).padStart(2, '0');
+}
+
+function mapListeningItem(value) {
+  const source = asObject(value);
+  const type = source.item_type || source.itemType || '';
+  const typeLabels = { dialogue: '对话', monologue: '独白', informational: '讲解' };
+  return {
+    id: String(source.id || ''),
+    sourceId: source.source_id || source.sourceId || '',
+    title: source.title || '',
+    category: source.category || '',
+    itemType: type,
+    typeLabel: typeLabels[type] || '听力',
+    difficulty: source.difficulty || '',
+    wordCount: Number(source.word_count || source.wordCount || 0),
+    durationLabel: formatListeningDuration(source),
+    durationMs: Number(source.duration_ms || source.durationMs || 0),
+    chineseSummary: source.chinese_summary || source.chineseSummary || '',
+    audioStatus: source.audio_status || source.audioStatus || 'none',
+    script: source.script || '',
+    segments: Array.isArray(source.segments) ? source.segments.map((row, index) => ({
+      position: Number(row.position || index + 1),
+      speaker: row.speaker || '',
+      text: row.text || '',
+      chinese: row.chinese || '',
+      startMs: row.start_ms == null ? null : Number(row.start_ms),
+      endMs: row.end_ms == null ? null : Number(row.end_ms),
+      inLibrary: Boolean(row.in_library || row.inLibrary),
+      showChinese: false
+    })) : [],
+    raw: source
+  };
+}
+
+function mapListeningListResponse(value) {
+  const source = asObject(value);
+  return {
+    items: Array.isArray(source.items) ? source.items.map(mapListeningItem) : [],
+    total: Number(source.total || 0),
+    raw: source
+  };
+}
+
 module.exports = {
   mapAuthResponse,
   mapUser,
   mapCard,
   mapCardListResponse,
+  mapPassage,
+  mapPassageListResponse,
+  mapListeningItem,
+  mapListeningListResponse,
   mapDiscoveryPack,
   mapDiscoveryItem,
   mapDiscoveryListResponse,

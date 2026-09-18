@@ -7,7 +7,13 @@
   <view class="form-card">
 
     <view class="meta-pills">
-      <block wx:if="{{isReadonlyDetailMode}}">
+      <block wx:if="{{isPassageMode}}">
+        <view class="meta-pill meta-pill-category meta-pill-readonly">
+          <text class="meta-pill-text">长文本</text>
+        </view>
+      </block>
+
+      <block wx:elif="{{isReadonlyDetailMode}}">
         <view class="meta-pill meta-pill-category meta-pill-readonly">
           <text class="meta-pill-text">{{form.category}}</text>
         </view>
@@ -48,7 +54,7 @@
       auto-height
       disabled="{{isReadonlyDetailMode}}"
       focus="{{englishInputFocus}}"
-      placeholder="输入要记录的英文"
+      placeholder="{{isPassageMode ? '粘贴一篇英文，换行会被保留' : '输入要记录的英文'}}"
       value="{{form.englishText}}"
       maxlength="-1"
       bindinput="onEnglishInput"
@@ -239,7 +245,7 @@
     ></textarea>
 </view>
 
-    <view class="form-item form-item-example">
+    <view wx:if="{{!isPassageMode}}" class="form-item form-item-example">
       <view class="label">例句（可选）</view>
       <textarea
         class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
@@ -304,7 +310,7 @@
       disabled="{{isSaving}}"
       bindtap="handleSubmitAndBack"
     >
-      {{isSaving ? '更新中...' : '更新卡片'}}
+      {{isSaving ? '更新中...' : (isPassageMode ? '更新长文本' : '更新卡片')}}
     </button>
 </view>
 

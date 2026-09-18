@@ -1,0 +1,37 @@
+<view class="page listening-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="discover-heading">
+    <view class="discover-back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <view class="discover-heading-title">听力</view>
+    <view class="discover-heading-space"></view>
+  </view>
+  <view class="discover-intro">
+    <view class="discover-title">先听，再看</view>
+    <view class="discover-subtitle">听完整段后再展开原文。值得记住的句子，再放进我的英语。</view>
+  </view>
+  <view wx:if="{{loading}}" class="state-copy">正在准备听力素材…</view>
+  <view wx:elif="{{error}}" class="state-copy state-error">
+    <view>{{error}}</view>
+    <button class="text-link pressable press-glass" hover-class="press-on" bindtap="retryLoad">重新加载</button>
+  </view>
+  <view wx:elif="{{items.length === 0}}" class="state-copy">暂时还没有听力素材</view>
+  <view wx:else class="listening-list">
+    <view
+      wx:for="{{items}}"
+      wx:key="sourceId"
+      class="listening-card pressable press-card"
+      data-id="{{item.sourceId}}"
+      hover-class="press-on"
+      hover-stay-time="160"
+      bindtap="openItem"
+    >
+      <view class="listening-card-meta">
+        <text>{{item.typeLabel}}</text>
+        <text>{{item.category}}</text>
+        <text>{{item.durationLabel}}</text>
+      </view>
+      <view class="listening-card-title">{{item.title}}</view>
+      <view class="listening-card-summary">{{item.chineseSummary}}</view>
+    </view>
+  </view>
+</view>
