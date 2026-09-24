@@ -260,6 +260,7 @@ function mapWordbookReviewItem(value) {
     chinese: source.chinese || '',
     attemptNo: Number(source.attempt_no || source.attemptNo || 1),
     wrongCount: Number(source.wrong_count || source.wrongCount || 0),
+    itemKind: source.item_kind || source.itemKind || 'review',
     flowState: source.flow_state || source.flowState || 'question',
     options: Array.isArray(source.options) ? source.options.map((option) => ({
       optionId: option.option_id || option.optionId || '',
@@ -278,6 +279,8 @@ function mapWordbookReviewSession(value) {
     sessionId: String(source.session_id || source.sessionId || ''),
     resumeToken: source.resume_token || source.resumeToken || null,
     status: source.status || '',
+    plannedNewCount: Number(source.planned_new_count || source.plannedNewCount || 0),
+    plannedReviewCount: Number(source.planned_review_count || source.plannedReviewCount || 0),
     progress: {
       completed: Number(source.progress && source.progress.completed || 0),
       total: Number(source.progress && source.progress.total || 0)
@@ -319,6 +322,11 @@ function mapWordbook(value) {
       state: userState.state || 'not_started',
       learnedCount: Number(userState.learned_count || userState.learnedCount || 0),
       itemCount: Number(userState.item_count || userState.itemCount || source.item_count || source.itemCount || 0),
+      unlearnedCount: Number(userState.unlearned_count || userState.unlearnedCount || 0),
+      dueCount: Number(userState.due_count || userState.dueCount || 0),
+      upcomingNewCount: Number(userState.upcoming_new_count || userState.upcomingNewCount || 0),
+      newWordsPerSession: Number(userState.new_words_per_session || userState.newWordsPerSession || 20),
+      hasActiveSession: Boolean(userState.has_active_session || userState.hasActiveSession),
       nextPosition: userState.next_position === null || userState.nextPosition === null
         ? null
         : Number(userState.next_position || userState.nextPosition || 0) || null,
@@ -379,6 +387,44 @@ function mapWordbookProgress(value) {
   };
 }
 
+function mapWordbookNeighbor(value) {
+  const source = asObject(value);
+  const id = String(source.id || '');
+  const content = source.content || source.englishText || '';
+  if (!id || !content) return null;
+  return { id, content };
+}
+
+function mapWordbookCollocation(value) {
+  const source = asObject(value);
+  const en = String(source.en || source.english || '').trim();
+  if (!en) return null;
+  return { en, zh: String(source.zh || source.chinese || '').trim() };
+}
+
+function mapWordbookEntryDetail(value) {
+  const source = asObject(value);
+  const rank = source.unmastered_rank == null && source.unmasteredRank == null
+    ? null
+    : Number(source.unmastered_rank || source.unmasteredRank || 0);
+  return {
+    book: mapWordbook(source.book),
+    entry: mapWordbookEntry(source.entry),
+    unmasteredRank: rank,
+    unmasteredTotal: Number(source.unmastered_total || source.unmasteredTotal || 0),
+    prevEntry: mapWordbookNeighbor(source.prev_entry || source.prevEntry),
+    nextEntry: mapWordbookNeighbor(source.next_entry || source.nextEntry),
+    collocations: Array.isArray(source.collocations)
+      ? source.collocations.map(mapWordbookCollocation).filter(Boolean)
+      : [],
+    exampleEn: source.example_en || source.exampleEn || '',
+    exampleZh: source.example_zh || source.exampleZh || '',
+    collocationStatus: source.collocation_status || source.collocationStatus || 'pending',
+    usageNote: source.usage_note || source.usageNote || '',
+    raw: source
+  };
+}
+
 function formatListeningDuration(item) {
   const ms = Number(item.duration_ms || item.durationMs || 0);
   const seconds = ms > 0 ? Math.round(ms / 1000) : Number(item.estimated_duration_seconds || item.estimatedDurationSeconds || 0);
@@ -387,18 +433,73 @@ function formatListeningDuration(item) {
   return mins + ':' + String(secs).padStart(2, '0');
 }
 
+function mapListeningTag(value) {
+  const source = asObject(value);
+  const code = String(source.code || source.title || '').trim();
+  if (!code) return null;
+  const kind = source.kind || 'tag';
+  return {
+    code,
+    title: source.title || code,
+    kind,
+    key: kind + ':' + code
+  };
+}
+
+function fallbackListeningTags(source, typeLabels) {
+  const tags = [];
+  const type = source.material_type || source.materialType || '';
+  const pushTag = (kind, code, title) => {
+    if (!code) return;
+    tags.push({ code, title: title || code, kind, key: kind + ':' + code });
+  };
+  if (type) pushTag('material_type', type, typeLabels[type] || type);
+  const context = source.context || '';
+  if (context) pushTag('context', context, source.category || context);
+  const topic = source.topic || '';
+  if (topic) pushTag('topic', topic, String(topic).replace(/[_-]/g, ' '));
+  const rawTags = Array.isArray(source.tags) ? source.tags : [];
+  rawTags.forEach((tag) => {
+    const text = String(tag || '').trim();
+    if (text) pushTag('tag', text, text.replace(/-/g, ' '));
+  });
+  return tags;
+}
+
 function mapListeningItem(value) {
   const source = asObject(value);
-  const type = source.item_type || source.itemType || '';
-  const typeLabels = { dialogue: '对话', monologue: '独白', informational: '讲解' };
+  const type = source.material_type || source.materialType || source.item_type || source.itemType || '';
+  const typeLabels = {
+    dialogue: '对话',
+    monologue: '独白',
+    informational: '讲解',
+    quick_exchange: '短回应',
+    everyday_service_conversation: '日常 / 服务对话',
+    extended_conversation: '长对话',
+    public_announcement: '公共说明 / 通知',
+    news_report: '新闻 / 报道',
+    listening_passage: '听力篇章',
+    educational_discussion: '学习 / 校园讨论',
+    academic_talk: '学术 / 知识讲解'
+  };
+  const difficultyCode = source.target_difficulty || source.targetDifficulty || source.difficulty || '';
+  const difficultyLabels = { basic: '基础', intermediate: '中级', advanced: '进阶', high: '高阶' };
+  const mappedTags = Array.isArray(source.content_tags || source.contentTags)
+    ? (source.content_tags || source.contentTags).map(mapListeningTag).filter(Boolean)
+    : [];
   return {
     id: String(source.id || ''),
     sourceId: source.source_id || source.sourceId || '',
     title: source.title || '',
     category: source.category || '',
     itemType: type,
+    materialType: source.material_type || source.materialType || type,
+    context: source.context || '',
+    topic: source.topic || '',
     typeLabel: typeLabels[type] || '听力',
-    difficulty: source.difficulty || '',
+    targetDifficulty: difficultyCode,
+    difficulty: source.difficulty_label || source.difficultyLabel || difficultyLabels[difficultyCode] || difficultyCode,
+    contentTags: mappedTags.length ? mappedTags : fallbackListeningTags(source, typeLabels),
     wordCount: Number(source.word_count || source.wordCount || 0),
     durationLabel: formatListeningDuration(source),
     durationMs: Number(source.duration_ms || source.durationMs || 0),
@@ -421,9 +522,21 @@ function mapListeningItem(value) {
 
 function mapListeningListResponse(value) {
   const source = asObject(value);
+  const defaultFilters = [
+    { code: 'basic', title: '基础' },
+    { code: 'intermediate', title: '中级' },
+    { code: 'advanced', title: '进阶' },
+    { code: 'high', title: '高阶' }
+  ];
+  const filters = Array.isArray(source.difficulty_filters || source.difficultyFilters)
+    ? (source.difficulty_filters || source.difficultyFilters)
+      .map((row) => ({ code: String(row.code || ''), title: row.title || row.code || '' }))
+      .filter((row) => row.code)
+    : defaultFilters;
   return {
     items: Array.isArray(source.items) ? source.items.map(mapListeningItem) : [],
     total: Number(source.total || 0),
+    difficultyFilters: filters.length ? filters : defaultFilters,
     raw: source
   };
 }
@@ -454,5 +567,6 @@ module.exports = {
   mapWordbookEntry,
   mapWordbookDetail,
   mapWordbookEntryList,
-  mapWordbookProgress
+  mapWordbookProgress,
+  mapWordbookEntryDetail
 };

@@ -8,7 +8,7 @@ function sameText(left, right) {
 
 function isGenericUsage(text) {
   const value = clean(text);
-  return !value || /真实语境中理解和使用/.test(value);
+  return !value || /真实语境中理解和使用/.test(value) || /^listening:[^\s]+:\d+$/.test(value);
 }
 
 function englishSizeClass(text) {

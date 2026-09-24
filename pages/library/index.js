@@ -9,16 +9,16 @@ const SORT_OPTIONS = [
   { key: 'oldest', label: '最早添加' }
 ];
 
-function toWordbookEntryView(entry, book) {
+function toSavedWordbookView(card, booksById) {
+  const book = booksById[card.sourceWordbookId] || {};
   return {
-    id: entry.id,
-    en: entry.englishText,
-    zh: entry.chinese,
-    bookCode: book.code,
-    bookLabel: BOOK_MARKS[book.code] || book.title,
-    source: `${BOOK_MARKS[book.code] || book.title} · 词汇书`,
-    joined: entry.inLibrary,
-    progressState: entry.progressState
+    id: card.id,
+    en: card.englishText,
+    zh: card.understanding || card.translation,
+    bookCode: book.code || '',
+    bookLabel: BOOK_MARKS[book.code] || book.title || '词汇书',
+    source: `${BOOK_MARKS[book.code] || book.title || '词汇书'} · 我的收藏`,
+    sourceWordbookId: card.sourceWordbookId || ''
   };
 }
 
@@ -52,6 +52,11 @@ Page({
     wordbookError: '',
     loading: false,
     error: '',
+    passageError: '',
+    hasMore: false,
+    loadingMore: false,
+    searchScopeLoading: false,
+    wordbookHasMore: false,
     showBackToTop: false,
     swipedCardId: '',
     menuRightInset: 88,
@@ -96,6 +101,8 @@ Page({
     else this.refresh();
   },
 
+  onUnload() { clearTimeout(this.completeBrowseTimer); },
+
   onPageScroll(event) {
     const scrollTop = Number(event && event.scrollTop || 0);
     const delta = scrollTop - (this.lastScrollTop || 0);
@@ -119,11 +126,21 @@ Page({
       try {
         const passageResponse = await api.passages.list({ limit: 100, offset: 0 });
         passageItems = passageResponse.items || [];
+        this.passageOffset = passageItems.length;
+        this.passageHasMore = passageItems.length < passageResponse.total;
+        this.setData({ passageError: '' });
       } catch (_) {
-        passageItems = [];
+        passageItems = this.data.cards.filter((item) => item.kind === 'passage').map((item) => item.raw);
+        this.passageHasMore = false;
+        this.setData({ passageError: '长文本加载失败，请重试；已加载的英语仍可查看。' });
       }
-      const cards = cardResponse.items.map(toCardView).concat(passageItems.map(toPassageView));
-      this.setData({ cards, filtered: this.filterCards(cards), swipedCardId: '' });
+      this.cardOffset = cardResponse.items.length;
+      this.cardHasMore = this.cardOffset < cardResponse.total;
+      const cards = cardResponse.items.map(toCardView)
+        .filter((card) => card.addChannel !== 'wordbook')
+        .concat(passageItems.map(toPassageView));
+      this.setData({ cards, filtered: this.filterCards(cards), swipedCardId: '', hasMore: !!(this.cardHasMore || this.passageHasMore) });
+      if (this.data.keyword || this.data.filter !== 'all' || this.data.sortOrder === 'oldest') this.scheduleCompleteBrowseResults();
     } catch (error) {
       this.setData({ error: errorMessage(error, '我的英语加载失败') });
     } finally {
@@ -152,6 +169,92 @@ Page({
     });
   },
 
+  onReachBottom() { this.loadMore(); },
+  scheduleCompleteBrowseResults() {
+    clearTimeout(this.completeBrowseTimer);
+    this.completeBrowseTimer = setTimeout(() => { this.completeBrowseResults(); }, 300);
+  },
+  async completeBrowseResults() {
+    if (this.completeBrowsePromise) {
+      await this.completeBrowsePromise;
+      if (this.completeBrowseMode !== this.data.viewMode) return this.completeBrowseResults();
+      return;
+    }
+    const mode = this.data.viewMode;
+    this.completeBrowseMode = mode;
+    this.completeBrowsePromise = (async () => {
+      if (mode === 'wordbooks' ? !this.data.wordbookHasMore : !this.data.hasMore) return;
+      this.setData({ searchScopeLoading: true });
+      while (this.data.viewMode === mode && (mode === 'wordbooks' ? this.data.wordbookHasMore : this.data.hasMore)) {
+        if (this.data.loading || this.data.wordbookLoading || this.data.loadingMore) {
+          await new Promise((resolve) => setTimeout(resolve, 60));
+          continue;
+        }
+        const before = mode === 'wordbooks'
+          ? this.wordbookOffset
+          : (this.cardOffset || 0) + (this.passageOffset || 0);
+        await this.loadMore();
+        const after = mode === 'wordbooks'
+          ? this.wordbookOffset
+          : (this.cardOffset || 0) + (this.passageOffset || 0);
+        if (after === before || this.data.error || this.data.wordbookError) break;
+      }
+    })();
+    try { await this.completeBrowsePromise; }
+    finally {
+      this.completeBrowsePromise = null;
+      this.setData({ searchScopeLoading: false });
+    }
+  },
+  async loadMore() {
+    if (this.data.loadingMore || this.data.loading || this.data.wordbookLoading) return;
+    if (this.data.viewMode === 'wordbooks') {
+      if (!this.data.wordbookHasMore) return;
+      this.setData({ loadingMore: true, wordbookError: '' });
+      try {
+        const response = await api.cards.list({ limit: 100, offset: this.wordbookOffset, add_channel: 'wordbook' });
+        const books = {};
+        this.data.wordbooks.forEach((book) => { books[book.id] = book; });
+        this.wordbookOffset += response.items.length;
+        const entries = this.data.wordbookEntries.concat(response.items.map((card) => toSavedWordbookView(card, books)));
+        this.setData({ wordbookEntries: entries, filteredWordbookEntries: this.filterWordbookEntries(entries), wordbookHasMore: response.items.length > 0 && this.wordbookOffset < response.total });
+      } catch (error) {
+        this.setData({ wordbookError: errorMessage(error, '更多收藏加载失败，请重试') });
+      } finally { this.setData({ loadingMore: false }); }
+      return;
+    }
+    if (!this.data.hasMore) return;
+    this.setData({ loadingMore: true, error: '' });
+    try {
+      // Commit each source independently: retry must not skip a successfully fetched page.
+      if (this.cardHasMore) {
+        const response = await api.cards.list({ limit: 100, offset: this.cardOffset });
+        this.cardOffset += response.items.length;
+        this.cardHasMore = response.items.length > 0 && this.cardOffset < response.total;
+        const cards = this.data.cards.concat(response.items.map(toCardView).filter((card) => card.addChannel !== 'wordbook'));
+        this.setData({ cards, filtered: this.filterCards(cards) });
+      }
+      if (this.passageHasMore) {
+        const response = await api.passages.list({ limit: 100, offset: this.passageOffset });
+        this.passageOffset += response.items.length;
+        this.passageHasMore = response.items.length > 0 && this.passageOffset < response.total;
+        const cards = this.data.cards.concat(response.items.map(toPassageView));
+        this.setData({ cards, filtered: this.filterCards(cards) });
+      }
+    } catch (error) {
+      this.setData({ error: errorMessage(error, '更多英语加载失败，请重试') });
+    } finally {
+      this.setData({ loadingMore: false, hasMore: !!(this.cardHasMore || this.passageHasMore) });
+    }
+  },
+
+  resetFilters() {
+    clearTimeout(this.completeBrowseTimer);
+    this.setData({ keyword: '', filter: 'all', selectedBookCode: 'all' }, () => {
+      this.setData({ filtered: this.filterCards(this.data.cards), filteredWordbookEntries: this.filterWordbookEntries(this.data.wordbookEntries) });
+    });
+  },
+
   filterWordbookEntries(entries) {
     const keyword = this.data.keyword.trim().toLowerCase();
     return entries.filter((entry) => {
@@ -165,14 +268,14 @@ Page({
     if (this.data.wordbookLoading) return;
     this.setData({ wordbookLoading: true, wordbookError: '' });
     try {
-      const wordbooks = await api.wordbooks.list();
-      const pages = await Promise.all(wordbooks.map((book) => (
-        api.wordbooks.listEntries(book.code, { limit: 20, offset: 0 })
-      )));
-      const entries = [];
-      pages.forEach((page, index) => {
-        page.items.forEach((entry) => entries.push(toWordbookEntryView(entry, wordbooks[index])));
-      });
+      const [wordbooks, cardResponse] = await Promise.all([
+        api.wordbooks.list(),
+        api.cards.list({ limit: 100, offset: 0, add_channel: 'wordbook' })
+      ]);
+      const booksById = {};
+      wordbooks.forEach((book) => { booksById[book.id] = book; });
+      const entries = (cardResponse.items || []).map((card) => toSavedWordbookView(card, booksById));
+      this.wordbookOffset = (cardResponse.items || []).length;
       const bookFilters = [{ key: 'all', label: '全部' }].concat(wordbooks.map((book) => ({
         key: book.code,
         label: BOOK_MARKS[book.code] || book.title
@@ -182,10 +285,12 @@ Page({
         bookFilters,
         wordbookEntries: entries,
         filteredWordbookEntries: this.filterWordbookEntries(entries),
-        wordbookLoaded: true
+        wordbookLoaded: true,
+        wordbookHasMore: this.wordbookOffset < cardResponse.total
       });
+      if (this.data.keyword || this.data.selectedBookCode !== 'all') this.scheduleCompleteBrowseResults();
     } catch (error) {
-      this.setData({ wordbookError: errorMessage(error, '词汇书内容加载失败') });
+      this.setData({ wordbookError: errorMessage(error, '收藏加载失败') });
     } finally {
       this.setData({ wordbookLoading: false });
     }
@@ -194,8 +299,15 @@ Page({
   switchView(e) {
     const viewMode = e.currentTarget.dataset.view;
     if (!['personal', 'wordbooks'].includes(viewMode) || viewMode === this.data.viewMode) return;
+    clearTimeout(this.completeBrowseTimer);
     this.setData({ viewMode, keyword: '', managing: false, selectedIds: [], selectedMap: {}, swipedCardId: '' });
-    if (viewMode === 'wordbooks' && !this.data.wordbookLoaded) this.refreshWordbooks();
+    if (viewMode === 'wordbooks') {
+      this.setData({ filteredWordbookEntries: this.filterWordbookEntries(this.data.wordbookEntries) });
+      this.refreshWordbooks();
+    } else {
+      this.setData({ filtered: this.filterCards(this.data.cards) });
+      this.refresh();
+    }
   },
 
   search(e) {
@@ -205,9 +317,11 @@ Page({
       } else {
         this.setData({ filtered: this.filterCards(this.data.cards) });
       }
+      if (this.data.keyword.trim()) this.scheduleCompleteBrowseResults();
     });
   },
   clearSearch() {
+    clearTimeout(this.completeBrowseTimer);
     this.setData({ keyword: '' }, () => {
       if (this.data.viewMode === 'wordbooks') {
         this.setData({ filteredWordbookEntries: this.filterWordbookEntries(this.data.wordbookEntries) });
@@ -219,6 +333,7 @@ Page({
   chooseFilter(e) {
     this.setData({ filter: e.currentTarget.dataset.filter }, () => {
       this.setData({ filtered: this.filterCards(this.data.cards) });
+      if (this.data.filter !== 'all') this.scheduleCompleteBrowseResults();
     });
   },
   changeSort(e) {
@@ -227,11 +342,13 @@ Page({
     try { wx.setStorageSync(SORT_STORAGE_KEY, option.key); } catch (_) {}
     this.setData({ sortIndex, sortOrder: option.key, swipedCardId: '' }, () => {
       this.setData({ filtered: this.filterCards(this.data.cards) });
+      if (option.key === 'oldest') this.scheduleCompleteBrowseResults();
     });
   },
   chooseBookFilter(e) {
     this.setData({ selectedBookCode: e.currentTarget.dataset.filter }, () => {
       this.setData({ filteredWordbookEntries: this.filterWordbookEntries(this.data.wordbookEntries) });
+      if (this.data.selectedBookCode !== 'all') this.scheduleCompleteBrowseResults();
     });
   },
   open(e) {
@@ -244,8 +361,9 @@ Page({
     wx.navigateTo({ url: '/pages/library/detail?id=' + id + '&source=personal' });
   },
   openWordbookEntry(e) {
-    wx.navigateTo({ url: '/pages/library/detail?id=' + e.currentTarget.dataset.id + '&source=public' });
+    wx.navigateTo({ url: '/pages/library/detail?id=' + e.currentTarget.dataset.id + '&source=personal' });
   },
+  goWordbooks() { wx.navigateTo({ url: '/pages/wordbooks/index' }); },
   handleItemTap(e) {
     if (Date.now() < (this.ignoreCardTapUntil || 0)) return;
     const id = e && e.currentTarget && e.currentTarget.dataset ? e.currentTarget.dataset.id : '';

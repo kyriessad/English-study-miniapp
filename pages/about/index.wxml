@@ -9,7 +9,7 @@
     <view class="about-app-name">英语知识卡片本</view>
     <view class="about-tagline">随手记下你遇到的英文，轻松回顾。</view>
     <view class="about-divider"></view>
-    <view class="about-desc">这是一个用来记录和回顾英语内容的小程序。你可以把平时在视频、新闻、聊天、工作中遇到的单词、短语或句子添加成卡片，写下自己的理解和遇到场景。之后点击"查看卡片"，系统会帮你挑一些内容轻量回顾。</view>
+    <view class="about-desc">这是一个用来记录和回顾英语内容的小程序。你可以把平时在视频、新闻、聊天、工作中遇到的单词、短语或句子添加成卡片，写下自己的理解和遇到场景，也可以从公开素材、听力和词书开始学习。进入“复习”，回顾自己想记住的英语。</view>
     <view class="about-version">v1.0.0</view>
   </view>
 
@@ -25,15 +25,15 @@
     <view class="about-step">
       <view class="step-num">2</view>
       <view class="step-content">
-        <view class="step-title">查看卡片</view>
-        <view class="step-desc">先回忆，再查看理解。</view>
+        <view class="step-title">开始复习</view>
+        <view class="step-desc">先回忆英文含义，再选择对应理解；不确定时可以选择“不知道”。</view>
       </view>
     </view>
     <view class="about-step">
       <view class="step-num">3</view>
       <view class="step-content">
-        <view class="step-title">反馈记忆</view>
-        <view class="step-desc">选择"没想起 / 有点模糊 / 记得 / 很熟"。</view>
+        <view class="step-title">巩固理解</view>
+        <view class="step-desc">答错后查看提示并再次练习，需要时打开详情，理解后返回继续。</view>
       </view>
     </view>
     <view class="about-step">

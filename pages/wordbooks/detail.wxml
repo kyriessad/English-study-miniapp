@@ -1,16 +1,88 @@
+<wxs src="./swipe.wxs" module="swipe" />
 <view wx:if="{{loading && !book}}" class="page book-detail-page core-status liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><text>正在加载词汇书…</text></view>
 <view wx:elif="{{error && !book}}" class="page book-detail-page core-status core-status-error liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
-<view class="page book-detail-page liquid-theme-page" style="padding-top: {{safeTop}}px;" wx:elif="{{book}}">
+<view wx:elif="{{book}}" class="wordbook-detail-shell liquid-theme-page">
   <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
-  <view class="subpage-top">
+<scroll-view class="page book-detail-page" style="padding-top: {{safeTop}}px;" scroll-y="true" enhanced="true" show-scrollbar="false" bindscrolltolower="loadMore">
+  <view class="subpage-top" style="padding-right: {{menuRightInset}}px;">
     <view class="back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <button class="quick-home pressable press-glass" bindtap="goHome" aria-label="返回首页"><image class="quick-home-icon" src="/assets/tabbar/home.selected.png" mode="aspectFit" aria-hidden="true"></image></button>
     <view class="subpage-heading">
       <view class="page-title">{{book.coverMark}}</view>
-      <view class="page-subtitle">{{book.title}}</view>
     </view>
   </view>
-  <view class="book-hero"><view class="book-cover large"><view class="book-cover-mark">{{book.coverMark}}</view></view><view class="book-hero-copy"><view class="page-title">{{book.count}} 词</view><view class="book-total">{{reviewedCount ? '已复习 ' + reviewedCount + ' 词' : '尚未开始复习'}}</view><view class="progress-line"><view class="progress-track"><view class="progress-fill" style="width:{{progressPercent}}%"></view></view><text>{{book.description}}</text></view></view></view>
-  <view class="book-actions"><button class="action action-primary pressable press-primary" hover-class="press-on" hover-stay-time="90" bindtap="startLearning">{{book.started ? '继续学习' : '开始学习'}}</button></view>
-  <view class="section-head detail-head"><view class="section-title">本书词条</view><view class="section-link">{{entries.length}} 条展示</view></view>
-  <view class="entry-list"><view wx:for="{{entries}}" wx:key="id" class="entry-card pressable press-card" data-id="{{item.id}}" hover-class="press-on" hover-stay-time="160" bindtap="openEntry"><view class="entry-copy"><view class="entry-en">{{item.en}}</view><view class="entry-phonetic">{{item.phonetic}}</view><view class="entry-zh">{{item.zh}}</view><view class="entry-sentence">{{item.sentence}}</view><view wx:if="{{item.reviewed}}" class="entry-reviewed">已复习</view></view><button class="entry-add pressable {{item.joined ? 'entry-add-done press-glass' : 'press-primary'}}" hover-class="press-on" hover-stay-time="90" hover-stop-propagation="true" catchtap="joinPersonal" data-id="{{item.id}}">{{item.joined ? '已加入' : '加入我的英语'}}</button></view></view>
+
+  <view class="book-hero">
+    <view class="book-cover large"><view class="book-cover-mark">{{book.coverMark}}</view></view>
+    <view class="book-hero-copy">
+      <view class="progress-title">学习进度 <text class="progress-count">{{learnedCount}} / {{itemCount}}</text></view>
+      <view class="progress-row">
+        <view class="progress-track"><view class="progress-fill" style="width:{{progressPercent}}%"></view></view>
+        <text class="progress-percent">{{progressPercentLabel}}</text>
+      </view>
+      <view class="book-desc">{{book.description}}</view>
+      <view class="book-today">今日：{{dueCount}} 个待复习 · {{upcomingNewCount}} 个新词</view>
+      <picker mode="selector" range="{{newWordOptions}}" value="{{newWordIndex}}" bindchange="changeNewWordCount">
+        <view class="new-word-chip pressable press-glass" hover-class="press-on" hover-stay-time="90">
+          <view class="new-word-chip-icon"></view>
+          <text>每次新词 {{newWordsPerSession}}</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="book-actions">
+    <button class="study-cta study-cta-primary pressable press-primary" hover-class="press-on" hover-stay-time="90" bindtap="startLearning" disabled="{{ctaDisabled}}">
+      <view class="study-cta-play"></view>
+      <text>{{hasActiveSession ? '继续上次学习' : '开始学习'}}</text>
+    </button>
+  </view>
+
+  <view id="word-list-anchor" class="section-head detail-head">
+    <view class="section-title">全部词表</view>
+    <view class="word-list-tools">
+      <picker mode="selector" range="{{sortOptions}}" range-key="label" value="{{sortIndex}}" bindchange="changeSort">
+        <view class="section-link sort-control" aria-label="切换排序方式">
+          <view class="sort-control-bars" aria-hidden="true"><view class="sort-control-bar"></view><view class="sort-control-bar sort-control-bar-medium"></view><view class="sort-control-bar sort-control-bar-short"></view></view>
+          <text class="sort-control-chevron" aria-hidden="true">⌄</text>
+        </view>
+      </picker>
+      <button class="meaning-toggle pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="toggleMeanings" aria-label="{{showMeanings ? '隐藏词性和释义' : '显示词性和释义'}}">
+        <image class="meaning-toggle-icon" src="{{showMeanings ? '/assets/home/eye-closed.svg' : '/assets/home/eye-open.svg'}}" mode="aspectFit" aria-hidden="true" />
+      </button>
+    </view>
+  </view>
+  <view class="library-filters book-filters">
+    <view class="book-filter-row">
+      <view wx:for="{{filters}}" wx:key="key" class="filter-tab {{progressFilter === item.key ? 'filter-tab-active' : ''}}" data-progress="{{item.key}}" bindtap="chooseFilter">{{item.label}}</view>
+    </view>
+  </view>
+  <view wx:if="{{error}}" class="core-inline-error">{{error}}<button class="text-link" bindtap="retryLoad">重新加载</button></view>
+  <view class="entry-list">
+    <view wx:for="{{entries}}" wx:key="id" class="entry-swipe-row {{swipedCardId === item.id ? 'is-open' : ''}}">
+      <view class="entry-card {{showMeanings ? 'entry-card-meanings-visible' : 'entry-card-meanings-hidden'}} {{swipedCardId === item.id ? 'entry-card-swiped' : ''}} {{progressFilter === 'all' ? 'entry-card-favorite-only' : ''}} {{item.selected ? 'entry-card-selected' : ''}}" data-id="{{item.id}}" data-max="{{swipeMaxPx}}" bindtouchstart="{{swipe.touchStart}}" bindtouchmove="{{swipe.touchMove}}" bindtouchend="{{swipe.touchEnd}}" bindtouchcancel="{{swipe.touchCancel}}">
+        <view class="entry-copy">
+          <view class="entry-selected-bar {{item.selected ? 'is-on' : ''}}"></view>
+          <view class="entry-word-line"><view class="entry-en {{item.selected ? 'entry-en-active' : ''}}">{{item.en}}</view></view>
+          <view wx:if="{{showMeanings}}" class="entry-meaning-list">
+            <view wx:for="{{item.meanings}}" wx:for-item="meaning" wx:key="index" class="entry-meaning-row">
+              <text wx:if="{{meaning.pos}}" class="entry-pos">{{meaning.pos}}</text>
+              <text class="entry-meaning">{{meaning.meaning}}</text>
+            </view>
+          </view>
+        </view>
+        <view class="entry-swipe-actions {{progressFilter === 'all' ? 'entry-swipe-actions-favorite-only' : ''}}">
+          <button class="entry-swipe-star {{item.joined ? 'is-on' : ''}}" data-id="{{item.id}}" catchtap="toggleFavorite" aria-label="{{item.joined ? '取消收藏' : '收藏'}}">
+            <image class="entry-swipe-icon" src="{{item.joined ? '/assets/home/star-filled.svg' : '/assets/home/star.svg'}}" mode="aspectFit" />
+          </button>
+          <button wx:if="{{progressFilter === 'not_started' || progressFilter === 'learning'}}" class="entry-swipe-label" data-id="{{item.id}}" catchtap="masterEntry">已掌握</button>
+          <button wx:elif="{{progressFilter === 'learned'}}" class="entry-swipe-label" data-id="{{item.id}}" catchtap="relearnEntry">重学</button>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{loadingMore}}" class="list-status">正在加载更多…</view>
+    <view wx:elif="{{!hasMore && entries.length}}" class="list-status">共 {{totalEntries}} 词</view>
+    <view wx:elif="{{!loading && entries.length === 0}}" class="list-status">这一栏暂时没有词</view>
+  </view>
+</scroll-view>
 </view>

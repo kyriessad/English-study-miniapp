@@ -4,9 +4,11 @@
   <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="detail-top" style="padding-right: {{menuRightInset}}px;">
     <view class="back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <button class="quick-home pressable press-glass" bindtap="goHome" aria-label="返回首页"><image class="quick-home-icon" src="/assets/tabbar/home.selected.png" mode="aspectFit" aria-hidden="true"></image></button>
+    <view wx:if="{{fromWordbook}}" class="wb-counter">{{learned && progressFilter !== 'learned' ? '已移至已掌握' : '词表 · ' + browseRank + ' / ' + unmasteredTotal}}</view>
     <view class="detail-top-space"></view>
     <button
-      wx:if="{{mode === 'personal' && !fromReview}}"
+      wx:if="{{!fromWordbook && mode === 'personal' && !fromReview}}"
       class="detail-edit pressable press-glass"
       hover-class="press-on"
       hover-stay-time="90"
@@ -14,7 +16,62 @@
     >编辑</button>
   </view>
 
-  <view class="detail-hero">
+  <block wx:if="{{fromWordbook}}">
+    <view class="wb-word">{{english}}</view>
+    <view class="wb-phonetic-row">
+      <view wx:if="{{phoneticDisplay}}" class="wb-phonetic">{{phoneticDisplay}}</view>
+      <button
+        class="sound-btn pressable press-glass {{pronunciationPlaying ? 'sound-btn-playing' : ''}}"
+        disabled="{{pronunciationLoading}}"
+        hover-class="press-on"
+        hover-stay-time="90"
+        aria-label="播放发音"
+        bindtap="play"
+      ><image class="detail-sound-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></button>
+    </view>
+    <view wx:if="{{chinese}}" class="wb-gloss">{{chinese}}</view>
+    <view wx:if="{{usageNote}}" class="wb-usage-note">{{usageNote}}</view>
+    <view wx:if="{{!fromReview}}" class="wb-actions">
+      <button class="wb-tool {{saved ? 'is-on' : ''}}" loading="{{saving}}" disabled="{{saving}}" bindtap="toggleFavorite" aria-label="{{saved ? '取消收藏' : '收藏单词'}}">
+        <image class="wb-tool-image" src="{{saved ? '/assets/home/star-filled.svg' : '/assets/home/star.svg'}}" mode="aspectFit" />
+        <text>{{saved ? '已收藏' : '收藏单词'}}</text>
+      </button>
+      <button wx:if="{{progressFilter !== 'all'}}" class="wb-tool {{learned ? 'is-on' : ''}}" loading="{{markingKnown}}" disabled="{{markingKnown}}" bindtap="toggleMastered" aria-label="{{learned ? '重学' : '标记掌握'}}">
+        <image class="wb-tool-image" src="{{learned ? '/assets/home/check-on.svg' : '/assets/home/check.svg'}}" mode="aspectFit" />
+        <text>{{learned ? '已掌握 · 重学' : '标记掌握'}}</text>
+      </button>
+    </view>
+
+    <view class="wb-section-heading">例句 <text>轻触句子听发音</text></view>
+    <view wx:if="{{exampleEn}}" class="wb-example-row">
+      <view class="wb-example pressable" hover-class="press-on" hover-stay-time="90" bindtap="playExample">
+        <view wx:if="{{exampleLoading}}" class="wb-muted">正在加载例句…</view>
+        <block wx:else>
+          <view class="wb-example-en">{{exampleEn}}</view>
+          <view wx:if="{{exampleZh}}" class="wb-example-zh">{{exampleZh}}</view>
+        </block>
+      </view>
+      <button wx:if="{{exampleEn}}" class="wb-plus pressable press-glass" hover-class="press-on" hover-stay-time="90" loading="{{savingExample}}" disabled="{{savingExample || exampleSaved}}" bindtap="addExample" aria-label="加入我的英语">
+        <text>{{exampleSaved ? '✓ 已加入我的英语' : '＋ 加入我的英语'}}</text>
+      </button>
+    </view>
+    <view wx:if="{{!exampleEn}}" class="wb-empty">例句待补充</view>
+    <view class="wb-section-heading">常见搭配</view>
+    <view wx:if="{{!collocations.length && collocationStatus === 'none'}}" class="wb-empty">该词暂无稳定搭配</view>
+    <view wx:elif="{{!collocations.length}}" class="wb-empty">搭配待补充</view>
+    <view wx:if="{{collocations.length}}" class="wb-collocations">
+      <view wx:for="{{collocations}}" wx:for-index="idx" wx:key="idx" class="wb-collocation">
+        <view class="wb-collocation-en">{{item.en}}</view>
+        <view wx:if="{{item.zh}}" class="wb-collocation-zh">{{item.zh}}</view>
+      </view>
+    </view>
+    <view wx:if="{{!fromReview}}" class="wb-nav">
+      <button class="wb-nav-prev" disabled="{{!prevEntry}}" bindtap="goPrevEntry"><text class="wb-nav-label">‹ 上一个</text><text class="wb-nav-word">{{prevEntry ? prevEntry.content : '已到开头'}}</text></button>
+      <button class="wb-nav-next" disabled="{{!nextEntry}}" bindtap="goNextEntry"><text class="wb-nav-label">下一个 ›</text><text class="wb-nav-word">{{nextEntry ? nextEntry.content : '已到末尾'}}</text></button>
+    </view>
+  </block>
+
+  <view wx:else class="detail-hero">
     <view wx:if="{{sourceChip}}" class="detail-source">{{sourceChip}}</view>
     <view class="detail-word-row">
       <view class="detail-en {{englishClass}}">{{english}}</view>
@@ -25,7 +82,7 @@
         hover-stay-time="90"
         aria-label="播放发音"
         bindtap="play"
-      ></button>
+      ><image class="detail-sound-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></button>
     </view>
     <view wx:if="{{phoneticDisplay}}" class="phonetic-row"><text>{{phoneticDisplay}}</text></view>
     <view wx:if="{{chinese}}" class="detail-zh">{{chinese}}</view>
@@ -43,7 +100,7 @@
     </view>
   </view>
 
-  <view wx:if="{{explanation}}" class="detail-explain">
+  <view wx:if="{{explanation && !fromWordbook}}" class="detail-explain">
     <view class="detail-explain-kicker">讲解</view>
     <view wx:if="{{explanation.meaning}}" class="detail-explain-block">
       <view class="detail-explain-label">补充</view>
@@ -65,7 +122,7 @@
       <view class="detail-explain-copy">{{explanation.relatedText}}</view>
     </view>
   </view>
-  <view wx:elif="{{mode === 'public'}}" class="detail-explain-action">
+  <view wx:elif="{{mode === 'public' && !fromWordbook}}" class="detail-explain-action">
     <button
       class="detail-explain-link pressable press-glass"
       hover-class="press-on"
@@ -76,7 +133,7 @@
     >{{analyzing ? '正在讲解…' : '查看讲解'}}</button>
   </view>
 
-  <view wx:if="{{mode === 'public'}}" class="detail-bottom">
+  <view wx:if="{{mode === 'public' && !fromWordbook}}" class="detail-bottom">
     <button
       class="remember-detail pressable {{saved ? 'remembered press-glass' : 'press-primary'}}"
       hover-class="press-on"
@@ -84,6 +141,8 @@
       loading="{{saving}}"
       disabled="{{saving}}"
       bindtap="remember"
-    >{{saved ? '已加入' : '想记住'}}</button>
+    >{{saved ? '查看我的英语' : '想记住'}}</button>
+    <view class="flow-note">{{saved ? '已保存，在复习页继续巩固' : '加入我的英语，由复习系统安排巩固'}}</view>
   </view>
+  <view wx:if="{{fromReview}}" class="detail-return"><button class="action action-primary" bindtap="goBack">返回继续作答</button></view>
 </view>

@@ -5,13 +5,17 @@ const BOOK_MARKS = { cet4: 'CET4', cet6: 'CET6', postgraduate: '考研', ielts: 
 const BOOK_COLORS = { cet4: '#dce9d8', cet6: '#e0eadf', postgraduate: '#e7eee0', ielts: '#dce9d8', toefl: '#e0eadf' };
 
 function toBookView(book) {
+  const learnedCount = book.userState.learnedCount;
+  const count = book.itemCount;
   return {
     id: book.id,
     code: book.code,
     title: book.title,
     description: book.description,
-    count: book.itemCount,
-    reviewedCount: book.userState.learnedCount,
+    count,
+    learnedCount,
+    started: book.userState.state !== 'not_started',
+    completed: book.userState.state === 'completed',
     coverMark: BOOK_MARKS[book.code] || book.code.toUpperCase(),
     color: BOOK_COLORS[book.code] || '#dce9d8'
   };
@@ -38,6 +42,6 @@ Page({
   },
   retryLoad() { this.refresh(); },
   openBook(e) { wx.navigateTo({ url: '/pages/wordbooks/detail?id=' + e.currentTarget.dataset.code }); },
-  goBack() { wx.navigateBack({ delta: 1 }); }
+  goBack() { wx.navigateBack({ delta: 1 }); },
+  goHome() { wx.switchTab({ url: '/pages/index/index' }); }
 });
-

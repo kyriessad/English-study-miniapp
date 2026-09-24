@@ -1,0 +1,20 @@
+<view class="page recap-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="recap-top" style="padding-right: {{menuRightInset}}px;"><view class="close-button" bindtap="home">×</view><view class="recap-kicker">{{bookLabel}} 本轮完成</view></view>
+  <view class="recap-celebration"><view class="recap-check">✓</view></view>
+  <view class="page-title">本轮学习已结束</view>
+  <view class="recap-subtitle">本次回顾 {{total}} 个答对的词。完成一轮不等于长期掌握，到期后会再遇见。</view>
+  <view class="recap-list">
+    <view wx:for="{{items}}" wx:key="id" class="recap-card" data-id="{{item.id}}" bindtap="open">
+      <view class="recap-body">
+        <view class="recap-en">{{item.en}}</view>
+        <view class="recap-answer">{{item.answer}}</view>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{items.length === 0}}" class="empty">本轮还没有完成的内容</view>
+  <view class="recap-actions">
+    <button class="text-link" bindtap="again">再学一轮（可选）</button>
+    <button class="action action-primary" bindtap="home">完成，返回词汇书</button>
+  </view>
+</view>

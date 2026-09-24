@@ -8,7 +8,7 @@
 .pack-pill-active { color: #356944; border-color: #b9dabe; background: #edf8ef; font-weight: 650; }
 .pack-count { min-width: 30rpx; color: #8a998b; font-size: 21rpx; text-align: center; }
 .search-box { display: flex; align-items: center; gap: 12rpx; height: 76rpx; padding: 0 22rpx; background: #fff; border: 1rpx solid #e5ece2; border-radius: 22rpx; box-sizing: border-box; }
-.search-box input { flex: 1; font-size: 27rpx; }
+.search-box .discover-search-input { flex: 1; font-size: 27rpx; }
 .search-icon { color: #8b978c; }
 .material-list { margin-top: 24rpx; }
 .material-card { margin-bottom: 22rpx; padding: 28rpx; background: #fff; border: 1rpx solid #e8eee5; border-radius: 28rpx; box-shadow: 0 10rpx 26rpx rgba(86,126,82,.06); }
@@ -18,8 +18,8 @@
 .material-english { margin-top: 12rpx; font-size: 34rpx; line-height: 1.45; font-weight: 650; word-break: break-word; }
 .material-chinese { margin-top: 12rpx; color: #657465; font-size: 27rpx; line-height: 1.6; }
 .material-actions { display: flex; justify-content: flex-end; gap: 16rpx; margin-top: 24rpx; }
-.material-actions button { flex: none; }
-.material-actions button::after { border: 0; }
+.material-actions .material-action-btn { flex: none; }
+.material-actions .material-action-btn::after { border: 0; }
 .known-btn,
 .remember-btn,
 .remember-btn-done { background: #f2f4f0; color: #687269; }
@@ -64,7 +64,7 @@
   font-size: 40rpx;
   text-align: center;
 }
-.discover-intro { padding: 18rpx 4rpx 28rpx; }
+.discover-intro { padding: 18rpx 4rpx 18rpx; }
 .discover-title { color: #153729; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 38rpx; font-weight: 600; }
 .discover-subtitle { color: #687c71; font-size: 24rpx; }
 .pack-scroll { margin-bottom: 22rpx; }
@@ -72,7 +72,7 @@
 .pack-pill-active { color: #fff; border-color: rgba(255, 255, 255, .64); background: rgba(69, 111, 86, .8); }
 .pack-count { color: inherit; opacity: .72; }
 .search-box { height: 74rpx; border-color: rgba(255, 255, 255, .82); border-radius: 28rpx; background: rgba(255, 255, 255, .32); box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72); }
-.search-box input { color: #315543; }
+.search-box .discover-search-input { color: #315543; }
 .search-icon { color: #60756a; }
 .material-list { margin-top: 24rpx; }
 .material-card {
@@ -80,8 +80,8 @@
   padding: 18rpx 18rpx 22rpx;
   border-radius: 34rpx;
   border-color: rgba(255, 255, 255, .82);
-  background: rgba(255, 255, 255, .34);
-  box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05);
+  background: rgba(237, 247, 240, .24);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .5), 0 10rpx 24rpx rgba(49, 84, 62, .04);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   transition: opacity .2s ease;
@@ -125,25 +125,25 @@
 }
 .action-icon-image { width: 34rpx; height: 34rpx; }
 .action-icon.is-busy { opacity: .45; }
-page .liquid-theme-page.discover-page .known-btn,
-page .liquid-theme-page.discover-page .remember-btn,
-page .liquid-theme-page.discover-page .remember-btn-done {
+.discover-page .known-btn,
+.discover-page .remember-btn,
+.discover-page .remember-btn-done {
   color: #315d48;
   background: rgba(255, 255, 255, .32);
   border: 1rpx solid rgba(255, 255, 255, .78);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .7);
 }
-page .liquid-theme-page.discover-page .remember-btn-done {
+.discover-page .remember-btn-done {
   background: rgba(255, 255, 255, .46);
 }
-page .liquid-theme-page.discover-page .action-icon.press-on {
+.discover-page .action-icon.press-on {
   transform: scale(.92);
 }
-page .liquid-theme-page.discover-page .known-btn.press-on {
+.discover-page .known-btn.press-on {
   background: rgba(157, 95, 88, .16);
   border-color: rgba(157, 95, 88, .28);
 }
-page .liquid-theme-page.discover-page .remember-btn.press-on {
+.discover-page .remember-btn.press-on {
   background: rgba(255, 255, 255, .58);
 }
 .state-copy { color: #687c71; }
@@ -178,11 +178,6 @@ page .liquid-theme-page.discover-page .remember-btn.press-on {
   font-size: 30rpx;
   font-weight: 600;
 }
-.discover-hub-subtitle {
-  margin-top: 6rpx;
-  color: #728379;
-  font-size: 22rpx;
-}
 .discover-hub-chevron {
   width: 16rpx;
   height: 16rpx;
@@ -190,3 +185,10 @@ page .liquid-theme-page.discover-page .remember-btn.press-on {
   border-right: 3rpx solid #315846;
   transform: rotate(45deg);
 }
+
+.material-actions .remember-label { width: auto; min-width: 180rpx; min-height: 44px; padding: 0 22rpx; display: flex; gap: 12rpx; align-items: center; justify-content: center; color: #315543; font-size: 26rpx; }
+.material-actions .known-btn { min-width: 44px; min-height: 44px; }
+
+.discover-page .material-actions .remember-label { width: auto; min-width: 200rpx; height: auto; min-height: 44px; padding: 12rpx 24rpx; line-height: 1.5; white-space: nowrap; }
+.discover-page .remember-label .action-icon-image { display: none; }
+.discover-page .remember-label:not(.remember-btn-done) { background: #38634c; color: #fff; }

@@ -146,6 +146,8 @@ test('wordbook domain keeps progress and PersonalCard membership separate', () =
   });
   assert.equal(detail.book.userState.learnedCount, 12);
   assert.equal(detail.book.userState.nextPosition, 13);
+  assert.equal(detail.book.userState.dueCount, 0);
+  assert.equal(detail.book.userState.newWordsPerSession, 20);
   assert.equal(detail.nextEntry.progressState, 'learning');
   assert.equal(detail.nextEntry.inLibrary, true);
 
@@ -247,6 +249,7 @@ test('domain API and mappers expose stable camelCase boundaries', async () => {
   assert.equal(wordbookReview.resumeToken, 'resume-1');
   assert.equal(wordbookReview.currentItem.flowState, 'question');
   assert.equal(wordbookReview.currentItem.wrongCount, 1);
+  assert.equal(wordbookReview.currentItem.itemKind, 'review');
   assert.equal(wordbookReview.currentItem.options[0].optionId, 'correct');
   assert.equal(wordbookReview.navigation, 'stay');
 });

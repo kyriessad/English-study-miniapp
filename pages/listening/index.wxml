@@ -9,12 +9,32 @@
     <view class="discover-title">先听，再看</view>
     <view class="discover-subtitle">听完整段后再展开原文。值得记住的句子，再放进我的英语。</view>
   </view>
+  <scroll-view wx:if="{{difficultyFilters.length}}" class="pack-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
+    <view class="pack-row">
+      <view
+        class="pack-pill pressable press-pill {{selectedDifficulty === '' ? 'pack-pill-active' : ''}}"
+        data-code=""
+        hover-class="press-on"
+        hover-stay-time="80"
+        bindtap="onDifficultyTap"
+      >全部</view>
+      <view
+        wx:for="{{difficultyFilters}}"
+        wx:key="code"
+        class="pack-pill pressable press-pill {{selectedDifficulty === item.code ? 'pack-pill-active' : ''}}"
+        data-code="{{item.code}}"
+        hover-class="press-on"
+        hover-stay-time="80"
+        bindtap="onDifficultyTap"
+      >{{item.title}}</view>
+    </view>
+  </scroll-view>
   <view wx:if="{{loading}}" class="state-copy">正在准备听力素材…</view>
   <view wx:elif="{{error}}" class="state-copy state-error">
     <view>{{error}}</view>
     <button class="text-link pressable press-glass" hover-class="press-on" bindtap="retryLoad">重新加载</button>
   </view>
-  <view wx:elif="{{items.length === 0}}" class="state-copy">暂时还没有听力素材</view>
+  <view wx:elif="{{items.length === 0}}" class="state-copy">{{emptyFilter ? '这个难度暂时还没有听力素材' : '暂时还没有听力素材'}}</view>
   <view wx:else class="listening-list">
     <view
       wx:for="{{items}}"
@@ -26,12 +46,19 @@
       bindtap="openItem"
     >
       <view class="listening-card-meta">
-        <text>{{item.typeLabel}}</text>
-        <text>{{item.category}}</text>
+        <text wx:if="{{item.difficulty}}">{{item.difficulty}}</text>
         <text>{{item.durationLabel}}</text>
       </view>
       <view class="listening-card-title">{{item.title}}</view>
       <view class="listening-card-summary">{{item.chineseSummary}}</view>
+      <view wx:if="{{item.contentTags.length}}" class="listening-card-tags">
+        <text
+          wx:for="{{item.contentTags}}"
+          wx:for-item="tag"
+          wx:key="key"
+          class="listening-tag"
+        >{{tag.title}}</text>
+      </view>
     </view>
   </view>
 </view>

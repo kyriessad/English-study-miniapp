@@ -13,6 +13,7 @@ global.wx = {
   getStorageSync(key) { return storage.get(key) || ''; },
   setStorageSync(key, value) { storage.set(key, value); },
   removeStorageSync(key) { storage.delete(key); },
+  getWindowInfo() { return { statusBarHeight: 20, windowWidth: 375 }; },
   showToast() {},
   navigateBack() {},
   setNavigationBarTitle() {},
@@ -56,7 +57,7 @@ mockModule('../utils/apiClient', {
   logTtsDiagnostic() {}
 });
 mockModule('../utils/pronunciation', {
-  createPronunciationController: () => null,
+  createPronunciationController: () => ({ load() {}, destroy() {} }),
   getStoredVoice: () => 'female',
   DEFAULT_VOICE: 'female'
 });
@@ -105,6 +106,30 @@ function createPage(text = 'becuase', category = '单词') {
   };
   return page;
 }
+
+test('new add form restores a persisted draft after a page reload', () => {
+  const draftKey = 'englishCard.addDraft.v1';
+  storage.delete(draftKey);
+
+  const firstPage = createPage('');
+  firstPage.onEnglishInput({ detail: { value: 'carry over' } });
+  assert.equal(storage.has(draftKey), true);
+  firstPage.onUnload();
+
+  const restoredPage = Object.assign({}, pageDefinition);
+  restoredPage.data = JSON.parse(JSON.stringify(pageDefinition.data));
+  restoredPage.setData = function (patch, callback) {
+    Object.keys(patch).forEach((key) => setByPath(this.data, key, patch[key]));
+    if (callback) callback();
+  };
+  restoredPage.onLoad({});
+  assert.equal(restoredPage.data.form.englishText, 'carry over');
+  assert.equal(restoredPage.data.draftRestored, true);
+
+  restoredPage.discardDraft();
+  assert.equal(storage.has(draftKey), false);
+  restoredPage.onUnload();
+});
 
 test('editing clears an old warning immediately and the 1000ms preflight replaces it with silent PASS', async () => {
   const page = createPage();

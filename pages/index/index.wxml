@@ -10,18 +10,61 @@
         <text class="home-date">{{dateLabel}}</text>
       </view>
       <view class="home-greeting">{{greeting}}</view>
+      <view class="home-tagline">遇见英语，挑出你想记住的。</view>
     </view>
 
+    <button wx:if="{{!searchOpen}}" class="home-search liquid-pressable" bindtap="goSearch" hover-class="liquid-pressed" hover-stay-time="220" aria-label="搜索词库">
+      <view class="home-search-icon" aria-hidden="true"></view>
+      <text class="home-search-placeholder">搜索词库</text>
+    </button>
+
+    <view wx:else class="home-search home-search-active">
+      <button class="home-search-back" bindtap="closeSearch" aria-label="返回首页">‹</button>
+      <view class="home-search-icon" aria-hidden="true"></view>
+      <input class="home-search-input" value="{{searchQuery}}" focus="{{searchFocus}}" placeholder="搜索词库" placeholder-class="home-search-input-placeholder" confirm-type="search" maxlength="300" bindinput="onSearchInput" bindconfirm="onSearchConfirm" cursor-spacing="28" adjust-position="true" />
+      <button wx:if="{{searchQuery}}" class="home-search-clear" bindtap="clearSearchQuery" aria-label="清空搜索">×</button>
+    </view>
+
+    <view wx:if="{{searchOpen}}" class="home-inline-search">
+      <view wx:if="{{searchLoading}}" class="inline-search-state"><view class="inline-search-spinner"></view><text>正在词库中查找…</text></view>
+      <view wx:elif="{{searchError}}" class="inline-search-state inline-search-error">{{searchError}}</view>
+      <scroll-view wx:elif="{{searchResults.length}}" class="inline-search-results" scroll-y="true" enhanced="true" show-scrollbar="false">
+        <view class="inline-results-heading">词库结果 <text class="inline-results-count">{{searchResults.length}}</text></view>
+        <view wx:for="{{searchResults}}" wx:key="content" class="inline-result-card {{selectedSearchIndex === index ? 'inline-result-card-open' : ''}}">
+          <view class="inline-result-summary" data-index="{{index}}" bindtap="openSearchResult" aria-label="{{selectedSearchIndex === index ? '收起' : '查看'}} {{item.content}} 的词条">
+            <view class="inline-result-word-row"><text class="inline-result-word">{{item.content}}</text><text wx:if="{{item.phonetic}}" class="inline-result-phonetic">/{{item.phonetic}}/</text><text class="inline-result-chevron {{selectedSearchIndex === index ? 'inline-result-chevron-open' : ''}}">⌄</text></view>
+            <view wx:if="{{item.chinese && selectedSearchIndex !== index}}" class="inline-result-meaning">{{item.chinese}}</view>
+          </view>
+          <view wx:if="{{selectedSearchIndex === index}}" class="inline-result-detail">
+            <view class="inline-result-detail-top">
+              <text class="inline-result-detail-label">释义</text>
+              <button class="inline-result-sound" data-index="{{index}}" catchtap="playSearchResult" disabled="{{playingSearchIndex >= 0}}" aria-label="播放 {{item.content}} 发音"><image class="inline-result-sound-icon" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image></button>
+            </view>
+            <view wx:if="{{item.senses.length}}" class="inline-result-senses">
+              <view wx:for="{{item.senses}}" wx:for-item="sense" wx:key="index" class="inline-result-sense"><text wx:if="{{sense.pos}}" class="inline-result-pos">{{sense.pos}}</text><text>{{sense.meaningsText}}</text></view>
+            </view>
+            <view wx:elif="{{item.chinese}}" class="inline-result-full-meaning">{{item.chinese}}</view>
+            <view wx:if="{{item.exampleEn}}" class="inline-result-example"><view class="inline-result-example-en">{{item.exampleEn}}</view><view wx:if="{{item.exampleZh}}" class="inline-result-example-zh">{{item.exampleZh}}</view></view>
+            <view wx:if="{{item.collocations.length}}" class="inline-result-collocations"><text wx:for="{{item.collocations}}" wx:for-item="phrase" wx:key="en" class="inline-result-collocation">{{phrase.en}}</text></view>
+            <button class="inline-result-add" data-index="{{index}}" bindtap="saveSearchResult">＋ 添加到我的英语</button>
+          </view>
+        </view>
+      </scroll-view>
+      <view wx:elif="{{searchSearched}}" class="inline-search-state">词库中没有找到相关内容，试试其他拼写。</view>
+    </view>
+
+    <block wx:if="{{!searchOpen}}">
     <view wx:if="{{loading && !featured}}" class="core-status home-status">正在加载今日推荐…</view>
     <view wx:elif="{{error && !featured}}" class="core-status core-status-error home-status">
       <view>{{error}}</view>
       <button class="text-link liquid-pressable" bindtap="retryLoad" hover-class="liquid-pressed" hover-stay-time="300"><text>重新加载</text></button>
     </view>
 
+    <view wx:if="{{!loading && !error && !featured}}" class="home-status core-status">今日推荐还在准备，可以先去发现更多英语。</view>
+    <view wx:if="{{error && featured}}" class="home-status"><text>推荐更新失败，正在显示上次内容。</text><button class="text-link" bindtap="retryLoad">重试</button></view>
     <view wx:if="{{featured}}" class="recommendation-hero liquid-panel" data-id="{{featured.id}}" bindtap="openFeatured" hover-class="hero-card-pressed" hover-stay-time="180">
-      <image class="hero-mark" src="/assets/home/sun.svg" mode="aspectFit" aria-hidden="true"></image>
       <view class="recommendation-heading-row">
-        <view class="recommendation-kicker">DAILY SENTENCE</view>
+        <view class="recommendation-kicker">今日一句</view>
         <button class="hero-sound liquid-pressable" catchtap="playFeature" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="300" aria-label="播放今日一句">
           <image class="sound-icon-image" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image>
         </button>
@@ -29,14 +72,17 @@
       <view class="recommendation-english {{featured.heroTextClass}}">{{featured.en}}</view>
       <view class="recommendation-zh">{{featured.zh}}</view>
       <view class="hero-footer" catchtap="stopHeroFooterTap">
-        <view class="hero-footer-space"></view>
-        <button class="hero-remember liquid-pressable {{featured.saved ? 'hero-remember-saved' : ''}}" catchtap="rememberHero" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="300">
-          <text>{{featured.saved ? '已加入' : '想记住'}}</text>
+        <button class="hero-remember liquid-pressable {{featured.saved ? 'hero-remember-saved' : ''}}" loading="{{savingIds[featured.id]}}" disabled="{{savingIds[featured.id]}}" catchtap="rememberHero" hover-class="liquid-pressed" hover-stop-propagation="true" hover-stay-time="160">
+          <text>{{featured.saved ? '查看已保存' : '想记住'}}</text>
           <image class="bookmark-icon-image" src="{{featured.saved ? '/assets/home/bookmark-light.svg' : '/assets/home/bookmark.svg'}}" mode="aspectFit" aria-hidden="true"></image>
         </button>
       </view>
     </view>
 
+    <button class="home-review-entry" bindtap="goReview">
+      <view class="home-review-copy"><text class="home-review-title">{{overviewReady && activeSessionId ? '继续上次复习' : '复习我的英语'}}</text><text class="home-review-note">{{overviewReady ? (goalMet ? '今日目标已完成，随时可以再练' : (hasReviewable ? '今天已复习 ' + today + ' 条，按自己的节奏继续' : '先挑一句想记住的英语，再来这里巩固')) : '把保存过的英语，慢慢变成自己的'}}</text></view>
+      <text>›</text>
+    </button>
     <view class="home-actions">
       <button class="home-primary-action liquid-panel liquid-pressable" bindtap="goDiscover" hover-class="liquid-pressed" hover-stay-time="300">
         <image class="home-action-icon" src="/assets/home/sprout.svg" mode="aspectFit" aria-hidden="true"></image>
@@ -48,5 +94,6 @@
         <text>添加英文内容</text>
       </button>
     </view>
+    </block>
   </view>
 </view>

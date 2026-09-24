@@ -9,14 +9,12 @@
   <block wx:if="{{viewMode === 'hub'}}">
     <view class="discover-intro">
       <view class="discover-title">按场景发现</view>
-      <view class="discover-subtitle">从生活、阅读、听力或词汇书里找一句能用的英语。</view>
     </view>
     <view class="discover-hub liquid-panel">
       <view class="discover-hub-row pressable press-card" data-key="life" hover-class="press-on" hover-stay-time="160" bindtap="openHubOption">
         <image class="discover-hub-icon" src="/assets/home/cup.svg" mode="aspectFit" aria-hidden="true"></image>
         <view class="discover-hub-copy">
           <view class="discover-hub-title">生活英语</view>
-          <view class="discover-hub-subtitle">日常口语实用场景</view>
         </view>
         <view class="discover-hub-chevron" aria-hidden="true"></view>
       </view>
@@ -24,7 +22,6 @@
         <image class="discover-hub-icon" src="/assets/home/book.svg" mode="aspectFit" aria-hidden="true"></image>
         <view class="discover-hub-copy">
           <view class="discover-hub-title">阅读英语</view>
-          <view class="discover-hub-subtitle">精选短文和故事</view>
         </view>
         <view class="discover-hub-chevron" aria-hidden="true"></view>
       </view>
@@ -32,7 +29,6 @@
         <image class="discover-hub-icon" src="/assets/home/sound.svg" mode="aspectFit" aria-hidden="true"></image>
         <view class="discover-hub-copy">
           <view class="discover-hub-title">听力</view>
-          <view class="discover-hub-subtitle">先听完整对话，再决定记哪一句</view>
         </view>
         <view class="discover-hub-chevron" aria-hidden="true"></view>
       </view>
@@ -40,7 +36,6 @@
         <image class="discover-hub-icon" src="/assets/home/wordbook.svg" mode="aspectFit" aria-hidden="true"></image>
         <view class="discover-hub-copy">
           <view class="discover-hub-title">词汇书</view>
-          <view class="discover-hub-subtitle">高频词汇轻松积累</view>
         </view>
         <view class="discover-hub-chevron" aria-hidden="true"></view>
       </view>
@@ -50,7 +45,6 @@
   <block wx:else>
   <view class="discover-intro">
     <view class="discover-title">{{domainTitle}}</view>
-    <view class="discover-subtitle">不想看的先收起来，喜欢的加进我的英语。</view>
   </view>
 
   <scroll-view class="pack-scroll" scroll-x="{{true}}" enhanced="{{true}}" show-scrollbar="{{false}}">
@@ -72,12 +66,12 @@
 
   <view class="search-box">
     <text class="search-icon">⌕</text>
-    <input placeholder="搜索英文或中文" value="{{searchText}}" bindinput="onSearchInput" />
+    <input class="discover-search-input" placeholder="搜索英文或中文" value="{{searchText}}" bindinput="onSearchInput" />
   </view>
 
   <view wx:if="{{loading}}" class="state-copy">正在准备素材...</view>
-  <view wx:elif="{{errorMessage}}" class="state-copy state-error">{{errorMessage}}</view>
-  <view wx:elif="{{items.length === 0}}" class="state-copy">这一组暂时没有更多内容了</view>
+  <view wx:elif="{{errorMessage}}" class="state-copy state-error"><view>{{errorMessage}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+  <view wx:elif="{{items.length === 0}}" class="state-copy"><view>{{searchText ? '已加载的素材中没有匹配结果' : '这一组暂时没有更多内容了'}}</view><button wx:if="{{searchText}}" class="text-link" bindtap="clearSearch">清除搜索</button><button wx:if="{{hasMore}}" class="text-link" bindtap="onReachBottom">继续加载素材</button></view>
 
   <view class="material-list">
     <view wx:for="{{items}}" wx:key="id" id="discover-item-{{item.id}}" class="material-card {{leavingItemId == item.id ? 'is-leaving' : ''}}">
@@ -100,7 +94,7 @@
       </view>
       <view class="material-actions">
         <button
-          class="action-icon known-btn pressable press-glass {{markingItemId == item.id ? 'is-busy' : ''}}"
+          class="action-icon material-action-btn known-btn pressable press-glass {{markingItemId == item.id ? 'is-busy' : ''}}"
           data-id="{{item.id}}"
           hover-class="press-on"
           hover-stay-time="90"
@@ -111,20 +105,20 @@
           <image class="action-icon-image" src="/assets/home/dismiss.svg" mode="aspectFit" aria-hidden="true"></image>
         </button>
         <button
-          class="action-icon remember-btn pressable press-glass {{item.inLibrary ? 'remember-btn-done' : ''}} {{markingItemId == item.id ? 'is-busy' : ''}}"
+          class="remember-label action-icon material-action-btn remember-btn pressable press-glass {{item.inLibrary ? 'remember-btn-done' : ''}} {{markingItemId == item.id ? 'is-busy' : ''}}"
           data-id="{{item.id}}"
           hover-class="press-on"
           hover-stay-time="90"
           hover-stop-propagation="true"
           catchtap="onRememberTap"
-          aria-label="{{item.inLibrary ? '已加入，点按可移除' : '加入我的英语'}}"
+          disabled="{{markingItemId == item.id}}" aria-label="{{item.inLibrary ? '查看已加入的英语' : '想记住，加入我的英语'}}"
         >
           <image
             class="action-icon-image"
             src="{{item.inLibrary ? '/assets/home/check.svg' : '/assets/home/plus.svg'}}"
             mode="aspectFit"
             aria-hidden="true"
-          ></image>
+          ></image><text>{{item.inLibrary ? '已加入 · 查看' : '想记住'}}</text>
         </button>
       </view>
     </view>

@@ -2,7 +2,7 @@ const api = require('../../utils/api/index');
 const { downloadPronunciationAudio } = require('../../utils/apiClient');
 const { getStoredVoice } = require('../../utils/pronunciation');
 const { errorMessage } = require('../../utils/coreViewModels');
-const { addMaterialToLibrary, removeMaterialFromLibrary } = require('../../utils/materialLibrary');
+const { addMaterialToLibrary } = require('../../utils/materialLibrary');
 
 const PAGE_SIZE = 20;
 const DOMAIN_TITLES = { life: '生活英语', reading: '阅读英语' };
@@ -90,6 +90,7 @@ Page({
   },
 
   onUnload() {
+    this.itemsRequest = (this.itemsRequest || 0) + 1;
     if (this.audioContext) {
       try { this.audioContext.destroy(); } catch (_) {}
       this.audioContext = null;
@@ -107,6 +108,10 @@ Page({
   onReachBottom() {
     if (this.data.hasMore && !this.data.loadingMore) this.loadItems(false);
   },
+
+  retryLoad() { return this.loadCategories(true); },
+  clearSearch() { this.setData({ searchText: '', items: this.data.sourceItems.slice() }); },
+  onHide() { if (this.audioContext) this.audioContext.stop(); },
 
   async loadCategories(keepSelection = false) {
     try {
@@ -135,6 +140,7 @@ Page({
   async loadItems(reset) {
     const categoryCode = this.data.selectedCategoryCode;
     if (!categoryCode || (!reset && (this.data.loadingMore || !this.data.hasMore))) return;
+    const request = this.itemsRequest = (this.itemsRequest || 0) + 1;
     this.setData(reset ? { loading: true, errorMessage: '' } : { loadingMore: true });
     try {
       const response = await api.discovery.listCategoryItems(categoryCode, {
@@ -142,6 +148,7 @@ Page({
         cursor: reset ? '' : this.data.nextCursor
       });
       const nextItems = Array.isArray(response && response.items) ? response.items : [];
+      if (request !== this.itemsRequest || this.data.selectedCategoryCode !== categoryCode) return;
       const sourceItems = reset ? nextItems : this.data.sourceItems.concat(nextItems);
       this.setData({
         sourceItems,
@@ -149,10 +156,12 @@ Page({
         total: Number(response && response.category && response.category.itemCount || sourceItems.length),
         nextCursor: String(response && response.nextCursor || ''),
         hasMore: Boolean(response && response.hasMore),
+        errorMessage: '',
         loading: false,
         loadingMore: false
       });
     } catch (error) {
+      if (request !== this.itemsRequest || this.data.selectedCategoryCode !== categoryCode) return;
       console.warn('[discover] load items failed', error);
       this.setData({ loading: false, loadingMore: false, errorMessage: '素材暂时加载失败，请稍后重试' });
     }
@@ -253,38 +262,19 @@ Page({
     const itemId = String(event.currentTarget.dataset.id || '');
     const item = this.data.sourceItems.find((candidate) => String(candidate.id) === itemId);
     if (!item || this.data.markingItemId || this.data.leavingItemId) return;
-    const removing = Boolean(item.inLibrary);
-    const previous = {
-      inLibrary: item.inLibrary,
-      libraryCardId: item.libraryCardId,
-      libraryCardVersion: item.libraryCardVersion
-    };
+    if (item.inLibrary) {
+      this.onItemTap(event);
+      return;
+    }
     this.setData({ markingItemId: itemId });
-    this._patchItem(itemId, removing
-      ? { inLibrary: false, libraryCardId: '', libraryCardVersion: 0 }
-      : { inLibrary: true });
-    wx.showToast({ title: removing ? '已移出' : '已加入', icon: 'none' });
     try {
-      if (removing) {
-        await removeMaterialFromLibrary({
-          id: item.id,
-          en: item.content,
-          libraryCardId: previous.libraryCardId,
-          libraryCardVersion: previous.libraryCardVersion
-        });
-      } else {
-        const card = await addMaterialToLibrary(itemId);
-        this._patchItem(itemId, {
-          inLibrary: true,
-          libraryCardId: card.id,
-          libraryCardVersion: card.version
-        });
-      }
-      this.setData({ markingItemId: '' });
+      const card = await addMaterialToLibrary(itemId);
+      this._patchItem(itemId, { inLibrary: true, libraryCardId: card.id, libraryCardVersion: card.version });
+      wx.showToast({ title: '已加入我的英语', icon: 'success' });
     } catch (error) {
-      this._patchItem(itemId, previous);
+      wx.showToast({ title: errorMessage(error, '加入失败，请重试'), icon: 'none' });
+    } finally {
       this.setData({ markingItemId: '' });
-      wx.showToast({ title: errorMessage(error, removing ? '移除失败，请重试' : '加入失败，请重试'), icon: 'none' });
     }
   },
 

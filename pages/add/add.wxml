@@ -2,7 +2,12 @@
   <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
   <view class="add-heading">
     <view class="add-back" bindtap="goBack">‹</view>
-    <view class="add-heading-space"></view>
+    <view class="add-heading-space">{{isEdit ? '编辑英语' : '添加英语'}}</view>
+  </view>
+  <view wx:if="{{isPassageMode}}" class="flow-note">长文本先保存，再挑出想复习的句子。</view>
+  <view wx:if="{{draftRestored}}" class="draft-notice">
+    <text>已恢复上次未保存内容</text>
+    <button class="text-link" bindtap="discardDraft">清除草稿</button>
   </view>
   <view class="form-card">
 
@@ -51,6 +56,7 @@
       </view>
       <textarea
       class="textarea textarea-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}} {{validationStatus === 'invalid' ? 'textarea-english-invalid' : ''}}"
+      cursor-spacing="28"
       auto-height
       disabled="{{isReadonlyDetailMode}}"
       focus="{{englishInputFocus}}"
@@ -203,36 +209,11 @@
       </view>
     </view>
 
-    <view class="form-item form-item-context">
-      <view class="label">这次是在哪里看到的？</view>
-      <view class="label-subtitle">写下场景，以后复习时更容易想起来</view>
-      <textarea
-        class="textarea input-source textarea-where-encountered {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
-        auto-height
-        disabled="{{isReadonlyDetailMode}}"
-        placeholder="例如：NBA 解说、老友记 S1E2、B站评论区"
-        value="{{form.whereEncountered}}"
-        maxlength="100"
-        bindinput="onWhereEncounteredInput"
-      ></textarea>
-      <view wx:if="{{!isReadonlyDetailMode && recentSources.length > 0}}" class="recent-sources">
-        <text class="recent-sources-label">最近用过：</text>
-        <view class="recent-sources-pills">
-          <view
-            wx:for="{{recentSources}}"
-            wx:key="*this"
-            class="source-pill"
-            data-value="{{item}}"
-            bindtap="onSourceSuggestionTap"
-          >{{item}}</view>
-        </view>
-      </view>
-    </view>
-
     <view class="form-item form-item-understanding">
   <view class="label">我的理解</view>
       <textarea
       class="textarea textarea-understanding {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+      cursor-spacing="28"
       auto-height
       disabled="{{isReadonlyDetailMode}}"
       placeholder="写下自己的理解"
@@ -245,36 +226,64 @@
     ></textarea>
 </view>
 
+    <view class="form-item form-item-context form-item-context-primary">
+      <view class="label">在哪里遇到</view>
+      <textarea
+        class="textarea input-source textarea-where-encountered {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        cursor-spacing="28"
+        auto-height
+        disabled="{{isReadonlyDetailMode}}"
+        placeholder="例如：播客、剧集、文章或聊天"
+        value="{{form.whereEncountered}}"
+        maxlength="100"
+        bindinput="onWhereEncounteredInput"
+      ></textarea>
+      <view wx:if="{{!isReadonlyDetailMode && recentSources.length > 0}}" class="recent-sources">
+        <text class="recent-sources-label">最近使用：</text>
+        <view class="recent-sources-pills">
+          <view wx:for="{{recentSources}}" wx:key="*this" class="source-pill" data-value="{{item}}" bindtap="onSourceSuggestionTap">{{item}}</view>
+        </view>
+      </view>
+    </view>
+
+    <button wx:if="{{!isReadonlyDetailMode}}" class="optional-fields-toggle" bindtap="toggleOptionalFields"><text>{{showOptionalFields || isEdit ? '收起例句和备注' : '＋ 补充例句和备注（可选）'}}</text><text class="optional-fields-chevron">{{showOptionalFields || isEdit ? '⌃' : '›'}}</text></button>
+
+    <view wx:if="{{showOptionalFields || isEdit}}">
     <view wx:if="{{!isPassageMode}}" class="form-item form-item-example">
       <view class="label">例句（可选）</view>
-      <textarea
-        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
-        auto-height
-        disabled="{{isReadonlyDetailMode}}"
-        placeholder="可以手动填写；AI 分析后也可采用参考例句"
-        value="{{form.exampleSentence}}"
-        maxlength="500"
-        bindinput="onExampleSentenceInput"
-      ></textarea>
-      <textarea
-        wx:if="{{form.exampleSentence || form.exampleTranslation}}"
-        class="textarea example-translation-input {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
-        auto-height
-        disabled="{{isReadonlyDetailMode}}"
-        placeholder="例句中文翻译（可选）"
-        value="{{form.exampleTranslation}}"
-        maxlength="500"
-        bindinput="onExampleTranslationInput"
-      ></textarea>
+      <view class="example-pair">
+        <textarea
+          class="textarea example-pair-english {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+          cursor-spacing="28"
+          auto-height
+          disabled="{{isReadonlyDetailMode}}"
+          placeholder="可以手动填写；AI 分析后也可采用参考例句"
+          value="{{form.exampleSentence}}"
+          maxlength="500"
+          bindinput="onExampleSentenceInput"
+        ></textarea>
+        <view class="example-pair-divider"></view>
+        <textarea
+          class="textarea example-pair-translation {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+          cursor-spacing="28"
+          auto-height
+          disabled="{{isReadonlyDetailMode}}"
+          placeholder="例句翻译（可选）"
+          value="{{form.exampleTranslation}}"
+          maxlength="500"
+          bindinput="onExampleTranslationInput"
+        ></textarea>
+      </view>
     </view>
 
     <view wx:if="{{deferNonCriticalReady}}" class="form-item form-item-notes">
       <view class="notes-label-row">
-        <view class="label">补充备注</view>
+        <view class="label">补充备注（可选）</view>
       </view>
 
       <textarea
-        class="textarea {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        class="textarea textarea-resizable {{isReadonlyDetailMode ? 'textarea-readonly' : ''}}"
+        cursor-spacing="28"
         auto-height
         disabled="{{isReadonlyDetailMode}}"
         placeholder="易错点 / 例句 / 联想记忆等"
@@ -284,6 +293,7 @@
       ></textarea>
     </view>
 
+    </view>
 <!-- 复习页 / 今日复习内容：轻量编辑，只保留保存 -->
 <view
   wx:if="{{isEdit && (isFromReviewMode || isFromTodayReviewedMode) && !isReadonlyDetailMode}}"

@@ -1,0 +1,153 @@
+var startX = 0;
+var startY = 0;
+var lastX = 0;
+var locked = '';
+var lastOpenId = '';
+var lastOpenInstance = null;
+
+function maxPx(instance) {
+  var ds = instance.getDataset();
+  var value = 0;
+  if (ds) {
+    value = parseFloat(ds.max);
+  }
+  if (value > 0) {
+    return value;
+  }
+  return 110;
+}
+
+function itemId(instance) {
+  var ds = instance.getDataset();
+  if (ds && ds.id) {
+    return '' + ds.id;
+  }
+  return '';
+}
+
+function closeInstance(instance) {
+  if (!instance) {
+    return;
+  }
+  instance.setStyle({
+    transform: 'translateX(0px)',
+    transition: 'transform 0.32s cubic-bezier(0.22, 0.75, 0.18, 1)'
+  });
+}
+
+function touchStart(event, ownerInstance) {
+  var touch = event.touches[0];
+  var instance = event.instance;
+  if (!touch || !instance) {
+    return;
+  }
+  var id = itemId(instance);
+  startX = touch.pageX;
+  startY = touch.pageY;
+  lastX = 0;
+  locked = '';
+  if (lastOpenInstance && lastOpenId !== id) {
+    closeInstance(lastOpenInstance);
+    lastOpenInstance = null;
+    lastOpenId = '';
+    ownerInstance.callMethod('onSwipeSettle', { id: '', open: false });
+  }
+}
+
+function touchMove(event, ownerInstance) {
+  var touch = event.touches[0];
+  var instance = event.instance;
+  if (!touch || !instance || !startX) {
+    return;
+  }
+  var dx = touch.pageX - startX;
+  var dy = touch.pageY - startY;
+  if (!locked) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+      return;
+    }
+    if (Math.abs(dx) > Math.abs(dy)) {
+      locked = 'x';
+    } else {
+      locked = 'y';
+    }
+  }
+  if (locked !== 'x') {
+    return;
+  }
+  var max = maxPx(instance);
+  var x = dx;
+  if (lastOpenId === itemId(instance)) {
+    x = -max + dx;
+  }
+  if (x > 0) {
+    x = 0;
+  }
+  if (x < -max) {
+    x = -max;
+  }
+  lastX = x;
+  instance.setStyle({
+    transform: 'translateX(' + x + 'px)',
+    transition: 'none'
+  });
+  return false;
+}
+
+function touchEnd(event, ownerInstance) {
+  var instance = event.instance;
+  if (!instance || !startX) {
+    locked = '';
+    startX = 0;
+    return;
+  }
+  var max = maxPx(instance);
+  var id = itemId(instance);
+  var wasSwipe = locked === 'x';
+  var wasTap = locked === '';
+  var open = false;
+  if (wasSwipe && lastX < -(max * 0.32)) {
+    open = true;
+  }
+  var target = 0;
+  if (open) {
+    target = -max;
+  }
+  instance.setStyle({
+    transform: 'translateX(' + target + 'px)',
+    transition: 'transform 0.32s cubic-bezier(0.22, 0.75, 0.18, 1)'
+  });
+  if (open) {
+    lastOpenId = id;
+    lastOpenInstance = instance;
+  } else {
+    lastOpenId = '';
+    lastOpenInstance = null;
+  }
+  startX = 0;
+  startY = 0;
+  lastX = 0;
+  locked = '';
+  if (wasSwipe) {
+    var settleId = '';
+    if (open) {
+      settleId = id;
+    }
+    ownerInstance.callMethod('onSwipeSettle', { id: settleId, open: open });
+    return false;
+  }
+  if (wasTap) {
+    ownerInstance.callMethod('onCardTap', { id: id });
+  }
+}
+
+function touchCancel(event, ownerInstance) {
+  return touchEnd(event, ownerInstance);
+}
+
+module.exports = {
+  touchStart: touchStart,
+  touchMove: touchMove,
+  touchEnd: touchEnd,
+  touchCancel: touchCancel
+};

@@ -115,7 +115,7 @@ test('discover remember tap keeps the card in place among neighbors', async () =
   assert.equal(page.data.items[0].inLibrary, true);
 });
 
-test('discover remembered tap removes the card and restores the button', async () => {
+test('discover remembered tap opens detail without deleting saved English', async () => {
   const api = require('../utils/api/index');
   api.cards.remove = async () => ({ id: 'card-1' });
   const page = createPage();
@@ -131,6 +131,7 @@ test('discover remembered tap removes the card and restores the button', async (
   await page.onRememberTap({ currentTarget: { dataset: { id: 'material-42' } } });
   assert.equal(page.data.sourceItems[0].id, 'material-42');
   assert.equal(page.data.items[0].id, 'material-42');
-  assert.equal(page.data.sourceItems[0].inLibrary, false);
-  assert.equal(page.data.sourceItems[0].libraryCardId, '');
+  assert.equal(page.data.sourceItems[0].inLibrary, true);
+  assert.equal(page.data.sourceItems[0].libraryCardId, 'card-1');
+  assert.equal(navigationUrl, '/pages/library/detail?id=material-42&source=public');
 });

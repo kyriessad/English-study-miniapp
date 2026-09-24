@@ -28,6 +28,10 @@
   "packOptions": {
     "ignore": [
       {
+        "value": "/tmp-shots",
+        "type": "folder"
+      },
+      {
         "value": "/minitest",
         "type": "folder"
       },

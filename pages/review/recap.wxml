@@ -1,9 +1,9 @@
 <view class="page recap-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
   <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
-  <view class="recap-top"><view class="close-button" bindtap="home">×</view><view class="recap-kicker">本轮完成</view></view>
+  <view class="recap-top" style="padding-right: {{menuRightInset}}px;"><view class="close-button" bindtap="home">×</view><view class="recap-kicker">本轮完成</view></view>
   <view class="recap-celebration"><view class="recap-check">✓</view></view>
-  <view class="page-title">{{total}} 条英语已复习完成</view>
-  <view class="recap-subtitle">太棒了！坚持下去，积累看得见的进步。</view>
+  <view class="page-title">本轮复习已完成</view>
+  <view class="recap-subtitle">本次回顾 {{total}} 条英语。练习已记录，今天也可以到这里。</view>
   <view class="recap-list">
     <view wx:for="{{items}}" wx:key="id" class="recap-card" data-id="{{item.id}}" bindtap="open">
       <view class="recap-body">
@@ -15,7 +15,7 @@
   </view>
   <view wx:if="{{items.length === 0}}" class="empty">本轮还没有完成的内容</view>
   <view class="recap-actions">
-    <button class="action action-primary" bindtap="again">再来一轮</button>
-    <button class="text-link" bindtap="home">回到复习首页</button>
+    <button class="text-link" bindtap="again">再练一轮（可选）</button>
+    <button class="action action-primary" bindtap="home">完成，回到复习</button>
   </view>
 </view>

@@ -1,26 +1,21 @@
-<view class="review-ambient" aria-hidden="true">
-  <image class="review-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill"></image>
-</view>
+<view class="review-ambient" aria-hidden="true"><image class="review-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill"></image></view>
 <view class="page review-home-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
   <view class="tab-enter {{tabEnter ? 'is-in' : ''}}">
-  <view class="review-home-hero">
-    <view class="page-title">复习</view>
-    <view class="review-lead">
-      <view class="review-quote">
-        <view class="review-quote-line">Small steps</view>
-        <view class="review-quote-line">make a big difference.</view>
-      </view>
-      <view class="review-caption">每天复习，让英语成为更好的自己。</view>
+    <view class="review-home-hero"><view class="page-title">复习</view></view>
+    <view class="review-home-card">
+      <view wx:if="{{overviewLoading && !overviewReady}}" class="review-resume-note">正在读取学习进度…</view>
+      <block wx:else>
+        <view class="review-task-title">{{reviewHeading}}</view>
+        <view wx:if="{{overviewReady}}" class="review-resume-note">{{hasReviewable ? '待巩固 ' + reviewCount + ' 条 · 待初学 ' + newCount + ' 条' : '在首页、素材或听力里点「想记住」，也可以添加自己遇到的英语。'}}</view>
+        <view wx:if="{{overviewReady}}" class="review-today-summary">今日已复习 <text class="review-today-count">{{today}}</text> 条</view>
+        <view wx:if="{{activeSessionId}}" class="review-resume-note">已完成的作答已记录，从上次停下的地方继续。</view>
+        <view wx:elif="{{goalMet}}" class="review-resume-note">今天可以到这里。长期记住，比一次学很多更重要。</view>
+      </block>
+      <view wx:if="{{error}}" class="core-inline-error"><text>{{error}}</text><button class="text-link" bindtap="loadOverview">重新加载进度</button></view>
+      <button wx:if="{{overviewReady && goalMet && !activeSessionId}}" class="action action-primary review-start" bindtap="openHome">今天完成，回到首页</button>
+      <button wx:if="{{overviewReady}}" class="{{goalMet && !activeSessionId ? 'text-link' : 'action action-primary review-start'}}" bindtap="start" loading="{{loading}}" disabled="{{loading || overviewLoading}}">{{loading ? '正在准备…' : reviewAction}}</button>
+      <button wx:if="{{overviewReady && today > 0}}" class="text-link review-tip" bindtap="openToday">查看今日已复习</button>
     </view>
-  </view>
-  <view class="review-home-card">
-    <view class="review-stat">{{today}}</view>
-    <view class="review-stat-label">今日已复习</view>
-    <view class="review-card-rule"></view>
-    <view wx:if="{{activeSessionId}}" class="review-resume-note">还有一轮没有完成，可以从上次停下的地方继续。</view>
-    <button class="action action-primary review-start" bindtap="start" loading="{{loading}}" disabled="{{loading}}">{{loading ? '正在准备…' : (activeSessionId ? '继续上次复习' : '开始复习')}}</button>
-    <view wx:if="{{error}}" class="core-inline-error">{{error}}</view>
-    <view class="review-tip" bindtap="openToday">查看今日已复习</view>
-  </view>
+    <button class="review-book-entry" bindtap="openWordbooks"><view class="review-book-title">继续词汇书学习</view><text>›</text></button>
   </view>
 </view>

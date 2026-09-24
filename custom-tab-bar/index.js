@@ -16,7 +16,7 @@ Component({
       },
       {
         pagePath: '/pages/library/index',
-        text: '卡片',
+        text: '我的英语',
         iconPath: '/assets/tabbar/library.png',
         selectedIconPath: '/assets/tabbar/library.selected.png'
       }

@@ -1,6 +1,7 @@
 const api = require('../../utils/api/index');
 const { errorMessage } = require('../../utils/coreViewModels');
 const { attachTabPage } = require('../../utils/tabChrome');
+const { dailyGoal, overviewView } = require('../../utils/reviewOverview');
 
 Page({
   data: {
@@ -9,6 +10,14 @@ Page({
     activeSessionId: '',
     loading: false,
     error: '',
+    overviewLoading: true,
+    overviewReady: false,
+    hasReviewable: true,
+    reviewCount: 0,
+    newCount: 0,
+    goalMet: false,
+    reviewHeading: '让想记住的英语留下来',
+    reviewAction: '开始今日复习',
     tabEnter: false
   },
 
@@ -23,18 +32,14 @@ Page({
   },
 
   async loadOverview() {
+    this.setData({ overviewLoading: true, error: '' });
     try {
-      const overview = await api.reviews.getOverview();
-      const goal = overview.goalProgress || {};
-      const completed = overview.completedSuggested || {};
-      const active = overview.activeSession || {};
-      this.setData({
-        today: Number(goal.completed_unique_today || goal.completedUniqueToday || completed.total_count || completed.totalCount || 0),
-        activeSessionId: active.id || active.session_id || '',
-        error: ''
-      });
+      const overview = await api.reviews.getOverview({ daily_goal: dailyGoal() });
+      this.setData(overviewView(overview));
     } catch (error) {
       this.setData({ error: errorMessage(error, '复习信息加载失败') });
+    } finally {
+      this.setData({ overviewLoading: false });
     }
   },
 
@@ -47,7 +52,11 @@ Page({
   },
 
   async start() {
-    if (this.data.loading) return;
+    if (this.data.loading || this.data.overviewLoading) return;
+    if (this.data.overviewReady && !this.data.hasReviewable && !this.data.activeSessionId) {
+      this.openDiscover();
+      return;
+    }
     const size = this.reviewLimit();
     if (this.data.activeSessionId) {
       wx.navigateTo({
@@ -58,7 +67,8 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const session = await api.reviews.createSession({
-        session_type: 'free_review',
+        session_type: this.data.goalMet ? 'free_review' : 'daily_suggested',
+        daily_goal: dailyGoal(),
         limit: size,
         restart: false
       });
@@ -90,9 +100,10 @@ Page({
     }
   },
 
+  openHome() { wx.switchTab({ url: '/pages/index/index' }); },
   openLibrary() { wx.switchTab({ url: '/pages/library/index' }); },
+  openWordbooks() { wx.navigateTo({ url: '/pages/wordbooks/index' }); },
   openDiscover() { wx.navigateTo({ url: '/pages/discover/index' }); },
   openToday() { wx.navigateTo({ url: '/pages/today_reviewed/today_reviewed' }); },
   openHistory() { wx.navigateTo({ url: '/pages/history_reviewed/history_index' }); }
 });
-

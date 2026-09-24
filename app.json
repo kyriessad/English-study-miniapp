@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/search/index",
     "pages/review/index",
     "pages/library/index",
     "pages/add/add",
@@ -13,6 +14,8 @@
     "pages/library/passage",
     "pages/wordbooks/index",
     "pages/wordbooks/detail",
+    "pages/wordbooks/study",
+    "pages/wordbooks/recap",
     "pages/history_reviewed/history_index",
     "pages/history_detail/history_detail",
     "pages/today_reviewed/today_reviewed",
@@ -47,7 +50,7 @@
       },
       {
         "pagePath": "pages/library/index",
-        "text": "卡片",
+        "text": "我的英语",
         "iconPath": "assets/tabbar/library.png",
         "selectedIconPath": "assets/tabbar/library.selected.png"
       }

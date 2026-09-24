@@ -1,0 +1,93 @@
+<page-meta background-color="#e7f1ea"></page-meta>
+<view class="search-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+
+  <view class="search-header" style="padding-right: {{menuRightInset}}px;">
+    <button class="back-button pressable press-pill" bindtap="goBack" aria-label="返回">‹</button>
+    <view class="header-copy">
+      <view class="page-title">查英语</view>
+      <view class="page-subtitle">查询单词、短语和例句</view>
+    </view>
+  </view>
+
+  <view class="search-shell {{inputFocus ? 'search-shell-focus' : ''}}">
+    <view class="search-icon" aria-hidden="true"></view>
+    <input
+      class="search-input"
+      value="{{query}}"
+      focus="{{inputFocus}}"
+      confirm-type="search"
+      placeholder="输入单词、短语或英文句子"
+      placeholder-class="search-placeholder"
+      bindinput="onInput"
+      bindconfirm="submitQuery"
+      bindfocus="onInputFocus"
+      maxlength="300"
+    />
+    <button wx:if="{{query}}" class="clear-button" bindtap="clearQuery" aria-label="清空">×</button>
+    <button class="submit-button {{!query || generating ? 'submit-button-disabled' : ''}}" bindtap="submitQuery" disabled="{{!query || generating}}">查询</button>
+  </view>
+
+  <view class="search-content">
+    <view wx:if="{{!query && recent.length}}" class="recent-section">
+      <view class="section-label">最近查询</view>
+      <view class="recent-list">
+        <button wx:for="{{recent}}" wx:key="*this" class="recent-pill pressable press-pill" data-query="{{item}}" bindtap="useRecent">{{item}}</button>
+      </view>
+    </view>
+
+    <view wx:if="{{!query && !recent.length}}" class="search-intro">
+      <view class="intro-mark">Aa</view>
+      <view class="intro-title">从一个词开始</view>
+      <view class="intro-copy">输入一个词，查看词性、释义和例句。</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="search-state">
+      <view class="state-spinner"></view>
+      <text>{{generating ? '正在整理词条…' : '正在查找词条…'}}</text>
+    </view>
+
+    <view wx:if="{{error}}" class="error-card">{{error}}</view>
+
+    <view wx:if="{{results.length}}" class="result-section">
+      <view class="section-heading-row">
+        <view class="section-label">查询结果</view>
+        <view class="section-meta">{{results.length}} 个匹配</view>
+      </view>
+      <view wx:for="{{results}}" wx:key="content" class="result-card {{item.exact ? 'result-card-exact' : ''}}">
+        <view class="result-top">
+          <view class="result-word-wrap">
+            <view class="result-word">{{item.content}}</view>
+            <view wx:if="{{item.posLabel && !item.senses.length}}" class="result-pos">{{item.posLabel}}</view>
+            <view wx:if="{{item.phonetic}}" class="result-phonetic">/{{item.phonetic}}/</view>
+          </view>
+          <button class="result-audio-button {{pronunciationPlaying ? 'result-audio-button-playing' : ''}}" data-index="{{index}}" bindtap="playResult" aria-label="播放发音">{{pronunciationPlaying ? '播放中' : '发音'}}</button>
+        </view>
+        <view wx:if="{{item.chinese && !item.senses.length}}" class="result-meaning">{{item.chinese}}</view>
+        <view wx:if="{{item.senses.length}}" class="sense-list">
+          <view wx:for="{{item.senses}}" wx:key="pos" class="sense-row">
+            <text wx:if="{{item.pos}}" class="sense-pos">{{item.pos}}</text>
+            <text class="sense-meaning">{{item.meaningsText}}</text>
+          </view>
+        </view>
+        <view wx:if="{{item.exampleEn}}" class="example-box">
+          <view class="example-en">{{item.exampleEn}}</view>
+          <view wx:if="{{item.exampleZh}}" class="example-zh">{{item.exampleZh}}</view>
+        </view>
+        <view wx:if="{{item.collocations.length}}" class="collocation-row">
+          <text wx:for="{{item.collocations}}" wx:key="en" class="collocation-pill">{{item.en}}</text>
+        </view>
+        <view class="result-actions">
+          <button wx:if="{{item.sources.length}}" class="result-action secondary" data-index="{{index}}" bindtap="openWordbookEntry">词书详情</button>
+          <button class="result-action primary" data-index="{{index}}" bindtap="saveResult">做成卡片</button>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{searched && query && !loading && !results.length && !error}}" class="empty-card">
+      没有找到可用词条，请检查拼写后重试。
+    </view>
+
+    <view class="bottom-space"></view>
+  </view>
+</view>

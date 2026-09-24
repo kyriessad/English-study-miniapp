@@ -1,13 +1,13 @@
-<view class="page books-page liquid-theme-page" style="padding-top: {{safeTop}}px;">
+<view class="wordbooks-shell liquid-theme-page">
   <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+<scroll-view class="page books-page" style="padding-top: {{safeTop}}px;" scroll-y="true" enhanced="true" show-scrollbar="false">
   <view class="subpage-top">
     <view class="back pressable press-glass" hover-class="press-on" hover-stay-time="90" bindtap="goBack">‹</view>
+    <button class="quick-home pressable press-glass" bindtap="goHome" aria-label="返回首页"><image class="quick-home-icon" src="/assets/tabbar/home.selected.png" mode="aspectFit" aria-hidden="true"></image></button>
     <view class="subpage-heading">
       <view class="page-title">词汇书</view>
-      <view class="page-subtitle">高频词汇轻松积累</view>
     </view>
   </view>
-  <view class="search-wrap book-search"><text class="icon icon-search"></text><view class="search-placeholder">搜索英文、理解或来源</view></view>
   <view wx:if="{{loading && books.length === 0}}" class="core-status">正在加载词汇书…</view>
   <view wx:elif="{{error && books.length === 0}}" class="core-status core-status-error"><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
   <view class="book-list">
@@ -15,10 +15,10 @@
       <view class="book-cover" style="background:{{item.color}}"><view class="book-cover-mark">{{item.coverMark}}</view></view>
       <view class="book-copy">
         <view class="book-title">{{item.title}}</view>
-        <view class="book-meta">{{item.count}} 词<text wx:if="{{item.reviewedCount}}"> · 已复习 {{item.reviewedCount}}</text></view>
+        <view class="book-meta">{{item.count}} 词<text wx:if="{{item.completed}}"> · 已学完</text><text wx:elif="{{item.started}}"> · 已学 {{item.learnedCount}} / {{item.count}}</text></view>
       </view>
       <view class="book-arrow">›</view>
     </view>
   </view>
-  <view class="book-footer-note">从词汇书开始，开启高效积累之旅。</view>
+</scroll-view>
 </view>

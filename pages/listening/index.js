@@ -1,12 +1,22 @@
 const api = require('../../utils/api/index');
 const { errorMessage } = require('../../utils/coreViewModels');
 
+function applyDifficultyFilter(items, difficulty) {
+  const rows = items || [];
+  if (!difficulty) return rows.slice();
+  return rows.filter((item) => item.targetDifficulty === difficulty);
+}
+
 Page({
   data: {
     safeTop: 20,
     loading: true,
     error: '',
-    items: []
+    allItems: [],
+    items: [],
+    difficultyFilters: [],
+    selectedDifficulty: '',
+    emptyFilter: false
   },
 
   onLoad() {
@@ -19,10 +29,29 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const response = await api.listening.list();
-      this.setData({ items: response.items || [], loading: false });
+      const allItems = response.items || [];
+      const selectedDifficulty = this.data.selectedDifficulty || '';
+      const items = applyDifficultyFilter(allItems, selectedDifficulty);
+      this.setData({
+        allItems,
+        items,
+        difficultyFilters: response.difficultyFilters || [],
+        emptyFilter: !items.length && allItems.length > 0,
+        loading: false
+      });
     } catch (error) {
       this.setData({ loading: false, error: errorMessage(error, '听力素材加载失败') });
     }
+  },
+
+  onDifficultyTap(event) {
+    const selectedDifficulty = String(event.currentTarget.dataset.code || '');
+    const items = applyDifficultyFilter(this.data.allItems, selectedDifficulty);
+    this.setData({
+      selectedDifficulty,
+      items,
+      emptyFilter: !items.length && (this.data.allItems || []).length > 0
+    });
   },
 
   retryLoad() { this.load(); },

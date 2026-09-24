@@ -40,7 +40,10 @@ function toCardView(card) {
     sentenceZh: clean(card.exampleTranslation),
     category: CARD_TYPE_LABELS[card.category] || '英语表达',
     source: cardSourceLabel(card),
+    addChannel: card.addChannel || '',
+    sourceWordbookId: card.sourceWordbookId || '',
     participate: card.participatesInReview !== false,
+    learningLabel: card.participatesInReview === false ? '仅保存' : card.isReviewReady === false ? '内容准备中' : ({ new: '待初学', strengthening: '待巩固', reviewing: '复习中', mastered: '长期巩固' }[card.reviewState] || '已加入复习'),
     createdAt: clean(card.createdAt || raw.created_at || raw.createdAt),
     version: Number(card.version || 0),
     raw: card
@@ -88,6 +91,26 @@ function toMaterialView(item, reference) {
   };
 }
 
+function toWordbookStudyView(item) {
+  if (!item) return null;
+  return {
+    id: clean(item.materialItemId || item.material_item_id),
+    sessionItemId: clean(item.sessionItemId || item.session_item_id),
+    questionToken: item.questionToken || item.question_token || null,
+    en: clean(item.content),
+    answer: clean(item.chinese),
+    itemKind: item.itemKind || item.item_kind || 'review',
+    attemptNo: Number(item.attemptNo || item.attempt_no || 1),
+    flowState: item.flowState || item.flow_state || 'question',
+    wrongCount: Number(item.wrongCount || item.wrong_count || 0),
+    options: Array.isArray(item.options) ? item.options.map((option) => ({
+      optionId: option.optionId || option.option_id || '',
+      text: clean(option.text)
+    })) : [],
+    raw: item
+  };
+}
+
 function toReviewView(item) {
   if (!item) return null;
   return {
@@ -99,7 +122,7 @@ function toReviewView(item) {
     phonetic: clean(item.phonetic),
     answer: clean(item.understanding || item.translation),
     where: clean(item.where_encountered || item.whereEncountered),
-    context: clean(item.source_context || item.sourceContext),
+    context: /^listening:[^\s]+:\d+$/.test(clean(item.source_context || item.sourceContext)) ? '' : clean(item.source_context || item.sourceContext),
     example: clean(item.example_sentence || item.exampleSentence),
     exampleZh: clean(item.example_translation || item.exampleTranslation),
     flowState: item.flow_state || item.flowState || 'question',
@@ -113,10 +136,14 @@ function toReviewView(item) {
 }
 
 function errorMessage(error, fallback) {
+  const message = clean(error && (error.message || error.errMsg));
+  if (Number(error && error.statusCode) >= 500 || /^request:ok$/i.test(message)) return '服务暂时不可用，请稍后重试';
+  if (/timeout|timed out/i.test(message)) return '连接超时，请检查网络后重试';
+  if (/request:fail|network|ECONN|ENOTFOUND/i.test(message)) return '网络连接失败，请稍后重试';
   const detail = error && error.data && error.data.detail;
   if (typeof detail === 'string' && detail) return detail;
   if (detail && detail.message) return detail.message;
-  return clean(error && (error.message || error.errMsg)) || fallback || '操作失败，请稍后重试';
+  return message || fallback || '操作失败，请稍后重试';
 }
 
 module.exports = {
@@ -126,5 +153,6 @@ module.exports = {
   toPassageView,
   toMaterialView,
   toReviewView,
+  toWordbookStudyView,
   errorMessage
 };

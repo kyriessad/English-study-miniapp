@@ -1,0 +1,42 @@
+<view wx:if="{{loading}}" class="page review-page core-status liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><text>正在准备本次学习…</text></view>
+<view wx:elif="{{error}}" class="page review-page core-status core-status-error liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><view>{{error}}</view><button class="text-link" bindtap="retryLoad">重新加载</button></view>
+<view wx:elif="{{empty}}" class="page review-page core-status liquid-theme-page" style="padding-top: {{safeTop}}px;"><image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image><view>本次没有可学习的内容</view><view class="flow-note">可以先浏览英语，也可以稍后再来。</view><button class="text-link" bindtap="exit">返回</button></view>
+<view class="page review-page liquid-theme-page" style="padding-top: {{safeTop}}px;" wx:elif="{{current}}">
+  <image class="theme-ambient-image" src="/assets/home/home-ambient-v6.jpg" mode="aspectFill" aria-hidden="true"></image>
+  <view class="review-top" style="padding-right: {{menuRightInset}}px;">
+    <button class="close-button" bindtap="exit" aria-label="退出本轮，保留已提交进度">×</button>
+    <view class="review-progress">{{bookLabel}} · {{currentNo}} / {{total}}</view>
+  </view>
+  <view class="review-progress-track"><view class="review-progress-fill" style="width:{{total > 0 ? currentNo / total * 100 : 0}}%"></view></view>
+
+  <view class="review-focus">
+    <view class="kind-chip">{{current.itemKind === 'new' ? '新词' : '复习'}}</view>
+    <view wx:if="{{showExamplePrompt && (exampleLoading || exampleParts.length)}}" class="study-example">
+      <view wx:if="{{exampleLoading}}" class="study-example-muted">正在加载例句…</view>
+      <view wx:elif="{{exampleParts.length}}" class="study-example-en">
+        <text wx:for="{{exampleParts}}" wx:for-item="part" wx:for-index="idx" wx:key="idx" class="{{part.hit ? 'study-example-hit' : ''}}">{{part.text}}</text>
+      </view>
+      <view wx:if="{{exampleTranslation}}" class="study-example-zh">{{exampleTranslation}}</view>
+    </view>
+    <view class="review-en">{{current.en}}</view>
+    <view class="review-lexical-row">
+      <view wx:if="{{phoneticDisplay}}" class="review-phonetic">{{phoneticDisplay}}</view>
+      <view wx:elif="{{lexicalInfoLoading}}" class="review-phonetic review-phonetic-muted">音标加载中…</view>
+      <button class="review-pronunciation {{pronunciationPlaying ? 'review-pronunciation-playing' : ''}}" bindtap="onPronunciationTap" disabled="{{pronunciationLoading || !pronunciationAvailable}}">{{pronunciationLoading ? '加载中' : (pronunciationPlaying ? '播放中' : '发音')}}</button>
+    </view>
+    <view class="review-divider"></view>
+    <view class="review-label">选择最合适的中文理解</view>
+  </view>
+  <view wx:if="{{submissionError}}" class="review-recovery"><view>{{submissionError}}</view><button class="text-link" bindtap="retrySubmission" disabled="{{submitting}}">重试这次作答</button></view>
+  <view wx:if="{{returnError}}" class="review-recovery"><view>{{returnError}}</view><button class="text-link" bindtap="returnFromDetail" disabled="{{submitting}}">恢复当前题</button></view>
+  <view class="options">
+    <button wx:for="{{current.options}}" wx:key="optionId" class="option {{answered && selectedOptionId === item.optionId ? (isCorrect ? 'option-correct' : 'option-wrong') : ''}}" data-option-id="{{item.optionId}}" bindtap="choose" disabled="{{submitting || answered || submissionError || returnError}}">
+      <text wx:if="{{answered && selectedOptionId === item.optionId && !isCorrect}}" class="option-status option-cross">×</text>
+      <text class="option-text">{{item.text}}</text>
+      <text wx:if="{{answered && selectedOptionId === item.optionId && isCorrect}}" class="option-status option-check">✓</text>
+      <text wx:if="{{!answered || selectedOptionId !== item.optionId}}" class="option-arrow">›</text>
+    </button>
+  </view>
+  <button class="unknown-button {{answered && selectedOptionId === 'unknown' && !isCorrect ? 'unknown-button-wrong' : ''}}" bindtap="unknown" disabled="{{submitting || answered || submissionError || returnError}}">—　不知道　—</button>
+  <view wx:if="{{awaitingNext}}" class="review-auto-next">回答正确，正在进入下一题…</view>
+</view>

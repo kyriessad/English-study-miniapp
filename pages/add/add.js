@@ -44,12 +44,16 @@ const {
 } = require('../../utils/contentKind');
 const PAGE_ANIMATION_SAFE_DELAY = 0;
 const ENGLISH_VALIDATION_DELAY_MS = 1000;
+const ADD_DRAFT_SAVE_DELAY_MS = 350;
+const PRONUNCIATION_LOOKUP_DELAY_MS = 700;
 const LIGHT_VALIDATION_VISIBLE_MS = 5000;
 const FORMAT_HINT_VISIBLE_MS = 2500;
 
 const ANALYZE_CACHE_STORAGE_KEY = 'englishAnalyzeCache_v2';
 const ANALYZE_CACHE_MAX_ITEMS = 200;
 const ANALYZE_CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
+const ADD_DRAFT_STORAGE_KEY = 'englishCard.addDraft.v1';
+const ADD_DRAFT_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
 const STREAM_DIAGNOSTIC_VERSION = 'ai-stream-diag-20260824-1';
 
 const LAST_ENCOUNTER_CONTEXT_KEY = 'englishCard.lastEncounterContext.v1';
@@ -541,6 +545,53 @@ function createEmptyForm() {
   };
 }
 
+function readAddDraft() {
+  try {
+    const payload = wx.getStorageSync(ADD_DRAFT_STORAGE_KEY);
+    if (!payload || Number(payload.savedAt || 0) <= 0 || Date.now() - Number(payload.savedAt) > ADD_DRAFT_MAX_AGE) {
+      if (payload && typeof wx.removeStorageSync === 'function') wx.removeStorageSync(ADD_DRAFT_STORAGE_KEY);
+      return null;
+    }
+    const form = payload.form && typeof payload.form === 'object' ? payload.form : {};
+    if (!normalizePlainText(form.englishText) && !normalizePlainText(form.myUnderstanding)) return null;
+    return {
+      draftRestored: true,
+      categoryIndex: Number(payload.categoryIndex) || 0,
+      isPassageMode: Boolean(payload.isPassageMode),
+      showNotesField: Boolean(payload.showNotesField),
+      form: Object.assign(createEmptyForm(), form)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeAddDraft(form, state) {
+  const source = form || {};
+  const hasContent = [source.englishText, source.myUnderstanding, source.whereEncountered, source.exampleSentence, source.exampleTranslation, source.notes]
+    .some((value) => normalizePlainText(value));
+  try {
+    if (!hasContent) {
+      if (typeof wx.removeStorageSync === 'function') wx.removeStorageSync(ADD_DRAFT_STORAGE_KEY);
+      return;
+    }
+    wx.setStorageSync(ADD_DRAFT_STORAGE_KEY, {
+      version: 1,
+      savedAt: Date.now(),
+      categoryIndex: Number(state && state.categoryIndex) || 0,
+      isPassageMode: Boolean(state && state.isPassageMode),
+      showNotesField: Boolean(state && state.showNotesField),
+      form: Object.assign({}, source)
+    });
+  } catch (_) {}
+}
+
+function clearAddDraftStorage() {
+  try {
+    if (typeof wx.removeStorageSync === 'function') wx.removeStorageSync(ADD_DRAFT_STORAGE_KEY);
+  } catch (_) {}
+}
+
 function refreshPreviousPage() {
   const pages = getCurrentPages();
   const previousPage = pages[pages.length - 2];
@@ -668,6 +719,7 @@ Page({
     latestEnglishForSuggest: '', // 闃叉鏃ц姹傚洖鍐?    hasUserChangedCategory: false,
     isLeavingPage: false,
     isSaving: false,
+    draftRestored: false,
     recentSources: [],
     aiExampleSentence: '',
     aiExampleTranslation: '',
@@ -1523,6 +1575,7 @@ Page({
       hasUserChangedCategory: false,
       isLeavingPage: false,
       isSaving: false,
+      draftRestored: false,
       recentSources: []
 
     };
@@ -1581,8 +1634,94 @@ Page({
     };
   },
 
+  toggleOptionalFields() {
+    this.setData({ showOptionalFields: !this.data.showOptionalFields });
+  },
+
+  persistAddDraft() {
+    if (this.data.isEdit || this.data.isReadonlyDetailMode || this.data.isPassageEdit) return;
+    // Preserve a draft as soon as the first field is touched, then coalesce
+    // the repeated English keystrokes into one trailing write.
+    if (!this._draftPersistedThisSession) {
+      writeAddDraft(this.data.form, this.data);
+      this._draftPersistedThisSession = true;
+    }
+    if (this.addDraftTimer) clearTimeout(this.addDraftTimer);
+    this.addDraftTimer = setTimeout(() => {
+      this.addDraftTimer = null;
+      writeAddDraft(this.data.form, this.data);
+    }, ADD_DRAFT_SAVE_DELAY_MS);
+  },
+
+  flushAddDraft() {
+    if (this.addDraftTimer) {
+      clearTimeout(this.addDraftTimer);
+      this.addDraftTimer = null;
+    }
+    if (!this.data.isEdit && !this.data.isReadonlyDetailMode && !this.data.isPassageEdit) {
+      writeAddDraft(this.data.form, this.data);
+    }
+  },
+
+  schedulePronunciationLookup(text) {
+    if (this.pronunciationLookupTimer) clearTimeout(this.pronunciationLookupTimer);
+    const normalizedText = normalizeEnglishText(text);
+    if (!normalizedText) {
+      this.pronunciationLookupTimer = null;
+      if (this.pronunciationController) this.pronunciationController.reset();
+      return;
+    }
+    this.pronunciationLookupTimer = setTimeout(() => {
+      this.pronunciationLookupTimer = null;
+      if (normalizeEnglishText(this.data.form.englishText) === normalizedText && this.pronunciationController) {
+        this.pronunciationController.load(normalizedText);
+      }
+    }, PRONUNCIATION_LOOKUP_DELAY_MS);
+  },
+
+  invalidateEnglishValidationForInput() {
+    if (this.englishValidationTimer) {
+      clearTimeout(this.englishValidationTimer);
+      this.englishValidationTimer = null;
+    }
+    this.validationGeneration = (this.validationGeneration || 0) + 1;
+    this._validationPromise = null;
+    this._clearValidationPresentationTimers();
+  },
+
+  clearAddDraft() {
+    if (this.addDraftTimer) {
+      clearTimeout(this.addDraftTimer);
+      this.addDraftTimer = null;
+    }
+    clearAddDraftStorage();
+    this._draftPersistedThisSession = false;
+    if (this.data.draftRestored) this.setData({ draftRestored: false });
+  },
+
+  discardDraft() {
+    this.clearAddDraft();
+    this.unsavedChanges = false;
+    if (typeof wx.disableAlertBeforeUnload === 'function') wx.disableAlertBeforeUnload();
+  },
+
+  markUnsaved() {
+    if (this.data.isReadonlyDetailMode || this.unsavedChanges) return;
+    this.unsavedChanges = true;
+    if (typeof wx.enableAlertBeforeUnload === 'function') wx.enableAlertBeforeUnload({ message: '内容还没保存，离开会丢失本次修改。' });
+  },
+
+  clearUnsaved() {
+    this.unsavedChanges = false;
+    if (typeof wx.disableAlertBeforeUnload === 'function') wx.disableAlertBeforeUnload();
+  },
+
   goBack() {
-    wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/index/index' }); } });
+    const leave = () => { this.clearUnsaved(); this.clearAddDraft(); wx.navigateBack({ fail() { wx.switchTab({ url: '/pages/index/index' }); } }); };
+    const isEmptyNewEntry = !this.data.isEdit && !this.data.isPassageEdit && !normalizeEnglishText(this.data.form.englishText);
+    if (isEmptyNewEntry) { leave(); return; }
+    if (!this.unsavedChanges) { leave(); return; }
+    wx.showModal({ title: '内容还没保存', content: '离开会丢失本次修改。', confirmText: '继续编辑', cancelText: '放弃修改', success: (result) => { if (result.cancel) leave(); } });
   },
 
   onLoad(options) {
@@ -1655,11 +1794,20 @@ Page({
         ...initialData,
         ...this.getDefaultFormState(discoveryPrefill)
       };
+      if (!discoveryPrefill || !discoveryPrefill.englishText) {
+        const draft = readAddDraft();
+        if (draft) initialData = { ...initialData, ...draft };
+      }
     }
 
     initialData.recentSources = buildRecentWhereEncounteredOptions();
     this.setData(initialData, () => {
       this.setNavigationTitle();
+
+      if (initialData.draftRestored) {
+        this.unsavedChanges = true;
+        if (typeof wx.enableAlertBeforeUnload === 'function') wx.enableAlertBeforeUnload({ message: '已恢复未保存内容，离开会丢失本次修改。' });
+      }
 
       const englishText = initialData.form && initialData.form.englishText
         ? initialData.form.englishText
@@ -1678,6 +1826,7 @@ Page({
   },
 
   onUnload() {
+    if (this.unsavedChanges) this.flushAddDraft();
     this.invalidatePendingAnalysis();
     this.abortActiveAnalysis();
     this._destroyEditAudio();
@@ -1690,6 +1839,10 @@ Page({
     if (this.englishValidationTimer) {
       clearTimeout(this.englishValidationTimer);
       this.englishValidationTimer = null;
+    }
+    if (this.pronunciationLookupTimer) {
+      clearTimeout(this.pronunciationLookupTimer);
+      this.pronunciationLookupTimer = null;
     }
 
     this.validationGeneration = (this.validationGeneration || 0) + 1;
@@ -1797,6 +1950,10 @@ Page({
   scheduleEnglishValidation(delayMs = ENGLISH_VALIDATION_DELAY_MS) {
     if (this.data.isReadonlyDetailMode || this.data.isLeavingPage) return;
     if (this.englishValidationTimer) clearTimeout(this.englishValidationTimer);
+    if (!normalizeEnglishText(this.data.form.englishText)) {
+      this.clearEnglishValidationForEdit();
+      return;
+    }
     const self = this;
     this.englishValidationTimer = setTimeout(function () {
       self.englishValidationTimer = null;
@@ -1821,7 +1978,9 @@ Page({
     const view = buildValidationView(response);
     const normalizedText = String(view.normalizedText || '');
     const textChangedByNormalization = normalizedText !== String(rawText || '');
-    const nextText = textChangedByNormalization ? normalizedText : String(rawText || '');
+    // A validation request is asynchronous. Never write its normalized value
+    // back into the live textarea: doing so can overwrite a newer keystroke.
+    const nextText = String(rawText || '');
     const backendCategory = String(view.category || '').trim().toLowerCase();
     const nextCategory = BACKEND_CATEGORY_FORM_MAP[backendCategory] || category;
     const patch = {
@@ -1840,10 +1999,6 @@ Page({
       englishValidationType: 'hint',
       isValidatingEnglish: false
     };
-
-    if (textChangedByNormalization) {
-      patch['form.englishText'] = nextText;
-    }
 
     if (nextCategory !== category) {
       patch['form.category'] = nextCategory;
@@ -1979,7 +2134,13 @@ Page({
     if (actionType !== 'switch_category' || !CARD_CATEGORIES.includes(category)) return;
     this.invalidatePendingAnalysis();
     this.abortActiveAnalysis();
-    this.clearEnglishValidationForEdit();
+    // Invalidate pending checks without clearing/redrawing the entire input
+    // state on every keystroke. The debounced check still runs after typing.
+    if (this.englishValidationTimer) {
+      clearTimeout(this.englishValidationTimer);
+      this.englishValidationTimer = null;
+    }
+    this.validationGeneration = (this.validationGeneration || 0) + 1;
     this.setData({
       categoryIndex: CARD_CATEGORIES.indexOf(category),
       'form.category': category,
@@ -2100,6 +2261,7 @@ Page({
   },
 
   clearTransientFeedbackBeforeLeave() {
+    this.clearUnsaved();
     this.invalidatePendingAnalysis();
 
     if (this.englishValidationTimer) {
@@ -2921,6 +3083,7 @@ Page({
   },
 
   onCategoryChange(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
     const categoryIndex = Number(event.detail.value) || 0;
     const category = CARD_CATEGORIES[categoryIndex] || CARD_CATEGORIES[0];
@@ -2958,7 +3121,10 @@ Page({
       isValidatingEnglish: false,
       isAnalyzing: false,
       translating: false
-    }, () => this.scheduleEnglishValidation());
+    }, () => {
+      this.persistAddDraft();
+      this.scheduleEnglishValidation();
+    });
   },
 
 
@@ -2966,13 +3132,30 @@ Page({
     if (this.data.isReadonlyDetailMode) return;
     const nextValue = event.detail.value;
     const normalizedNextText = normalizeEnglishText(nextValue);
+    const isEmptyNewEntry = !this.data.isEdit && !this.data.isPassageEdit && !normalizedNextText;
+    if (isEmptyNewEntry) this.clearUnsaved();
+    else this.markUnsaved();
     const previousText = normalizeEnglishText(this.data.form.englishText);
 
-    this.clearEnglishValidationForEdit();
+    this.invalidateEnglishValidationForInput();
 
     const nextData = {
       'form.englishText': nextValue,
-      aiServiceMessage: ''
+      aiServiceMessage: '',
+      validationStatus: 'idle',
+      validationIssues: [],
+      validationVisibleIssues: [],
+      validationHiddenCount: 0,
+      validationInputKey: '',
+      validationNormalizedText: '',
+      validationFormatMessage: '',
+      validationUnavailableMessage: '',
+      validationCanSave: null,
+      validationCanAnalyze: null,
+      validationCanPronounce: null,
+      englishValidationMessage: '',
+      englishValidationType: 'hint',
+      isValidatingEnglish: false
     };
     if (!this.data.isEdit || this.data.isPassageEdit) {
       nextData.isPassageMode = this.data.isPassageEdit || isPassageContent(nextValue);
@@ -3008,11 +3191,18 @@ Page({
       nextData.translating = false;
     }
 
-    this.setData(nextData, () => this.scheduleEnglishValidation());
+    this.setData(nextData, () => {
+      if (isEmptyNewEntry) {
+        this.clearAddDraft();
+        this.clearUnsaved();
+        this.clearEnglishValidationForEdit();
+      } else {
+        this.persistAddDraft();
+        this.scheduleEnglishValidation();
+      }
+    });
 
-    if (this.pronunciationController) {
-      this.pronunciationController.load(normalizedNextText);
-    }
+    this.schedulePronunciationLookup(normalizedNextText);
 
   },
 
@@ -3026,6 +3216,22 @@ Page({
     if (this.suggestionTimer) {
       clearTimeout(this.suggestionTimer);
       this.suggestionTimer = null;
+    }
+
+    if (this.pronunciationLookupTimer) {
+      clearTimeout(this.pronunciationLookupTimer);
+      this.pronunciationLookupTimer = null;
+    }
+    if (this.pronunciationController) {
+      const currentEnglishText = normalizeEnglishText(this.data.form.englishText);
+      if (currentEnglishText) this.pronunciationController.load(currentEnglishText);
+      else this.pronunciationController.reset();
+    }
+
+    if (!normalizeEnglishText(this.data.form.englishText)) {
+      this.clearEnglishValidationForEdit();
+      if (!this.data.isEdit && !this.data.isPassageEdit) this.clearUnsaved();
+      return;
     }
 
     this.ensureEnglishValidation({ force: false, trigger: 'blur' });
@@ -3059,10 +3265,11 @@ Page({
   },
 
   onUnderstandingInput(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
     this.setData({
       'form.myUnderstanding': event.detail.value
-    });
+    }, () => this.persistAddDraft());
     this.refreshReferenceApplied();
   },
 
@@ -3084,14 +3291,16 @@ Page({
   },
 
   onExampleSentenceInput(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
-    this.setData({ 'form.exampleSentence': event.detail.value });
+    this.setData({ 'form.exampleSentence': event.detail.value }, () => this.persistAddDraft());
     this.refreshReferenceApplied();
   },
 
   onExampleTranslationInput(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
-    this.setData({ 'form.exampleTranslation': event.detail.value });
+    this.setData({ 'form.exampleTranslation': event.detail.value }, () => this.persistAddDraft());
     this.refreshReferenceApplied();
   },
 
@@ -3158,6 +3367,7 @@ Page({
 
 
   onNotesInput(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
     this.setData({
       'form.notes': event.detail.value,
@@ -3165,7 +3375,7 @@ Page({
         this.data.aiExampleSentence,
         event.detail.value
       )
-    });
+    }, () => this.persistAddDraft());
     this.refreshReferenceApplied();
   },
 
@@ -3260,37 +3470,42 @@ Page({
   },
 
   onWhereEncounteredInput(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
     this.setData({
       'form.whereEncountered': event.detail.value
-    });
+    }, () => this.persistAddDraft());
   },
 
   onSourceSuggestionTap(event) {
+    this.markUnsaved();
     if (this.data.isReadonlyDetailMode) return;
     const value = String(event.currentTarget.dataset.value || '');
     if (!value) return;
-    this.setData({ 'form.whereEncountered': value });
+    this.setData({ 'form.whereEncountered': value }, () => this.persistAddDraft());
   },
 
 
   resetFormForContinuousAdd(savedForm) {
+    this.clearAddDraft();
+    this.clearUnsaved();
     this.invalidatePendingAnalysis();
     this.clearAnalysisTimers();
+    if (this.pronunciationLookupTimer) {
+      clearTimeout(this.pronunciationLookupTimer);
+      this.pronunciationLookupTimer = null;
+    }
+    if (this.pronunciationController && typeof this.pronunciationController.reset === 'function') {
+      this.pronunciationController.reset();
+    }
 
     const nextForm = {
       ...createEmptyForm(),
-      category: savedForm.category,
-      examScene: savedForm.examScene,
-      examModule: savedForm.examModule,
-      englishText: '',
-      whereEncountered: normalizePlainText(savedForm.whereEncountered || ''),
-      myUnderstanding: '',
-      notes: ''
+      whereEncountered: normalizePlainText(savedForm.whereEncountered || '')
     };
 
     this.setData({
-      categoryIndex: Math.max(CARD_CATEGORIES.indexOf(nextForm.category), 0),
+      categoryIndex: 0,
       inheritedContextText: '',
       hasUserChangedCategory: false,
       validationStatus: 'idle',
@@ -3313,6 +3528,7 @@ Page({
       autoFocusUnderstanding: false,
       isUnderstandingFocused: false,
       showNotesField: false,
+      showOptionalFields: false,
       validationResult: null,
       understandingSuggestion: '',
       understandingVisible: false,
@@ -3414,6 +3630,7 @@ Page({
       return saved;
     }
 
+    this.clearAddDraft();
     this.clearTransientFeedbackBeforeLeave();
     wx.showToast({
       title: isEdit ? '已更新' : '已保存',
@@ -3468,6 +3685,7 @@ Page({
       return savedCard;
     }
 
+    this.clearAddDraft();
     this.clearTransientFeedbackBeforeLeave();
 
     // Signal homepage that session may need restart (new cards added)
@@ -3716,21 +3934,7 @@ Page({
         };
       }
 
-      const analysisBackendPatch = {
-        analysis_status: analysisLocalPatch.analysisStatus,
-        analysis_level: getBackendAnalysisLevel(analysisLocalPatch),
-        analysis_messages: buildBackendAnalysisMessages(analysisLocalPatch)
-      };
-
-      try {
-        await updateBackendCard(cardId, analysisBackendPatch);
-      } catch (backendPatchError) {
-        console.warn('[add-save] backend analysis patch failed', backendPatchError);
-      }
-
-      // 閫氳繃 updateCard 鍚屾鏈湴 cardsCache
-      const mergedForm = { ...latestCard, ...analysisLocalPatch };
-      await updateCard(cardId, mergedForm);
+      await this.persistBackgroundAnalysisPatch(cardId, sourceText, analysisLocalPatch);
     } catch (error) {
       console.error('[add-save] background analyze failed:', error);
 
@@ -3752,24 +3956,65 @@ Page({
           analyzedAt: new Date().toISOString()
         };
 
-        const failedBackendPatch = {
-          analysis_status: 'failed',
-          analysis_level: getBackendAnalysisLevel(failedLocalPatch),
-          analysis_messages: buildBackendAnalysisMessages(failedLocalPatch)
-        };
-
-        try {
-          await updateBackendCard(cardId, failedBackendPatch);
-        } catch (backendPatchError) {
-          console.warn('[add-save] backend failed patch error', backendPatchError);
-        }
-
-        const mergedForm = { ...latestCard, ...failedLocalPatch };
-        await updateCard(cardId, mergedForm);
+        await this.persistBackgroundAnalysisPatch(cardId, sourceText, failedLocalPatch);
       } catch (updateError) {
         console.error('[add-save] mark analysis failed failed:', updateError);
       }
     }
+  },
+
+  async persistBackgroundAnalysisPatch(cardId, sourceText, analysisLocalPatch) {
+    const latestCard = await getCardById(cardId);
+    if (
+      !latestCard ||
+      normalizeEnglishText(latestCard.englishText) !== sourceText ||
+      latestCard.backend_sync_status !== 'synced' ||
+      String(latestCard.backend_card_id || '') !== String(cardId)
+    ) {
+      console.info('[add-save] background analysis discarded after card changed', cardId);
+      return false;
+    }
+
+    const analysisBackendPatch = {
+      base_version: Math.max(Number(latestCard.version || 1), 1),
+      analysis_status: analysisLocalPatch.analysisStatus,
+      analysis_level: getBackendAnalysisLevel(analysisLocalPatch),
+      analysis_messages: buildBackendAnalysisMessages(analysisLocalPatch)
+    };
+
+    let backendCard;
+    try {
+      backendCard = await updateBackendCard(cardId, analysisBackendPatch);
+    } catch (backendPatchError) {
+      if (Number(backendPatchError && backendPatchError.statusCode) === 409) {
+        console.info('[add-save] background analysis lost a version race; latest edit is preserved', cardId);
+        return false;
+      }
+      console.warn('[add-save] backend analysis patch failed; retaining an offline sync retry', backendPatchError);
+      const currentCard = await getCardById(cardId);
+      if (!currentCard || normalizeEnglishText(currentCard.englishText) !== sourceText) return false;
+      await updateCard(cardId, { ...currentCard, ...analysisLocalPatch });
+      return false;
+    }
+
+    const currentCard = await getCardById(cardId);
+    if (
+      !currentCard ||
+      normalizeEnglishText(currentCard.englishText) !== sourceText ||
+      currentCard.backend_sync_status !== 'synced'
+    ) {
+      console.info('[add-save] background analysis local merge skipped after a concurrent edit', cardId);
+      return false;
+    }
+
+    updateBackendCardSyncState(cardId, {
+      backend_sync_status: 'synced',
+      backend_synced_at: backendCard && backendCard.updated_at || new Date().toISOString(),
+      backend_sync_error: '',
+      version: backendCard && backendCard.version || currentCard.version,
+      ...analysisLocalPatch
+    });
+    return true;
   },
 
   async handleSubmitAndBack() {

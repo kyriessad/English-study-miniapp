@@ -13,6 +13,27 @@
   box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.06);
 }
 
+.draft-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin: 16rpx 0;
+  padding: 14rpx 18rpx;
+  border: 1rpx solid #cfe5d3;
+  border-radius: 14rpx;
+  background: #f1faf2;
+  color: #4d7658;
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.draft-notice .text-link {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 22rpx;
+}
+
 .meta-pills {
   display: flex;
   flex-wrap: wrap;
@@ -751,14 +772,6 @@
   padding-bottom: 0;
 }
 
-.label-subtitle {
-  margin-top: -4rpx;
-  margin-bottom: 14rpx;
-  font-size: 22rpx;
-  color: #a0a8a2;
-  line-height: 1.4;
-}
-
 /* ===== Phase 7J-1: 最近用过来源快捷标签 ===== */
 .recent-sources {
   display: flex;
@@ -967,10 +980,6 @@
 }
 
 /* Final add/edit surface: one continuous learning sheet instead of stacked cards. */
-page {
-  background: #edf6ea;
-}
-
 .add-page {
   min-height: 100vh;
   padding: 18rpx 28rpx 72rpx;
@@ -1035,6 +1044,10 @@ page {
   padding-top: 10rpx;
 }
 
+.add-page .form-item-context-primary {
+  padding-top: 24rpx;
+}
+
 .add-page .form-item-notes {
   border-bottom: 0;
 }
@@ -1051,12 +1064,6 @@ page {
 .add-page .label-row,
 .add-page .notes-label-row {
   margin-bottom: 4rpx;
-}
-
-.add-page .label-subtitle {
-  margin: 3rpx 0 8rpx;
-  color: #829084;
-  font-size: 21rpx;
 }
 
 .add-page .picker-field,
@@ -1369,7 +1376,6 @@ page {
 .add-page .meta-pill-text { color: #315543; }
 .add-page .form-item { border-bottom-color: rgba(56, 89, 69, .13); }
 .add-page .label { color: #315543; }
-.add-page .label-subtitle { color: #87978e; }
 .add-page .picker-field,
 .add-page .textarea { border-bottom-color: rgba(62, 94, 73, .24); color: #153729; }
 .add-page .textarea { background: rgba(255, 255, 255, .16); border-radius: 24rpx; padding: 16rpx 18rpx; }
@@ -1387,3 +1393,141 @@ page {
 .add-page .primary-btn { background: rgba(55, 105, 78, .86); box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .2), 0 14rpx 28rpx rgba(48, 83, 61, .12); }
 .add-page .secondary-btn { color: #315d48; background: rgba(255, 255, 255, .28); border-color: rgba(255, 255, 255, .8); }
 .add-page .danger-btn { color: #9d5f58; border-color: rgba(189, 111, 101, .48); background: rgba(255, 235, 232, .3); }
+
+.add-heading .add-heading-space { flex: 1; width: auto; min-width: 0; margin-right: 44px; text-align: center; white-space: nowrap; font-size: 32rpx; color: #173b2c; }
+.add-page .optional-fields-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 72rpx;
+  margin: 16rpx 0 4rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid rgba(74, 116, 88, .22);
+  border-radius: 20rpx;
+  color: #416854;
+  background: rgba(255, 255, 255, .24);
+  font-size: 23rpx;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+}
+.add-page .optional-fields-toggle::after { border: 0; }
+.optional-fields-chevron { margin-left: 16rpx; color: #789280; font-size: 32rpx; line-height: 1; }
+.add-page .form-item-context-primary { padding-top: 18rpx; }
+.add-page .textarea-understanding,
+.add-page .textarea-where-encountered {
+  min-height: 84rpx;
+  padding: 17rpx 18rpx;
+  border: 1rpx solid rgba(62, 94, 73, .16);
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, .28);
+}
+.add-page .textarea-understanding { min-height: 92rpx; }
+.add-page .textarea-where-encountered { min-height: 78rpx; }
+
+/* Compact, content-sized optional inputs. Native auto-height grows these as text wraps. */
+.add-page .form-item-example .textarea-resizable,
+.add-page .form-item-notes .textarea-resizable {
+  min-height: 76rpx;
+  padding: 12rpx 16rpx;
+  border: 1rpx solid rgba(67, 103, 77, .2);
+  border-radius: 18rpx;
+  background: rgba(220, 237, 222, .62);
+  box-shadow: none;
+  font-size: 28rpx;
+  line-height: 1.45;
+}
+
+.add-page .form-item-example .textarea-resizable:focus,
+.add-page .form-item-notes .textarea-resizable:focus {
+  border-color: rgba(59, 111, 76, .48);
+  background: rgba(218, 235, 219, .82);
+  box-shadow: 0 0 0 3rpx rgba(73, 126, 89, .08);
+}
+
+.add-page .add-heading {
+  padding-top: 14rpx;
+  margin-bottom: 14rpx;
+}
+
+/* Keep the ambient illustration visible and make the form feel like light glass. */
+.page.liquid-theme-page.add-page {
+  background: transparent;
+}
+
+.page.liquid-theme-page .form-card {
+  border-color: rgba(255, 255, 255, .48);
+  background: linear-gradient(145deg, rgba(250, 255, 251, .2), rgba(237, 248, 241, .08) 56%, rgba(219, 239, 226, .16));
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .36), 0 16rpx 36rpx rgba(35, 73, 50, .08);
+  -webkit-backdrop-filter: blur(1px) saturate(1.06);
+  backdrop-filter: blur(1px) saturate(1.06);
+}
+
+.add-page .form-item {
+  padding: 15rpx 0 17rpx;
+  border-bottom-color: rgba(56, 89, 69, .1);
+}
+
+.add-page .form-item-english { padding-top: 7rpx; }
+.add-page .form-item-context-primary { padding-top: 14rpx; }
+
+.page.liquid-theme-page .textarea-english,
+.page.liquid-theme-page .textarea-understanding,
+.page.liquid-theme-page .textarea-where-encountered {
+  padding: 9rpx 13rpx;
+  border: 1rpx solid rgba(255, 255, 255, .52);
+  border-radius: 17rpx;
+  background: rgba(232, 246, 236, .16);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .2);
+}
+
+.page.liquid-theme-page .textarea-english { min-height: 78rpx; }
+.page.liquid-theme-page .textarea-understanding { min-height: 70rpx; }
+.page.liquid-theme-page .textarea-where-encountered { min-height: 70rpx; }
+
+.add-page .form-item-example { padding-bottom: 17rpx; }
+.add-page .example-pair {
+  padding: 8rpx 15rpx 7rpx;
+  border: 1rpx solid rgba(255, 255, 255, .58);
+  border-radius: 19rpx;
+  background: rgba(230, 244, 234, .2);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .28);
+}
+
+.add-page .example-pair .textarea {
+  display: block;
+  min-height: 48rpx;
+  padding: 6rpx 1rpx;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 1.4;
+}
+
+.add-page .example-pair-english {
+  color: #213d2e;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 29rpx;
+}
+
+.add-page .example-pair-translation {
+  min-height: 42rpx !important;
+  color: #718278;
+  font-size: 24rpx;
+}
+
+.add-page .example-pair-divider {
+  height: 1rpx;
+  margin: 2rpx 0;
+  background: rgba(65, 99, 75, .12);
+}
+
+.add-page .form-item-notes .textarea-resizable {
+  min-height: 68rpx;
+  padding: 9rpx 13rpx;
+  border: 1rpx solid rgba(255, 255, 255, .5);
+  border-radius: 17rpx;
+  background: rgba(232, 246, 236, .14);
+}

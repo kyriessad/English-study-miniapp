@@ -6,6 +6,7 @@ let pageDefinition = null;
 let navigationUrl = '';
 
 global.wx = {
+  getWindowInfo() { return { statusBarHeight: 20, windowWidth: 375 }; },
   getStorageSync(key) { return storage.get(key) || ''; },
   setStorageSync(key, value) { storage.set(key, value); },
   removeStorageSync(key) { storage.delete(key); },

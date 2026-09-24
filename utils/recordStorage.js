@@ -566,6 +566,25 @@ function buildBackendAnalysisMessagesFromLocal(card = {}) {
     .filter(Boolean);
 }
 
+function buildBackendEncounterPayloads(encounters) {
+  if (!Array.isArray(encounters)) return [];
+  return encounters.map((encounter) => {
+    const source = encounter || {};
+    const whereEncountered = trimValue(source.where_encountered || source.whereEncountered || '');
+    if (!whereEncountered) return null;
+
+    const payload = { where_encountered: whereEncountered };
+    const id = trimValue(source.id || '');
+    if (id) payload.id = id;
+    if (source.context !== undefined && source.context !== null) {
+      payload.context = trimValue(source.context);
+    }
+    const encounteredAt = source.encountered_at || source.encounteredAt;
+    if (encounteredAt) payload.encountered_at = encounteredAt;
+    return payload;
+  }).filter(Boolean);
+}
+
 function buildBackendCardCreatePayload(form = {}) {
   const fields = buildCardFields(form, {});
   const localTempId = trimValue(form.local_temp_id || form.localTempId || '') || createLocalTempId();
@@ -583,7 +602,7 @@ function buildBackendCardCreatePayload(form = {}) {
     add_channel: trimValue(fields.addChannel || fields.sourceChannel || '') || 'manual',
     public_material_item_id: fields.publicMaterialItemId || null,
     source_wordbook_id: fields.sourceWordbookId || null,
-    encounters: Array.isArray(fields.encounters) ? fields.encounters : [],
+    encounters: buildBackendEncounterPayloads(fields.encounters),
     translation: trimValue(fields.translation) || null,
     analysis_status: trimValue(fields.analysisStatus) || 'pending',
     analysis_level: getBackendAnalysisLevelFromLocal(fields),
@@ -611,7 +630,7 @@ function buildBackendCardPatchPayload(form = {}, fallbackCard = {}) {
     add_channel: trimValue(fields.addChannel || fields.sourceChannel || '') || 'manual',
     public_material_item_id: fields.publicMaterialItemId || null,
     source_wordbook_id: fields.sourceWordbookId || null,
-    encounters: Array.isArray(fields.encounters) ? fields.encounters : [],
+    encounters: buildBackendEncounterPayloads(fields.encounters),
     translation: trimValue(fields.translation) || null
   };
 }
@@ -1781,6 +1800,26 @@ async function addCard(form) {
   }
 }
 
+function backendEditFieldsMatchLocal(backendCard, localCard) {
+  const latest = normalizeBackendCardToLocal(backendCard, localCard);
+  const editableFields = [
+    'englishText',
+    'category',
+    'myUnderstanding',
+    'notes',
+    'whereEncountered',
+    'exampleSentence',
+    'exampleTranslation',
+    'participatesInReview',
+    'addChannel',
+    'publicMaterialItemId',
+    'sourceWordbookId',
+    'encounters',
+    'translation'
+  ];
+  return editableFields.every((field) => JSON.stringify(latest[field]) === JSON.stringify(localCard[field]));
+}
+
 async function updateCard(cardId, form) {
   const currentCards = getStoredCardsRaw();
   const currentCard = getCardByIdFromCards(cardId, currentCards);
@@ -1861,8 +1900,42 @@ async function updateCard(cardId, form) {
     const localCard = normalizeBackendCardToLocal(backendCard, currentCard);
     return upsertCachedCard(localCard);
   } catch (patchError) {
-    if (isBackendEnglishValidationError(patchError)) {
+    const conflictDetail = patchError && patchError.data && patchError.data.detail;
+    const serverCard = conflictDetail && conflictDetail.code === 'card_version_conflict'
+      ? conflictDetail.server_card
+      : null;
+    let syncError = patchError;
+
+    // A background analysis update can advance the backend version without
+    // changing the fields the user edited. Refresh that safe version bump and
+    // retry once; a real concurrent edit is surfaced instead of overwritten.
+    if (
+      Number(patchError && patchError.statusCode) === 409 &&
+      serverCard &&
+      backendEditFieldsMatchLocal(serverCard, currentCard)
+    ) {
+      const latestBackendCard = normalizeBackendCardToLocal(serverCard, currentCard);
+      const retryPayload = buildBackendCardPatchPayload(form, latestBackendCard);
+      retryPayload.base_version = latestBackendCard.version;
+      try {
+        const retriedBackendCard = await updateBackendCard(cardId, retryPayload);
+        const latestFormFields = buildCardFields(form, currentCard);
+        return upsertCachedCard(normalizeBackendCardToLocal(retriedBackendCard, {
+          ...currentCard,
+          ...latestFormFields
+        }));
+      } catch (retryError) {
+        if (isBackendEnglishValidationError(retryError) || Number(retryError && retryError.statusCode) === 409) {
+          throw retryError;
+        }
+        syncError = retryError;
+      }
+    } else if (Number(patchError && patchError.statusCode) === 409) {
       throw patchError;
+    }
+
+    if (isBackendEnglishValidationError(syncError)) {
+      throw syncError;
     }
     // PATCH failed (offline) — preserve edits locally, mark pending so flush can retry
     const latestFormFields = buildCardFields(form, currentCard);
@@ -1871,7 +1944,7 @@ async function updateCard(cardId, form) {
       ...latestFormFields,
       backend_sync_status: BACKEND_SYNC_STATUS_PENDING,
       backend_synced_at: '',
-      backend_sync_error: formatBackendSyncErrorText(patchError),
+      backend_sync_error: formatBackendSyncErrorText(syncError),
       updatedAt: Date.now()
     });
     upsertCachedCard(localCard);
@@ -1904,6 +1977,31 @@ function updateBackendCardSyncState(cardId, updates = {}) {
 
   if (Object.prototype.hasOwnProperty.call(updates, 'backend_sync_error')) {
     normalizedUpdates.backend_sync_error = trimValue(updates.backend_sync_error || '');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'version')) {
+    normalizedUpdates.version = Math.max(Number(updates.version || 1), 1);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analysisStatus')) {
+    normalizedUpdates.analysisStatus = normalizeAnalysisStatus(updates.analysisStatus);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analysisWarnings')) {
+    normalizedUpdates.analysisWarnings = normalizeStringArray(updates.analysisWarnings);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analysisErrors')) {
+    normalizedUpdates.analysisErrors = normalizeStringArray(updates.analysisErrors);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analysisSource')) {
+    normalizedUpdates.analysisSource = trimValue(updates.analysisSource || '');
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'understandingSource')) {
+    normalizedUpdates.understandingSource = trimValue(updates.understandingSource || '');
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analyzeCacheKey')) {
+    normalizedUpdates.analyzeCacheKey = trimValue(updates.analyzeCacheKey || '');
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'analyzedAt')) {
+    normalizedUpdates.analyzedAt = toIsoString(updates.analyzedAt);
   }
 
   const nextCards = currentCards.map((card) => {

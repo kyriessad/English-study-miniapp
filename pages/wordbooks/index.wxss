@@ -50,18 +50,18 @@
 .book-footer-note,.book-footer { margin:22rpx 14rpx 0; padding-top:20rpx; border-top:1rpx solid #cbdac7; color:#607564; font-size:23rpx; }
 
 /* Liquid theme final layer */
-.books-page { min-height: 100vh; padding: 30rpx 28rpx calc(100rpx + env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: auto; background: transparent; box-sizing: border-box; }
+.books-page { height: 100vh; min-height: 0; padding: 30rpx 28rpx calc(100rpx + env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: scroll; -webkit-overflow-scrolling: touch; background: transparent; box-sizing: border-box; }
 .books-page .subpage-top { margin: 0; }
 .books-page .page-title { color: #153729; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 46rpx; font-weight: 400; }
-.books-page .page-subtitle { color: #687c71; }
 .books-page .back { color: #315d48; background: rgba(255, 255, 255, .32); border-color: rgba(255, 255, 255, .8); }
 .books-page .search-wrap { border-color: rgba(255, 255, 255, .82); background: rgba(255, 255, 255, .32); }
 .books-page .search-placeholder { color: #687c71; }
-.books-page .book-list { margin-top: 24rpx; }
-.books-page .book-card { min-height: 154rpx; margin-bottom: 16rpx; padding: 22rpx 26rpx; border-radius: 34rpx; border-color: rgba(255, 255, 255, .82); background: rgba(255, 255, 255, .34); box-shadow: inset 0 2rpx 0 rgba(255, 255, 255, .72), 0 12rpx 30rpx rgba(49, 84, 62, .05); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.books-page .book-list { margin-top: 30rpx; }
+.books-page .book-card { min-height: 154rpx; margin-bottom: 18rpx; padding: 24rpx 26rpx; border-radius: 34rpx; border-color: rgba(255, 255, 255, .58); background: rgba(239, 248, 241, .22); box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .42), 0 10rpx 24rpx rgba(49, 84, 62, .035); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .books-page .book-cover { width: 104rpx; height: 126rpx; border-radius: 26rpx; background: linear-gradient(145deg, rgba(118, 153, 128, .82), rgba(65, 109, 82, .86)) !important; }
 .books-page .book-cover-mark { color: #fff; font-family: Baskerville, "Palatino Linotype", Georgia, serif; font-size: 26rpx; }
 .books-page .book-title { color: #153729; font-size: 29rpx; font-weight: 600; }
 .books-page .book-meta { color: #687c71; }
 .books-page .book-arrow { color: #47765d; }
-.books-page .book-footer-note { color: #87978e; }
+.wordbooks-shell { height: 100vh; min-height: 0; overflow: hidden; }
+.wordbooks-shell .books-page { position: relative; z-index: 1; background: transparent; }

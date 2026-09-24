@@ -30,7 +30,6 @@ page .liquid-theme-page {
   box-sizing: border-box;
   color: #153729;
   background-color: #e7f1ea;
-  background-image: url('assets/home/home-ambient-v6.jpg');
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
@@ -48,6 +47,23 @@ page .liquid-theme-page > .theme-ambient-image {
   opacity: 1;
   pointer-events: none;
 }
+
+page .liquid-theme-page .quick-home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1rpx solid rgba(255, 255, 255, .82);
+  border-radius: 50%;
+  background: rgba(238, 249, 242, .42);
+}
+page .liquid-theme-page .quick-home::after { border: 0; }
+page .liquid-theme-page .quick-home-icon { width: 32rpx; height: 32rpx; }
 
 page .liquid-theme-page::before,
 page .liquid-theme-page::after {
@@ -623,8 +639,7 @@ page .liquid-theme-page .about-contact-btn {
 page .liquid-theme-page {
   min-height: 100vh;
   box-sizing: border-box;
-  background-color: transparent;
-  background-image: url('assets/home/home-ambient-v6.jpg');
+  background-color: #e7f1ea;
   background-repeat: no-repeat;
   background-position: center top;
   background-size: cover;
@@ -758,4 +773,47 @@ page .liquid-theme-page .manage-button {
   background: transparent !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+}
+
+/* Product audit: glass frames the interface; quiet paper supports reading. */
+page .liquid-theme-page .review-home-card,
+page .liquid-theme-page .option:not(.option-correct):not(.option-wrong),
+page .liquid-theme-page .review-example,
+page .liquid-theme-page .form-card,
+page .liquid-theme-page .material-card,
+page .liquid-theme-page .recap-card {
+  background: rgba(245, 251, 247, .5) !important;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .42), 0 10rpx 26rpx rgba(35, 67, 48, .04);
+}
+page .liquid-theme-page .library-item-front { background: rgba(242, 248, 244, .52) !important; }
+page .liquid-theme-page .library-item-front.library-item-swiped { background: rgba(245, 250, 246, .94) !important; }
+page .liquid-theme-page .back, page .liquid-theme-page .close-button,
+page .liquid-theme-page .discover-back, page .liquid-theme-page .add-back,
+page .liquid-theme-page .sound-btn, page .liquid-theme-page .original-pronunciation-btn,
+page .liquid-theme-page .example-pronunciation-btn { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+page .liquid-theme-page .filter-tab, page .liquid-theme-page .pack-pill,
+page .liquid-theme-page .manage-button, page .liquid-theme-page .text-link,
+page .liquid-theme-page .play-toggle, page .liquid-theme-page .sentence-add { min-height: 44px; box-sizing: border-box; }
+page .liquid-theme-page .filter-tab, page .liquid-theme-page .pack-pill { display: flex; align-items: center; justify-content: center; }
+page .liquid-theme-page .action, page .liquid-theme-page .primary-btn { min-height: 44px; }
+page .liquid-theme-page .textarea { font-size: 30rpx; line-height: 1.6; }
+page .liquid-theme-page .textarea:focus { border-bottom: 2rpx solid #47765d; }
+page .liquid-theme-page .option-text, page .liquid-theme-page .detail-en,
+page .liquid-theme-page .review-en, page .liquid-theme-page .sentence-en { overflow-wrap: break-word; word-break: break-word; }
+page .flow-note { margin-top: 16rpx; color: #526a5b; font-size: 24rpx; line-height: 1.6; }
+page .review-recovery { padding: 24rpx; margin: 20rpx 0; border: 1rpx solid #c7968e; border-radius: 24rpx; color: #843f35; background: #fff6f3; font-size: 28rpx; line-height: 1.5; }
+page .liquid-theme-page button[disabled] { opacity: .6; }
+page .liquid-theme-page .option[disabled] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { page .tab-enter.is-in, page .pressable { animation: none; transition: none; } }
+
+page .liquid-theme-page .text-link { background: transparent; border: 0; color: #38634c; font-size: 27rpx; line-height: 1.5; padding: 16rpx 20rpx; }
+page .liquid-theme-page .text-link::after { border: 0; }
+page .liquid-theme-page.core-status { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20rpx; padding-right: 32rpx; padding-left: 32rpx; min-height: 100vh; font-size: 29rpx; text-align: center; }
+
+/* Keep the add form translucent over the shared ambient artwork. */
+page .liquid-theme-page.add-page .form-card {
+  background: linear-gradient(145deg, rgba(250, 255, 251, .1), rgba(237, 248, 241, .035) 56%, rgba(219, 239, 226, .08)) !important;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, .3), 0 14rpx 30rpx rgba(35, 73, 50, .055) !important;
+  -webkit-backdrop-filter: blur(1px) saturate(1.06);
+  backdrop-filter: blur(1px) saturate(1.06);
 }
